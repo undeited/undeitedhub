@@ -4,61 +4,6 @@ local config = bandithub.Config
 
 local CombatTab = bandithub.Window:Tab({ Title = "Combat" })
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local aero = ReplicatedStorage:FindFirstChild("Aero")
-local aeroRemoteServices = aero and aero:FindFirstChild("AeroRemoteServices")
-local gameService = aeroRemoteServices and aeroRemoteServices:FindFirstChild("GameService")
-local AttackStart = gameService and gameService:FindFirstChild("WeaponAttackStart")
-local AnimComplete = gameService and gameService:FindFirstChild("WeaponAnimComplete")
-
-local remotesExist = AttackStart and AnimComplete
-
-if not remotesExist then
-    pcall(function()
-        CombatTab:Section({
-            Title = "Unavailable",
-            Description = "This game does not support auto-swing or other combat features.",
-        })
-    end)
-else
-    local autoSwingEnabled = bandithub.Toggles.AutoSwing or false
-    local lastSwingTime = 0
-    local SWING_COOLDOWN = 0.1
-
-    local function SwingWeapon()
-        AttackStart:FireServer()
-        AnimComplete:FireServer()
-    end
-
-    game:GetService("RunService").Heartbeat:Connect(function()
-        if autoSwingEnabled and _G.BANDITHUB_WINDOW_VISIBLE then
-            local now = tick()
-            if now - lastSwingTime >= SWING_COOLDOWN then
-                lastSwingTime = now
-                pcall(SwingWeapon)
-            end
-        end
-    end)
-
-    CombatTab:Toggle({
-        Title = "Auto Swing",
-        Value = autoSwingEnabled,
-        Callback = function(state)
-            autoSwingEnabled = state
-            bandithub.Toggles.AutoSwing = state
-            if bandithub.SaveSettings then bandithub.SaveSettings() end
-            WindUI:Notify({
-                Title = "Auto Swing",
-                Content = state and "Enabled" or "Disabled",
-                Duration = 2,
-            })
-            if state then
-                lastSwingTime = tick()
-            end
-        end
-    })
-end
-
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -90,7 +35,7 @@ task.spawn(function()
         silentAimConfig.Distance = 28
         WindUI:Notify({
             Title = "Silent Aim",
-            Content = "Distance set to 28 (no gamepass).",
+            Content = "No gamepass detected! Distance set to 28.",
             Duration = 3,
         })
     end
@@ -210,10 +155,6 @@ local oldDisable = bandithub.DisableAll
 bandithub.DisableAll = function()
     silentAimConfig.Enabled = false
     bandithub.Toggles.SilentAim = false
-    if remotesExist then
-        autoSwingEnabled = false
-        bandithub.Toggles.AutoSwing = false
-    end
     if bandithub.SaveSettings then bandithub.SaveSettings() end
     oldDisable()
 end
