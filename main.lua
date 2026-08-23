@@ -1,4 +1,4 @@
-local BASE_URL = "https://raw.githubusercontent.com/crimiv/bandithub/main/"
+local BASE_URL = "https://raw.githubusercontent.com/ObsidianFW/bandithub/main/"
 
 local function HttpGet(url)
     if game and type(game.HttpGet) == "function" then
