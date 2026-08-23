@@ -15,11 +15,15 @@ local AnimComplete = gameService and gameService:FindFirstChild("WeaponAnimCompl
 local remotesExist = AttackStart and AnimComplete
 
 if not remotesExist then
-    WindUI:Notify({
-        Title = "Combat",
-        Content = "Required remote events not found. Auto Swing disabled.",
-        Duration = 4,
+    CombatTab:Label({
+        Title = "Combat features are not available in this game.",
     })
+    pcall(function()
+        CombatTab:Section({
+            Title = "Unavailable",
+            Description = "This game does not support auto-swing or other combat features.",
+        })
+    end)
 else
     local autoSwingEnabled = bandithub.Toggles.AutoSwing or false
     local lastSwingTime = 0

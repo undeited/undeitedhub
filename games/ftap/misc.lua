@@ -21,26 +21,31 @@ MiscTab:Button({
     Title = "Delete All Toys",
     Callback = function()
         local success, err = pcall(function()
+            local Players = game:GetService("Players")
             local ReplicatedStorage = game:GetService("ReplicatedStorage")
             local Workspace = game:GetService("Workspace")
+            local player = Players.LocalPlayer
+            if not player then
+                SafeNotify({ Title = "Error", Content = "Local player not found", Duration = 2 })
+                return
+            end
+
             local destroyRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("DestroyToy")
 
-            local folders = {}
-            for _, child in ipairs(Workspace:GetChildren()) do
-                if child:IsA("Folder") and child.Name:match("SpawnedInToys$") then
-                    table.insert(folders, child)
-                end
+            local playerFolderName = player.Name .. "SpawnedInToys"
+            local playerFolder = Workspace:FindFirstChild(playerFolderName)
+            if not playerFolder then
+                SafeNotify({ Title = "Delete Toys", Content = "No toys found for you.", Duration = 2 })
+                return
             end
 
             local toys = {}
-            for _, folder in ipairs(folders) do
-                for _, obj in ipairs(folder:GetDescendants()) do
-                    table.insert(toys, obj)
-                end
+            for _, obj in ipairs(playerFolder:GetDescendants()) do
+                table.insert(toys, obj)
             end
 
             if #toys == 0 then
-                SafeNotify({ Title = "Delete Toys", Content = "No toys found.", Duration = 2 })
+                SafeNotify({ Title = "Delete Toys", Content = "No toys found in your folder.", Duration = 2 })
                 return
             end
 
@@ -50,14 +55,14 @@ MiscTab:Button({
                         destroyRemote:FireServer(toy)
                     end)
                 end
-                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " toys via remote.", Duration = 2 })
+                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys via remote.", Duration = 2 })
             else
                 for _, toy in ipairs(toys) do
                     pcall(function()
                         toy:Destroy()
                     end)
                 end
-                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " toys locally.", Duration = 2 })
+                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys locally.", Duration = 2 })
             end
         end)
         if not success then
