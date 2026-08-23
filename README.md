@@ -13,5 +13,5 @@ Just a basic script hub with a bunch of upcoming supported games. I made this sc
 ### Loadstring
 
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ObsidianFW/bandithub/main/main.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimivW/bandithub/main/main.lua"))()
 ```
