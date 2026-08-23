@@ -247,36 +247,6 @@ MiscTab:Button({
     end
 })
 
-local function LoadSimpleSpy(url)
-    local success, result = pcall(function()
-        local script = HttpGet(url)
-        if not script then error("Unsupported executor: missing game:HttpGet or game:HttpGetAsync") end
-        local fn, err = LoadString(script, url)
-        if not fn then error(err or "Failed to load Simple Spy") end
-        return fn()
-    end)
-    if not success then
-        WindUI:Notify({
-            Title = "Error",
-            Content = "Failed to load Simple Spy. Check your connection.",
-            Duration = 4,
-        })
-    else
-        WindUI:Notify({
-            Title = "Simple Spy Loaded",
-            Content = "Simple Spy loaded successfully.",
-            Duration = 3,
-        })
-    end
-end
-
-MiscTab:Button({
-    Title = "Load Simple Spy",
-    Callback = function()
-        LoadSimpleSpy("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/SimpleSpyRework.luau")
-    end
-})
-
 MiscTab:Button({
     Title = "Load Hydroxide",
     Callback = function()
