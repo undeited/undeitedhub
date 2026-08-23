@@ -160,6 +160,7 @@ end
 
 LoadScript("games/ftap/esp.lua")
 LoadScript("games/ftap/combat.lua")
+LoadScript("games/ftap/misc.lua")
 LoadScript("games/ftap/troll.lua")
 LoadScript("games/ftap/autofarm.lua")
 LoadScript("shared/settings.lua")
