@@ -16,7 +16,7 @@ local targetPosition = nil
 
 local silentAimConfig = {
     Enabled = bandithub.Toggles.SilentAim or false,
-    TargetMode = bandithub.Toggles.SilentAimTargetMode or "cursor",
+    TargetMode = bandithub.Toggles.SilentAimTargetMode or "center",
     Distance = 28,
 }
 
@@ -35,7 +35,7 @@ task.spawn(function()
         silentAimConfig.Distance = 28
         WindUI:Notify({
             Title = "Silent Aim",
-            Content = "No gamepass detected! Distance set to 28.",
+            Content = "Gamepass not detected! Distance set to 28.",
             Duration = 3,
         })
     end
