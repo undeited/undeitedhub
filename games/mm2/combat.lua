@@ -162,6 +162,30 @@ local function GetPlayerGun()
     return nil
 end
 
+local function EquipGun()
+    local localPlayer = game.Players.LocalPlayer
+    if not localPlayer then return false end
+    local gun = GetPlayerGun()
+    if not gun then return false end
+
+    local char = localPlayer.Character
+    if not char then return false end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return false end
+
+    if gun.Parent == char then
+        return true
+    end
+
+    if gun.Parent == localPlayer:FindFirstChild("Backpack") then
+        humanoid:EquipTool(gun)
+        task.wait(0.1)
+        return true
+    end
+
+    return false
+end
+
 local function KillAll()
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
@@ -323,6 +347,12 @@ local function ShootMurdererOnce()
         SafeNotify({ Title = "Shoot Murderer", Content = "Not alive or round inactive", Duration = 2 })
         return false
     end
+
+    if not EquipGun() then
+        SafeNotify({ Title = "Shoot Murderer", Content = "Could not equip gun. Ensure you have a gun.", Duration = 2 })
+        return false
+    end
+
     local gun = GetPlayerGun()
     if not gun then
         SafeNotify({ Title = "Shoot Murderer", Content = "You don't have a gun!", Duration = 2 })
@@ -402,6 +432,9 @@ local function ShootAtMurderer()
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
     if not IsRoundActive() or not IsPlayerAlive() or IsInLobby() then return end
+
+    if not EquipGun() then return end
+
     local gun = GetPlayerGun()
     if not gun then return end
     local shootRemote = GetShootRemote()
