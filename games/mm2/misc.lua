@@ -411,6 +411,21 @@ local function StrongAntiFling()
     local currentVel = root.Velocity
     local speed = currentVel.Magnitude
 
+    local state = humanoid:GetState()
+    local isJumpingOrFalling = (state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall)
+
+    if isJumpingOrFalling then
+        local horizontalVel = Vector3.new(currentVel.X, 0, currentVel.Z)
+        local vertVel = math.abs(currentVel.Y)
+        if horizontalVel.Magnitude < 30 and vertVel > 10 then
+            lastSafePosition = currentPos
+            positionHistory = {}
+            flingDetected = false
+            recoveryMode = false
+            return
+        end
+    end
+
     table.insert(positionHistory, currentPos)
     if #positionHistory > 5 then table.remove(positionHistory, 1) end
 
