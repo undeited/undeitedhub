@@ -40,8 +40,10 @@ MiscTab:Button({
             end
 
             local toys = {}
-            for _, obj in ipairs(playerFolder:GetDescendants()) do
-                table.insert(toys, obj)
+            for _, child in ipairs(playerFolder:GetChildren()) do
+                if child:IsA("Model") or child:IsA("BasePart") then
+                    table.insert(toys, child)
+                end
             end
 
             if #toys == 0 then
