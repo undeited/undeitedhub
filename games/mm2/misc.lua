@@ -557,10 +557,116 @@ MiscTab:Toggle({
 
 SetupAntiFling()
 
+local noclipEnabled = bandithub.Toggles.noclipEnabled or false
+local noclipLoopTask = nil
+
+local function KeepOnFloor(character)
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+    local origin = root.Position
+    local direction = Vector3.new(0, -50, 0)
+    local result = workspace:Raycast(origin, direction, raycastParams)
+
+    if result then
+        local floorY = result.Position.Y
+        local currentY = root.Position.Y
+        local offset = 1.5
+        if currentY < floorY + offset then
+            local newPos = Vector3.new(root.Position.X, floorY + offset, root.Position.Z)
+            root.CFrame = CFrame.new(newPos)
+            root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
+            root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+        end
+    else
+    end
+end
+
+local function SetNoclipCollision(state)
+    local localPlayer = game.Players.LocalPlayer
+    if not localPlayer then return end
+    local character = localPlayer.Character
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            pcall(function()
+                part.CanCollide = not state
+            end)
+        end
+    end
+end
+
+local function StartNoclipLoop()
+    if noclipLoopTask then return end
+    noclipLoopTask = task.spawn(function()
+        while noclipEnabled do
+            if _G.BANDITHUB_WINDOW_VISIBLE then
+                local localPlayer = game.Players.LocalPlayer
+                local character = localPlayer and localPlayer.Character
+                if character then
+                    for _, part in ipairs(character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            pcall(function()
+                                part.CanCollide = false
+                            end)
+                        end
+                    end
+                    pcall(KeepOnFloor, character)
+                end
+            end
+            task.wait(0.08)
+        end
+        noclipLoopTask = nil
+    end)
+end
+
+local function StopNoclipLoop()
+    if noclipLoopTask then
+        task.cancel(noclipLoopTask)
+        noclipLoopTask = nil
+    end
+    local localPlayer = game.Players.LocalPlayer
+    local character = localPlayer and localPlayer.Character
+    if character then
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                pcall(function()
+                    part.CanCollide = true
+                end)
+            end
+        end
+    end
+end
+
+local function ToggleNoclip(state)
+    noclipEnabled = state
+    bandithub.Toggles.noclipEnabled = state
+    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    if state then
+        StartNoclipLoop()
+        WindUI:Notify({ Title = "Noclip", Content = "Enabled (floor protection active)", Duration = 2 })
+    else
+        StopNoclipLoop()
+        WindUI:Notify({ Title = "Noclip", Content = "Disabled", Duration = 2 })
+    end
+end
+
+MiscTab:Toggle({
+    Title = "Noclip",
+    Value = noclipEnabled,
+    Callback = function(state)
+        ToggleNoclip(state)
+    end
+})
+
 bandithub.DisableAll = function()
     antiFlingEnabled = false
     bandithub.Toggles.antiFlingEnabled = false
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
     if antiFlingHeartbeat then
         antiFlingHeartbeat:Disconnect()
         antiFlingHeartbeat = nil
@@ -578,4 +684,11 @@ bandithub.DisableAll = function()
             hum.JumpPower = 50
         end
     end
+
+    if noclipEnabled then
+        StopNoclipLoop()
+        noclipEnabled = false
+        bandithub.Toggles.noclipEnabled = false
+    end
+    if bandithub.SaveSettings then bandithub.SaveSettings() end
 end
