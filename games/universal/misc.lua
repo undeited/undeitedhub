@@ -277,36 +277,6 @@ MiscTab:Button({
     end
 })
 
-local function LoadCobalt(url)
-    local success, result = pcall(function()
-        local script = HttpGet(url)
-        if not script then error("Unsupported executor: missing game:HttpGet or game:HttpGetAsync") end
-        local fn, err = LoadString(script, url)
-        if not fn then error(err or "Failed to load Cobalt") end
-        return fn()
-    end)
-    if not success then
-        WindUI:Notify({
-            Title = "Error",
-            Content = "Failed to load Cobalt. Check your connection.",
-            Duration = 4,
-        })
-    else
-        WindUI:Notify({
-            Title = "Cobalt Loaded",
-            Content = "Cobalt loaded successfully.",
-            Duration = 3,
-        })
-    end
-end
-
-MiscTab:Button({
-    Title = "Load Cobalt",
-    Callback = function()
-        LoadCobalt("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau")
-    end
-})
-
 MiscTab:Button({
     Title = "Load Hydroxide",
     Callback = function()

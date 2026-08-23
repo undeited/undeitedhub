@@ -118,7 +118,7 @@ LoadSettings()
 bandithub.ToggleKey = bandithub.ToggleKey or config.toggleKey or "K"
 
 local Window = WindUI:CreateWindow({
-    Title = "bandithub",
+    Title = "Bandit Hub",
     Author = "by coolio",
     Folder = "bandithub/" .. GAME_FOLDER,
     Size = UDim2.fromOffset(580, 460),
