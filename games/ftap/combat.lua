@@ -17,6 +17,7 @@ local targetPosition = nil
 local silentAimConfig = {
     Enabled = bandithub.Toggles.SilentAim or false,
     TargetMode = bandithub.Toggles.SilentAimTargetMode or "center",
+    TargetPlayer = bandithub.Toggles.SilentAimTargetPlayer or "None",
     Distance = 28,
 }
 
@@ -35,7 +36,7 @@ task.spawn(function()
         silentAimConfig.Distance = 28
         WindUI:Notify({
             Title = "Silent Aim",
-            Content = "Gamepass not detected! Distance set to 28.",
+            Content = "Gamepass not owned. Distance set to 28.",
             Duration = 3,
         })
     end
@@ -60,24 +61,36 @@ local function updateTarget()
     local minScreenDist = math.huge
     local distanceLimit = silentAimConfig.Distance
 
+    local targetPlayer = nil
+    if silentAimConfig.TargetPlayer ~= "None" then
+        targetPlayer = Players:FindFirstChild(silentAimConfig.TargetPlayer)
+        if not targetPlayer then
+            silentAimConfig.TargetPlayer = "None"
+            bandithub.Toggles.SilentAimTargetPlayer = "None"
+            if bandithub.SaveSettings then bandithub.SaveSettings() end
+            refreshTargetDropdown()
+            return
+        end
+    end
+
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= localPlayer then
-            local char = player.Character
-            if char then
-                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    local targetPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-                    if targetPart then
-                        local worldDist = (targetPart.Position - camera.CFrame.Position).Magnitude
-                        if worldDist <= distanceLimit then
-                            local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-                            if onScreen then
-                                local screenVec = Vector2.new(screenPos.X, screenPos.Y)
-                                local screenDist = (screenVec - referencePos).Magnitude
-                                if screenDist < minScreenDist then
-                                    minScreenDist = screenDist
-                                    closestPart = targetPart
-                                end
+        if player == localPlayer then continue end
+        if targetPlayer and player ~= targetPlayer then continue end
+        local char = player.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                local targetPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+                if targetPart then
+                    local worldDist = (targetPart.Position - camera.CFrame.Position).Magnitude
+                    if worldDist <= distanceLimit then
+                        local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                        if onScreen then
+                            local screenVec = Vector2.new(screenPos.X, screenPos.Y)
+                            local screenDist = (screenVec - referencePos).Magnitude
+                            if screenDist < minScreenDist then
+                                minScreenDist = screenDist
+                                closestPart = targetPart
                             end
                         end
                     end
@@ -150,11 +163,77 @@ CombatTab:Dropdown({
     end
 })
 
+local targetDropdown = nil
+
+local function getPlayerNames()
+    local names = { "None" }
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer then
+            table.insert(names, player.Name)
+        end
+    end
+    return names
+end
+
+local function refreshTargetDropdown()
+    if targetDropdown then
+        pcall(function() targetDropdown:Destroy() end)
+        targetDropdown = nil
+    end
+
+    local names = getPlayerNames()
+    local current = silentAimConfig.TargetPlayer
+    local valid = false
+    for _, name in ipairs(names) do
+        if name == current then
+            valid = true
+            break
+        end
+    end
+    if not valid then
+        current = "None"
+        silentAimConfig.TargetPlayer = "None"
+        bandithub.Toggles.SilentAimTargetPlayer = "None"
+        if bandithub.SaveSettings then bandithub.SaveSettings() end
+    end
+
+    targetDropdown = CombatTab:Dropdown({
+        Title = "Target Player",
+        Values = names,
+        Value = current,
+        Callback = function(value)
+            silentAimConfig.TargetPlayer = value
+            bandithub.Toggles.SilentAimTargetPlayer = value
+            if bandithub.SaveSettings then bandithub.SaveSettings() end
+        end
+    })
+end
+
+refreshTargetDropdown()
+
+Players.PlayerAdded:Connect(function()
+    task.wait(0.2)
+    refreshTargetDropdown()
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if silentAimConfig.TargetPlayer == player.Name then
+        silentAimConfig.TargetPlayer = "None"
+        bandithub.Toggles.SilentAimTargetPlayer = "None"
+        if bandithub.SaveSettings then bandithub.SaveSettings() end
+    end
+    refreshTargetDropdown()
+end)
+
 bandithub.DisableAll = bandithub.DisableAll or function() end
 local oldDisable = bandithub.DisableAll
 bandithub.DisableAll = function()
     silentAimConfig.Enabled = false
     bandithub.Toggles.SilentAim = false
+    if targetDropdown then
+        pcall(function() targetDropdown:Destroy() end)
+        targetDropdown = nil
+    end
     if bandithub.SaveSettings then bandithub.SaveSettings() end
     oldDisable()
 end
