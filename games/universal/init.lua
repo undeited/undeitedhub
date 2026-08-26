@@ -157,6 +157,7 @@ end
 LoadScript("games/universal/esp.lua")
 LoadScript("games/universal/admin.lua")
 LoadScript("games/universal/misc.lua")
+LoadScript("games/universal/player.lua")
 LoadScript("shared/settings.lua")
 
 if _G.UNDELTEDHUB_STATES then
