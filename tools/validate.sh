@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-required_files="main.lua games.lua shared/config.lua shared/settings.lua shared/utils.lua shared/windui.lua"
+required_files="main.lua games.lua shared/config.lua shared/settings.lua shared/utils.lua shared/windui.lua shared/hydroxide.lua"
 for path in $required_files; do
     test -f "$path"
 done
@@ -17,4 +17,8 @@ while IFS= read -r registered_path; do
     test -f "$registered_path"
 done < <(sed -n 's/.*= "\(games\/[^"[:space:]]*\)".*/\1/p' games.lua)
 
-printf 'Hub structure validation passed.\n'
+while IFS= read -r loaded_path; do
+    test -f "$loaded_path"
+done < <(find games shared -type f -name '*.lua' -print0 | xargs -0 grep -hoE 'LoadScript\("[^"]+"\)' | sed 's/LoadScript("//; s/")$//' | sort -u)
+
+test "$(find . -path './.git' -prune -o -type d -empty -print | wc -l)" -eq 0

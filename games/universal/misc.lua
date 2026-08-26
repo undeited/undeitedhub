@@ -251,17 +251,8 @@ MiscTab:Button({
     Title = "Load Hydroxide",
     Callback = function()
         local success, err = pcall(function()
-            local owner = "Upbolt"
-            local branch = "revision"
-            local function webImport(file)
-                local script = HttpGet(("https://raw.githubusercontent.com/%s/Hydroxide/%s/%s.lua"):format(owner, branch, file))
-                if not script then error("Unsupported executor: missing game:HttpGet or game:HttpGetAsync") end
-                local fn, loadErr = LoadString(script, file .. '.lua')
-                if not fn then error(loadErr or "Failed to load Hydroxide") end
-                return fn()
-            end
-            webImport("init")
-            webImport("ui/main")
+            local loadHydroxide = LoadScript("shared/hydroxide.lua")
+            loadHydroxide()
         end)
         if success then
             WindUI:Notify({

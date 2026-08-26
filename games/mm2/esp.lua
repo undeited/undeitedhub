@@ -456,7 +456,6 @@ local function forceRoleScan()
     end
 end
 
--- Expose forceRoleScan globally so other modules can force an update
 undeltedhub.ForceRoleScan = forceRoleScan
 
 task.spawn(function()

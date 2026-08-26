@@ -37,7 +37,7 @@ TrollTab:Button({
         end
 
         if seterrorhandler then
-            local oldHandler = errorhandler or function(e) print(e) end
+            local oldHandler = errorhandler or function() end
             seterrorhandler(function(err, level)
                 if type(err) == "string" and err:find("attempt to index nil with 'Touched'") then
                     return

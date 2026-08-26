@@ -9,6 +9,9 @@ Just a basic script hub with a bunch of upcoming supported games. I made this sc
 - [Free Boombox/Radio](https://www.roblox.com/games/6116002492/Free-Boombox-Radio)
 - [Fling Things And People](https://www.roblox.com/games/6961824067/Fling-Things-and-People)
 
+Hydroxide is bundled as the single `shared/hydroxide.lua` file and can be started
+from the Universal tab.
+
 ## Repository Layout
 
 - `main.lua` is the public loader and selects a game by place ID.

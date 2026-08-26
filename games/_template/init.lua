@@ -33,6 +33,4 @@ local Window = WindUI:CreateWindow({
 
 undeltedhub.Window = Window
 
--- Load game feature modules here after replacing the placeholder folder name.
--- LoadScript("games/replace-me/feature.lua")
 LoadScript("shared/settings.lua")
