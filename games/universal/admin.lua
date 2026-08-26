@@ -1,6 +1,6 @@
-local WindUI = bandithub.WindUI
+local WindUI = undeltedhub.WindUI
 
-local AdminTab = bandithub.Window:Tab({ Title = "Admin" })
+local AdminTab = undeltedhub.Window:Tab({ Title = "Admin" })
 
 local function HttpGet(url)
     if game and type(game.HttpGet) == "function" then

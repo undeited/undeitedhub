@@ -1,15 +1,15 @@
-local WindUI = bandithub.WindUI
-local utils = bandithub.Utils
-local config = bandithub.Config
+local WindUI = undeltedhub.WindUI
+local utils = undeltedhub.Utils
+local config = undeltedhub.Config
 
-local CombatTab = bandithub.Window:Tab({ Title = "Combat" })
+local CombatTab = undeltedhub.Window:Tab({ Title = "Combat" })
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AeroServices = ReplicatedStorage:WaitForChild("Aero"):WaitForChild("AeroRemoteServices"):WaitForChild("GameService")
 local AttackStart = AeroServices:WaitForChild("WeaponAttackStart")
 local AnimComplete = AeroServices:WaitForChild("WeaponAnimComplete")
 
-local autoSwingEnabled = bandithub.Toggles.AutoSwing or false
+local autoSwingEnabled = undeltedhub.Toggles.AutoSwing or false
 local lastSwingTime = 0
 local SWING_COOLDOWN = 0.1
 
@@ -24,7 +24,7 @@ local function SwingWeapon()
 end
 
 game:GetService("RunService").Heartbeat:Connect(function()
-    if autoSwingEnabled and _G.BANDITHUB_WINDOW_VISIBLE then
+    if autoSwingEnabled and _G.UNDELTEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastSwingTime >= SWING_COOLDOWN then
             lastSwingTime = now
@@ -38,8 +38,8 @@ CombatTab:Toggle({
     Value = autoSwingEnabled,
     Callback = function(state)
         autoSwingEnabled = state
-        bandithub.Toggles.AutoSwing = state
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        undeltedhub.Toggles.AutoSwing = state
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         WindUI:Notify({
             Title = "Auto Swing",
             Content = state and "Enabled" or "Disabled",
@@ -51,11 +51,11 @@ CombatTab:Toggle({
     end
 })
 
-bandithub.DisableAll = bandithub.DisableAll or function() end
-local oldDisable = bandithub.DisableAll
-bandithub.DisableAll = function()
+undeltedhub.DisableAll = undeltedhub.DisableAll or function() end
+local oldDisable = undeltedhub.DisableAll
+undeltedhub.DisableAll = function()
     autoSwingEnabled = false
-    bandithub.Toggles.AutoSwing = false
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    undeltedhub.Toggles.AutoSwing = false
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     oldDisable()
 end

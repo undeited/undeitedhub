@@ -1,5 +1,5 @@
-local WindUI = bandithub.WindUI
-local FarmTab = bandithub.Window:Tab({ Title = "Auto Farm" })
+local WindUI = undeltedhub.WindUI
+local FarmTab = undeltedhub.Window:Tab({ Title = "Auto Farm" })
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -115,12 +115,12 @@ end
 local function StartTraining()
     if trainTask then return end
     autoTrainEnabled = true
-    bandithub.Toggles.autoTrainEnabled = true
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    undeltedhub.Toggles.autoTrainEnabled = true
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Train", Content = "Enabled (" .. selectedExercise .. ")", Duration = 2 })
     trainTask = task.spawn(function()
         while autoTrainEnabled do
-            if not _G.BANDITHUB_WINDOW_VISIBLE then
+            if not _G.UNDELTEDHUB_WINDOW_VISIBLE then
                 task.wait(0.5)
                 continue
             end
@@ -132,12 +132,12 @@ end
 
 local function StopTraining()
     autoTrainEnabled = false
-    bandithub.Toggles.autoTrainEnabled = false
+    undeltedhub.Toggles.autoTrainEnabled = false
     if trainTask then
         task.cancel(trainTask)
         trainTask = nil
     end
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Train", Content = "Disabled", Duration = 2 })
 end
 
@@ -157,7 +157,7 @@ FarmTab:Dropdown({
 
 FarmTab:Toggle({
     Title = "Auto Train",
-    Value = bandithub.Toggles.autoTrainEnabled or false,
+    Value = undeltedhub.Toggles.autoTrainEnabled or false,
     Callback = function(state)
         if state then StartTraining() else StopTraining() end
     end
@@ -168,7 +168,7 @@ local rebirthTask = nil
 local REBIRTH_COOLDOWN = 2
 
 local function DoRebirth()
-    if not _G.BANDITHUB_WINDOW_VISIBLE then return end
+    if not _G.UNDELTEDHUB_WINDOW_VISIBLE then return end
     local rebirthRemote = GetRebirthRemote()
     if not rebirthRemote then
         SafeNotify({ Title = "Rebirth", Content = "Rebirth remote not found", Duration = 2 })
@@ -192,12 +192,12 @@ end
 local function StartAutoRebirth()
     if rebirthTask then return end
     autoRebirthEnabled = true
-    bandithub.Toggles.autoRebirthEnabled = true
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    undeltedhub.Toggles.autoRebirthEnabled = true
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Rebirth", Content = "Enabled", Duration = 2 })
     rebirthTask = task.spawn(function()
         while autoRebirthEnabled do
-            if not _G.BANDITHUB_WINDOW_VISIBLE then
+            if not _G.UNDELTEDHUB_WINDOW_VISIBLE then
                 task.wait(0.5)
                 continue
             end
@@ -209,18 +209,18 @@ end
 
 local function StopAutoRebirth()
     autoRebirthEnabled = false
-    bandithub.Toggles.autoRebirthEnabled = false
+    undeltedhub.Toggles.autoRebirthEnabled = false
     if rebirthTask then
         task.cancel(rebirthTask)
         rebirthTask = nil
     end
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Rebirth", Content = "Disabled", Duration = 2 })
 end
 
 FarmTab:Toggle({
     Title = "Auto Rebirth",
-    Value = bandithub.Toggles.autoRebirthEnabled or false,
+    Value = undeltedhub.Toggles.autoRebirthEnabled or false,
     Callback = function(state)
         if state then StartAutoRebirth() else StopAutoRebirth() end
     end
@@ -233,8 +233,8 @@ FarmTab:Button({
     end
 })
 
-local oldDisable = bandithub.DisableAll
-bandithub.DisableAll = function()
+local oldDisable = undeltedhub.DisableAll
+undeltedhub.DisableAll = function()
     StopTraining()
     StopAutoRebirth()
     if oldDisable then oldDisable() end

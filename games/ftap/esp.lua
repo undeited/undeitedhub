@@ -1,4 +1,4 @@
-local WindUI = bandithub.WindUI
+local WindUI = undeltedhub.WindUI
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -15,9 +15,9 @@ local function SafeNotify(data)
     end
 end
 
-local VisualTab = bandithub.Window:Tab({ Title = "Visual" })
+local VisualTab = undeltedhub.Window:Tab({ Title = "Visual" })
 
-local espEnabled = bandithub.Toggles.espEnabled or false
+local espEnabled = undeltedhub.Toggles.espEnabled or false
 local highlightMap = {}
 
 local function ClearESP()
@@ -30,7 +30,7 @@ local function ClearESP()
 end
 
 local function UpdateESP()
-    if not espEnabled or not _G.BANDITHUB_WINDOW_VISIBLE then
+    if not espEnabled or not _G.UNDELTEDHUB_WINDOW_VISIBLE then
         ClearESP()
         return
     end
@@ -45,7 +45,7 @@ local function UpdateESP()
                 local highlight = highlightMap[player]
                 if not highlight then
                     highlight = Instance.new("Highlight")
-                    highlight.Name = "BanditESP"
+                    highlight.Name = "UndeltedESP"
                     highlight.FillColor = Color3.fromRGB(255, 0, 0)
                     highlight.FillTransparency = 0.5
                     highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
@@ -80,8 +80,8 @@ VisualTab:Toggle({
     Callback = function(state)
         pcall(function()
             espEnabled = state
-            bandithub.Toggles.espEnabled = state
-            if bandithub.SaveSettings then bandithub.SaveSettings() end
+            undeltedhub.Toggles.espEnabled = state
+            if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
             SafeNotify({
                 Title = "ESP",
                 Content = espEnabled and "Enabled" or "Disabled",

@@ -3,11 +3,11 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local WindUI = bandithub.WindUI
-local utils = bandithub.Utils
-local config = bandithub.Config
+local WindUI = undeltedhub.WindUI
+local utils = undeltedhub.Utils
+local config = undeltedhub.Config
 
-local FarmTab = bandithub.Window:Tab({ Title = "Auto Farm" })
+local FarmTab = undeltedhub.Window:Tab({ Title = "Auto Farm" })
 
 local function getPosition(obj)
     if not obj then return nil end
@@ -21,7 +21,7 @@ local function getPosition(obj)
     return nil
 end
 
-local autoFarmEnabled = bandithub.Toggles.autoFarmEnabled or false
+local autoFarmEnabled = undeltedhub.Toggles.autoFarmEnabled or false
 local loopTask = nil
 local childAddedConn = nil
 local isRunning = false
@@ -112,12 +112,12 @@ local function startAutoFarm()
     if isRunning then return end
     isRunning = true
     autoFarmEnabled = true
-    bandithub.Toggles.autoFarmEnabled = true
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    undeltedhub.Toggles.autoFarmEnabled = true
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     pcall(ScoreAll)
     loopTask = task.spawn(function()
         while isRunning do
-            if not _G.BANDITHUB_WINDOW_VISIBLE then
+            if not _G.UNDELTEDHUB_WINDOW_VISIBLE then
                 task.wait(1)
                 continue
             end
@@ -128,7 +128,7 @@ local function startAutoFarm()
     local beachballs = Workspace:FindFirstChild("Scene") and Workspace.Scene:FindFirstChild("Beach") and Workspace.Scene.Beach:FindFirstChild("Beachballs")
     if beachballs then
         childAddedConn = beachballs.ChildAdded:Connect(function(child)
-            if isRunning and _G.BANDITHUB_WINDOW_VISIBLE and string.find(string.lower(child.Name), "ball") then
+            if isRunning and _G.UNDELTEDHUB_WINDOW_VISIBLE and string.find(string.lower(child.Name), "ball") then
                 ScoreBallByObject(child)
             end
         end)
@@ -139,10 +139,10 @@ end
 local function stopAutoFarm()
     isRunning = false
     autoFarmEnabled = false
-    bandithub.Toggles.autoFarmEnabled = false
+    undeltedhub.Toggles.autoFarmEnabled = false
     if loopTask then task.cancel(loopTask); loopTask = nil end
     if childAddedConn then childAddedConn:Disconnect(); childAddedConn = nil end
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     pcall(WindUI.Notify, WindUI, { Title = "Auto Farm", Content = "Disabled", Duration = 2 })
 end
 
@@ -157,7 +157,7 @@ pcall(function()
 end)
 
 local function createOrbitToggle(targetName, targetPath, defaultRadius, defaultSpeed)
-    local orbitEnabled = bandithub.Toggles["orbit_" .. targetName] or false
+    local orbitEnabled = undeltedhub.Toggles["orbit_" .. targetName] or false
     local orbitHeartbeatConn = nil
     local isOrbiting = false
     local orbitAngle = 0
@@ -171,7 +171,7 @@ local function createOrbitToggle(targetName, targetPath, defaultRadius, defaultS
     end
 
     local function orbitPlayer(deltaTime)
-        if not _G.BANDITHUB_WINDOW_VISIBLE then return end
+        if not _G.UNDELTEDHUB_WINDOW_VISIBLE then return end
         local character = LocalPlayer.Character
         if not character then return end
         local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -196,7 +196,7 @@ local function createOrbitToggle(targetName, targetPath, defaultRadius, defaultS
         if isOrbiting then return end
         isOrbiting = true
         orbitEnabled = true
-        bandithub.Toggles["orbit_" .. targetName] = true
+        undeltedhub.Toggles["orbit_" .. targetName] = true
 
         local character = LocalPlayer.Character
         if character then
@@ -214,14 +214,14 @@ local function createOrbitToggle(targetName, targetPath, defaultRadius, defaultS
             end
         end)
 
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         pcall(WindUI.Notify, WindUI, { Title = "Orbit around " .. targetName, Content = "Enabled", Duration = 2 })
     end
 
     local function stopOrbit()
         isOrbiting = false
         orbitEnabled = false
-        bandithub.Toggles["orbit_" .. targetName] = false
+        undeltedhub.Toggles["orbit_" .. targetName] = false
 
         if orbitHeartbeatConn then
             orbitHeartbeatConn:Disconnect()
@@ -229,7 +229,7 @@ local function createOrbitToggle(targetName, targetPath, defaultRadius, defaultS
         end
 
         local anyOrbitActive = false
-        for key, val in pairs(bandithub.Toggles) do
+        for key, val in pairs(undeltedhub.Toggles) do
             if string.find(key, "orbit_") and val then
                 anyOrbitActive = true
                 break
@@ -246,7 +246,7 @@ local function createOrbitToggle(targetName, targetPath, defaultRadius, defaultS
             end
         end
 
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         pcall(WindUI.Notify, WindUI, { Title = "Orbit around " .. targetName, Content = "Disabled", Duration = 2 })
     end
 
@@ -291,9 +291,9 @@ end
 local stopOrbitDemonKing = createOrbitToggle("Demon King", getDemonKingPosition, 8, 2.0)
 local stopOrbitBorock = createOrbitToggle("Borock", getBorockPosition, 8, 2.0)
 
-bandithub.DisableAll = bandithub.DisableAll or function() end
-local oldDisable = bandithub.DisableAll
-bandithub.DisableAll = function()
+undeltedhub.DisableAll = undeltedhub.DisableAll or function() end
+local oldDisable = undeltedhub.DisableAll
+undeltedhub.DisableAll = function()
     stopAutoFarm()
     stopOrbitDemonKing()
     stopOrbitBorock()

@@ -1,7 +1,7 @@
-local WindUI = bandithub.WindUI
-local MiscTab = bandithub.Window:Tab({ Title = "Misc" })
+local WindUI = undeltedhub.WindUI
+local MiscTab = undeltedhub.Window:Tab({ Title = "Misc" })
 
-local antiFlingEnabled = bandithub.Toggles.antiFlingEnabled or false
+local antiFlingEnabled = undeltedhub.Toggles.antiFlingEnabled or false
 local antiFlingHeartbeat = nil
 
 local lastSafePosition = nil
@@ -53,7 +53,7 @@ local function FreezeCharacter(humanoid, freeze)
 end
 
 local function StrongAntiFling()
-    if not antiFlingEnabled or not _G.BANDITHUB_WINDOW_VISIBLE then return end
+    if not antiFlingEnabled or not _G.UNDELTEDHUB_WINDOW_VISIBLE then return end
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
 
@@ -186,8 +186,8 @@ MiscTab:Toggle({
     Value = antiFlingEnabled,
     Callback = function(state)
         antiFlingEnabled = state
-        bandithub.Toggles.antiFlingEnabled = state
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        undeltedhub.Toggles.antiFlingEnabled = state
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         WindUI:Notify({
             Title = "Anti Fling",
             Content = antiFlingEnabled and "Enabled" or "Disabled",
@@ -281,10 +281,10 @@ MiscTab:Button({
 
 SetupAntiFling()
 
-bandithub.DisableAll = function()
+undeltedhub.DisableAll = function()
     antiFlingEnabled = false
-    bandithub.Toggles.antiFlingEnabled = false
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    undeltedhub.Toggles.antiFlingEnabled = false
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     if antiFlingHeartbeat then
         antiFlingHeartbeat:Disconnect()
         antiFlingHeartbeat = nil

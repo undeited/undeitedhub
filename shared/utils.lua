@@ -1,4 +1,4 @@
-local bandithub = {}
+local undeltedhub = {}
 
 local function GetHttpFunction()
     if game and type(game.HttpGet) == "function" then
@@ -28,7 +28,7 @@ local function GetLoadFunction()
     return nil
 end
 
-function bandithub.HttpGet(url)
+function undeltedhub.HttpGet(url)
     local httpFunc = GetHttpFunction()
     if not httpFunc then
         error("Unsupported executor: missing game:HttpGet or game:HttpGetAsync")
@@ -36,7 +36,7 @@ function bandithub.HttpGet(url)
     return httpFunc(url)
 end
 
-function bandithub.LoadString(script, chunkName)
+function undeltedhub.LoadString(script, chunkName)
     local loadFunc = GetLoadFunction()
     if not loadFunc then
         error("Unsupported executor: missing loadstring or load")
@@ -44,7 +44,7 @@ function bandithub.LoadString(script, chunkName)
     return loadFunc(script, chunkName)
 end
 
-function bandithub.GetPlayerFromArg(arg)
+function undeltedhub.GetPlayerFromArg(arg)
     if typeof(arg) == "Instance" and arg:IsA("Player") then
         return arg
     elseif type(arg) == "string" then
@@ -53,7 +53,7 @@ function bandithub.GetPlayerFromArg(arg)
     return nil
 end
 
-function bandithub.PlayerHasTool(player, toolName)
+function undeltedhub.PlayerHasTool(player, toolName)
     if not player then return false end
     local backpack = player:FindFirstChild("Backpack")
     if backpack then
@@ -74,4 +74,4 @@ function bandithub.PlayerHasTool(player, toolName)
     return false
 end
 
-return bandithub
+return undeltedhub

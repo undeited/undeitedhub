@@ -1,4 +1,4 @@
-local BASE_URL = "https://raw.githubusercontent.com/undelted/bandithub/main/"
+local BASE_URL = "https://raw.githubusercontent.com/undelted/undeltedhub/main/"
 
 local function HttpGet(url)
     if game and type(game.HttpGet) == "function" then
@@ -56,19 +56,19 @@ local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
 local config = LoadScript("shared/config.lua")
 
-bandithub = bandithub or {}
-bandithub.WindUI = WindUI
-bandithub.Utils = utils
-bandithub.Config = config
-bandithub.Toggles = bandithub.Toggles or {}
-bandithub.SettingsFile = "bandithub/" .. GAME_FOLDER .. "/settings.json"
+undeltedhub = undeltedhub or {}
+undeltedhub.WindUI = WindUI
+undeltedhub.Utils = utils
+undeltedhub.Config = config
+undeltedhub.Toggles = undeltedhub.Toggles or {}
+undeltedhub.SettingsFile = "undeltedhub/" .. GAME_FOLDER .. "/settings.json"
 
 local function ResolveThemeName(themeName)
     local available = config and config.themes or { "Default" }
     if type(themeName) ~= "string" or themeName == "" then
         return available[1] or "Default"
     end
-    if themeName == "Bandit" then
+    if themeName == "Undelted" then
         return "Default"
     end
     for _, name in ipairs(available) do
@@ -82,73 +82,73 @@ end
 local function SaveSettings()
     pcall(function()
         if not makefolder then return end
-        makefolder("bandithub")
-        makefolder("bandithub/" .. GAME_FOLDER)
+        makefolder("undeltedhub")
+        makefolder("undeltedhub/" .. GAME_FOLDER)
         if not writefile then return end
         local data = {
-            toggles = bandithub.Toggles,
-            theme = ResolveThemeName(bandithub.CurrentTheme or "Default"),
-            toggleKey = bandithub.ToggleKey or config.toggleKey or "K",
+            toggles = undeltedhub.Toggles,
+            theme = ResolveThemeName(undeltedhub.CurrentTheme or "Default"),
+            toggleKey = undeltedhub.ToggleKey or config.toggleKey or "K",
         }
-        writefile(bandithub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
+        writefile(undeltedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
     end)
 end
 
 local function LoadSettings()
     pcall(function()
         if not isfile then return end
-        if isfile(bandithub.SettingsFile) then
-            local data = game:GetService("HttpService"):JSONDecode(readfile(bandithub.SettingsFile))
+        if isfile(undeltedhub.SettingsFile) then
+            local data = game:GetService("HttpService"):JSONDecode(readfile(undeltedhub.SettingsFile))
             if data and data.toggles then
                 for key, value in pairs(data.toggles) do
-                    bandithub.Toggles[key] = value
+                    undeltedhub.Toggles[key] = value
                 end
             end
             if data and data.theme then
-                bandithub.CurrentTheme = ResolveThemeName(data.theme)
+                undeltedhub.CurrentTheme = ResolveThemeName(data.theme)
             end
             if data and data.toggleKey then
-                bandithub.ToggleKey = data.toggleKey
+                undeltedhub.ToggleKey = data.toggleKey
             end
         end
     end)
 end
 
 LoadSettings()
-bandithub.ToggleKey = bandithub.ToggleKey or config.toggleKey or "K"
+undeltedhub.ToggleKey = undeltedhub.ToggleKey or config.toggleKey or "K"
 
 local Window = WindUI:CreateWindow({
-    Title = "Bandit Hub",
+    Title = "Undelted Hub",
     Author = "by coolio",
-    Folder = "bandithub/" .. GAME_FOLDER,
+    Folder = "undeltedhub/" .. GAME_FOLDER,
     Size = UDim2.fromOffset(580, 460),
     MinSize = Vector2.new(560, 350),
     MaxSize = Vector2.new(850, 560),
     Transparent = true,
-    Theme = ResolveThemeName(bandithub.CurrentTheme or "Default"),
+    Theme = ResolveThemeName(undeltedhub.CurrentTheme or "Default"),
     Resizable = true,
     SideBarWidth = 200,
     HideSearchBar = true,
     ScrollBarEnabled = false,
 })
 
-Window:SetToggleKey(Enum.KeyCode[bandithub.ToggleKey])
+Window:SetToggleKey(Enum.KeyCode[undeltedhub.ToggleKey])
 
-bandithub.Window = Window
-bandithub.SaveSettings = SaveSettings
-bandithub.LoadSettings = LoadSettings
+undeltedhub.Window = Window
+undeltedhub.SaveSettings = SaveSettings
+undeltedhub.LoadSettings = LoadSettings
 
-_G.BANDITHUB_WINDOW_VISIBLE = true
+_G.UNDELTEDHUB_WINDOW_VISIBLE = true
 local frame = Window.Frame
 if frame then
     frame:GetPropertyChangedSignal("Visible"):Connect(function()
-        _G.BANDITHUB_WINDOW_VISIBLE = frame.Visible
+        _G.UNDELTEDHUB_WINDOW_VISIBLE = frame.Visible
     end)
 
     frame.AncestryChanged:Connect(function()
         if not frame.Parent then
-            if bandithub.DisableAll then
-                bandithub.DisableAll()
+            if undeltedhub.DisableAll then
+                undeltedhub.DisableAll()
             end
         end
     end)
@@ -159,15 +159,15 @@ LoadScript("games/universal/admin.lua")
 LoadScript("games/universal/misc.lua")
 LoadScript("shared/settings.lua")
 
-if _G.BANDITHUB_STATES then
-    for key, value in pairs(_G.BANDITHUB_STATES) do
-        bandithub.Toggles[key] = value
+if _G.UNDELTEDHUB_STATES then
+    for key, value in pairs(_G.UNDELTEDHUB_STATES) do
+        undeltedhub.Toggles[key] = value
     end
-    _G.BANDITHUB_STATES = nil
+    _G.UNDELTEDHUB_STATES = nil
 end
 
-if bandithub.RestoreStates then
-    bandithub.RestoreStates()
+if undeltedhub.RestoreStates then
+    undeltedhub.RestoreStates()
 end
 
 SaveSettings()

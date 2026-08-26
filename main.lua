@@ -1,4 +1,4 @@
-local BASE_URL = "https://raw.githubusercontent.com/undelted/bandithub/main/"
+local BASE_URL = "https://raw.githubusercontent.com/undelted/undeltedhub/main/"
 
 local function HttpGet(url)
     if game and type(game.HttpGet) == "function" then
@@ -43,16 +43,16 @@ end
 
 if not CheckExecutor() then return end
 
-if bandithub then
+if undeltedhub then
     pcall(function()
-        if bandithub.DisableAll then
-            bandithub.DisableAll()
+        if undeltedhub.DisableAll then
+            undeltedhub.DisableAll()
         end
-        if bandithub.Window and bandithub.Window.Destroy then
-            bandithub.Window:Destroy()
+        if undeltedhub.Window and undeltedhub.Window.Destroy then
+            undeltedhub.Window:Destroy()
         end
     end)
-    bandithub = nil
+    undeltedhub = nil
 end
 
 local function Fetch(url)
@@ -69,7 +69,7 @@ end
 local gamesList = Fetch(BASE_URL .. "games.lua")
 local games = assert(LoadString(gamesList, "games"))()
 
-_G.BANDITHUB_WINDOW_VISIBLE = true
+_G.UNDELTEDHUB_WINDOW_VISIBLE = true
 
 local placeId = game.PlaceId or game.GameId
 local gameEntry = games[placeId]

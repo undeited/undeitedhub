@@ -1,5 +1,5 @@
-local WindUI = bandithub.WindUI
-local MiscTab = bandithub.Window:Tab({ Title = "Misc" })
+local WindUI = undeltedhub.WindUI
+local MiscTab = undeltedhub.Window:Tab({ Title = "Misc" })
 
 MiscTab:Button({
     Title = "Unlock Console",
@@ -233,7 +233,7 @@ local function setupPlayer(playerName)
 end
 
 local function scanAllPlayers()
-    if not _G.BANDITHUB_WINDOW_VISIBLE then return end
+    if not _G.UNDELTEDHUB_WINDOW_VISIBLE then return end
     for _, player in ipairs(Players:GetPlayers()) do
         setupPlayer(player.Name)
     end
@@ -242,15 +242,15 @@ end
 Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function()
         wait(0.5)
-        if _G.BANDITHUB_WINDOW_VISIBLE then setupPlayer(player.Name) end
+        if _G.UNDELTEDHUB_WINDOW_VISIBLE then setupPlayer(player.Name) end
     end)
-    if Workspace:FindFirstChild(player.Name) and _G.BANDITHUB_WINDOW_VISIBLE then
+    if Workspace:FindFirstChild(player.Name) and _G.UNDELTEDHUB_WINDOW_VISIBLE then
         setupPlayer(player.Name)
     end
 end)
 
 Workspace.ChildAdded:Connect(function(child)
-    if child:IsA("Model") and Players:FindFirstChild(child.Name) and _G.BANDITHUB_WINDOW_VISIBLE then
+    if child:IsA("Model") and Players:FindFirstChild(child.Name) and _G.UNDELTEDHUB_WINDOW_VISIBLE then
         wait(0.5)
         setupPlayer(child.Name)
     end

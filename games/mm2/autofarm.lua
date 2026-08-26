@@ -1,5 +1,5 @@
-local WindUI = bandithub.WindUI
-local AutofarmTab = bandithub.Window:Tab({ Title = "Autofarm" })
+local WindUI = undeltedhub.WindUI
+local AutofarmTab = undeltedhub.Window:Tab({ Title = "Autofarm" })
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
@@ -292,19 +292,19 @@ local refreshNeeded = true
 local coinCollectedConnection = nil
 local coinsStartedConnection = nil
 local waitingForRoundStart = true
-local killAfterFullEnabled = bandithub.Toggles.killAfterFullEnabled or false
+local killAfterFullEnabled = undeltedhub.Toggles.killAfterFullEnabled or false
 local killAfterFullCooldown = false
-local autoTeleportToLobbyEnabled = bandithub.Toggles.autoTeleportToLobbyEnabled or false
+local autoTeleportToLobbyEnabled = undeltedhub.Toggles.autoTeleportToLobbyEnabled or false
 local lastTeleportTime = 0
 local TELEPORT_COOLDOWN = 5
 
 local function GetAutofarmSettings()
-    local mode = bandithub.Toggles.autofarmPickupMode or "Tween"
-    local speed = bandithub.Toggles.autofarmSpeed or 16
+    local mode = undeltedhub.Toggles.autofarmPickupMode or "Tween"
+    local speed = undeltedhub.Toggles.autofarmSpeed or 16
     return mode, speed
 end
 
-_G.BANDITHUB_AUTOFARM_MOVING = false
+_G.UNDELTEDHUB_AUTOFARM_MOVING = false
 
 local function onCoinCollected(bagName, newCount, maxCount, data)
     currentBagCount = newCount
@@ -333,8 +333,8 @@ local function onCoinCollected(bagName, newCount, maxCount, data)
             task.spawn(function()
                 if IsLocalPlayerMurderer() then
                     pcall(function()
-                        if bandithub.KillAll then
-                            bandithub.KillAll()
+                        if undeltedhub.KillAll then
+                            undeltedhub.KillAll()
                         end
                     end)
                     task.wait(1)
@@ -373,7 +373,7 @@ local function onCoinsStarted(playerData)
     currentTarget = nil
 end
 
-local autoCollectEnabled = bandithub.Toggles.autoCollectEnabled or false
+local autoCollectEnabled = undeltedhub.Toggles.autoCollectEnabled or false
 local collectTask = nil
 local collectRunning = false
 local currentTween = nil
@@ -407,7 +407,7 @@ end
 local function StartMonitoring()
     if monitorConnection then return end
     monitorConnection = RunService.Heartbeat:Connect(function()
-        if collectRunning and _G.BANDITHUB_WINDOW_VISIBLE then
+        if collectRunning and _G.UNDELTEDHUB_WINDOW_VISIBLE then
             pcall(MonitorCoin)
         end
     end)
@@ -517,7 +517,7 @@ local function CollectCoins()
         camera.CameraSubject = nil
     end
 
-    _G.BANDITHUB_AUTOFARM_MOVING = true
+    _G.UNDELTEDHUB_AUTOFARM_MOVING = true
 
     local tweenInfo = TweenInfo.new(
         duration,
@@ -530,7 +530,7 @@ local function CollectCoins()
         currentTween:Play()
 
         while currentTween and currentTween.PlaybackState ~= Enum.PlaybackState.Completed do
-            if not collectRunning or IsInLobby() or not IsRoundActive() or not IsPlayerAlive() or waitingForRoundStart or not _G.BANDITHUB_WINDOW_VISIBLE then
+            if not collectRunning or IsInLobby() or not IsRoundActive() or not IsPlayerAlive() or waitingForRoundStart or not _G.UNDELTEDHUB_WINDOW_VISIBLE then
                 currentTween:Cancel()
                 break
             end
@@ -538,7 +538,7 @@ local function CollectCoins()
         end
     end)
 
-    _G.BANDITHUB_AUTOFARM_MOVING = false
+    _G.UNDELTEDHUB_AUTOFARM_MOVING = false
 
     if camera and originalSubject then
         camera.CameraSubject = originalSubject
@@ -548,7 +548,7 @@ local function CollectCoins()
         pcall(function()
             root.CFrame = targetCFrame
         end)
-        _G.BANDITHUB_AUTOFARM_MOVING = false
+        _G.UNDELTEDHUB_AUTOFARM_MOVING = false
     end
 
     humanoid.PlatformStand = false
@@ -583,8 +583,8 @@ local function StartAutoCollect()
 
     collectRunning = true
     autoCollectEnabled = true
-    bandithub.Toggles.autoCollectEnabled = true
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    undeltedhub.Toggles.autoCollectEnabled = true
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
 
     waitingForRoundStart = true
 
@@ -651,7 +651,7 @@ local function StartAutoCollect()
             currentTween = nil
         end
         currentTarget = nil
-        _G.BANDITHUB_AUTOFARM_MOVING = false
+        _G.UNDELTEDHUB_AUTOFARM_MOVING = false
         local camera = workspace.CurrentCamera
         local char = localPlayer.Character
         if camera and char then
@@ -713,8 +713,8 @@ local function StartAutoCollect()
 
     collectTask = task.spawn(function()
         while collectRunning do
-            while collectRunning and (IsInLobby() or not IsRoundActive() or not IsPlayerAlive() or waitingForRoundStart or not _G.BANDITHUB_WINDOW_VISIBLE) do
-                if collectRunning and not IsInLobby() and IsRoundActive() and IsPlayerAlive() and _G.BANDITHUB_WINDOW_VISIBLE then
+            while collectRunning and (IsInLobby() or not IsRoundActive() or not IsPlayerAlive() or waitingForRoundStart or not _G.UNDELTEDHUB_WINDOW_VISIBLE) do
+                if collectRunning and not IsInLobby() and IsRoundActive() and IsPlayerAlive() and _G.UNDELTEDHUB_WINDOW_VISIBLE then
                     waitingForRoundStart = false
                 end
                 task.wait(0.5)
@@ -722,7 +722,7 @@ local function StartAutoCollect()
 
             if not collectRunning then break end
 
-            while collectRunning and not IsInLobby() and IsRoundActive() and IsPlayerAlive() and not waitingForRoundStart and _G.BANDITHUB_WINDOW_VISIBLE do
+            while collectRunning and not IsInLobby() and IsRoundActive() and IsPlayerAlive() and not waitingForRoundStart and _G.UNDELTEDHUB_WINDOW_VISIBLE do
                 pcall(CollectCoins)
                 if not currentTarget then
                     task.wait(0.2 + math.random() * 0.3)
@@ -737,7 +737,7 @@ end
 local function StopAutoCollect()
     collectRunning = false
     autoCollectEnabled = false
-    bandithub.Toggles.autoCollectEnabled = false
+    undeltedhub.Toggles.autoCollectEnabled = false
 
     if collectTask then
         task.cancel(collectTask)
@@ -749,7 +749,7 @@ local function StopAutoCollect()
         currentTween = nil
     end
     currentTarget = nil
-    _G.BANDITHUB_AUTOFARM_MOVING = false
+    _G.UNDELTEDHUB_AUTOFARM_MOVING = false
 
     local camera = workspace.CurrentCamera
     local localPlayer = game.Players.LocalPlayer
@@ -812,7 +812,7 @@ local function StopAutoCollect()
 
     StopMonitoring()
 
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     SafeNotify({ Title = "Autofarm", Content = "Disabled", Duration = 2 })
 end
 
@@ -829,8 +829,8 @@ AutofarmTab:Toggle({
     Value = killAfterFullEnabled,
     Callback = function(state)
         killAfterFullEnabled = state
-        bandithub.Toggles.killAfterFullEnabled = state
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        undeltedhub.Toggles.killAfterFullEnabled = state
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         SafeNotify({
             Title = "Auto Kill All when Bag Full",
             Content = state and "Enabled" or "Disabled",
@@ -844,8 +844,8 @@ AutofarmTab:Toggle({
     Value = autoTeleportToLobbyEnabled,
     Callback = function(state)
         autoTeleportToLobbyEnabled = state
-        bandithub.Toggles.autoTeleportToLobbyEnabled = state
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        undeltedhub.Toggles.autoTeleportToLobbyEnabled = state
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         SafeNotify({
             Title = "Auto Teleport to Lobby",
             Content = state and "Enabled" or "Disabled",
@@ -857,7 +857,7 @@ AutofarmTab:Toggle({
     end
 })
 
-local disableKillBricksEnabled = bandithub.Toggles.disableKillBricksEnabled or false
+local disableKillBricksEnabled = undeltedhub.Toggles.disableKillBricksEnabled or false
 local killBrickConnections = {}
 local killBrickAddedConnection = nil
 
@@ -935,8 +935,8 @@ AutofarmTab:Toggle({
     Value = disableKillBricksEnabled,
     Callback = function(state)
         disableKillBricksEnabled = state
-        bandithub.Toggles.disableKillBricksEnabled = state
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        undeltedhub.Toggles.disableKillBricksEnabled = state
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         SafeNotify({
             Title = "Disable Kill Bricks",
             Content = state and "Enabled" or "Disabled",
@@ -951,15 +951,15 @@ AutofarmTab:Toggle({
 
 SetupKillBrickDisable()
 
-local oldDisable = bandithub.DisableAll
-bandithub.DisableAll = function()
+local oldDisable = undeltedhub.DisableAll
+undeltedhub.DisableAll = function()
     StopAutoCollect()
     killAfterFullEnabled = false
-    bandithub.Toggles.killAfterFullEnabled = false
+    undeltedhub.Toggles.killAfterFullEnabled = false
     autoTeleportToLobbyEnabled = false
-    bandithub.Toggles.autoTeleportToLobbyEnabled = false
+    undeltedhub.Toggles.autoTeleportToLobbyEnabled = false
     disableKillBricksEnabled = false
-    bandithub.Toggles.disableKillBricksEnabled = false
+    undeltedhub.Toggles.disableKillBricksEnabled = false
     for _, conn in ipairs(killBrickConnections) do
         conn:Disconnect()
     end
@@ -968,7 +968,7 @@ bandithub.DisableAll = function()
         killBrickAddedConnection:Disconnect()
         killBrickAddedConnection = nil
     end
-    _G.BANDITHUB_AUTOFARM_MOVING = false
+    _G.UNDELTEDHUB_AUTOFARM_MOVING = false
     local camera = workspace.CurrentCamera
     local localPlayer = game.Players.LocalPlayer
     if camera and localPlayer and localPlayer.Character then
@@ -977,6 +977,6 @@ bandithub.DisableAll = function()
             camera.CameraSubject = hum
         end
     end
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     if oldDisable then oldDisable() end
 end

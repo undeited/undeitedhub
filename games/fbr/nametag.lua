@@ -1,5 +1,5 @@
-local WindUI = bandithub.WindUI
-local NameTagTab = bandithub.Window:Tab({ Title = "Name Tag" })
+local WindUI = undeltedhub.WindUI
+local NameTagTab = undeltedhub.Window:Tab({ Title = "Name Tag" })
 
 local function SetNameColor(color)
     local Event = game:GetService("ReplicatedStorage"):FindFirstChild("Events")
@@ -141,7 +141,7 @@ local function startRainbow()
         local hue = 0
         local speed = 0.01
         while getgenv().RainbowCycle do
-            if not _G.BANDITHUB_WINDOW_VISIBLE then
+            if not _G.UNDELTEDHUB_WINDOW_VISIBLE then
                 task.wait(0.1)
                 continue
             end
@@ -184,6 +184,6 @@ NameTagTab:Button({
     end
 })
 
-bandithub.DisableAll = function()
+undeltedhub.DisableAll = function()
     stopRainbow()
 end

@@ -1,11 +1,11 @@
-local WindUI = bandithub.WindUI
-local config = bandithub.Config
+local WindUI = undeltedhub.WindUI
+local config = undeltedhub.Config
 
-local SettingsTab = bandithub.Window:Tab({ Title = "Settings" })
+local SettingsTab = undeltedhub.Window:Tab({ Title = "Settings" })
 
 local themes = config.themes or { "Default", "Midnight", "Ocean", "Sunset", "Emerald", "Rose", "Plasma", "Snow", "Neon", "Crimson", "Lavender", "Gold", "Mint", "Cyber" }
 
-local currentTheme = bandithub.CurrentTheme or "Default"
+local currentTheme = undeltedhub.CurrentTheme or "Default"
 
 local function ApplyTheme(themeName)
     if not themeName or themeName == "" then
@@ -22,12 +22,12 @@ local function ApplyTheme(themeName)
         themeName = "Default"
     end
     currentTheme = themeName
-    bandithub.CurrentTheme = themeName
+    undeltedhub.CurrentTheme = themeName
     pcall(function()
         WindUI:SetTheme(themeName)
     end)
-    if bandithub.SaveSettings then
-        pcall(bandithub.SaveSettings)
+    if undeltedhub.SaveSettings then
+        pcall(undeltedhub.SaveSettings)
     end
 end
 
@@ -40,4 +40,4 @@ SettingsTab:Dropdown({
     end
 })
 
-bandithub.ApplyTheme = ApplyTheme
+undeltedhub.ApplyTheme = ApplyTheme

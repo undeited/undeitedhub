@@ -163,7 +163,7 @@ DefineTheme("Default", {
     labelBackground = RGB(255, 255, 255),
 })
 
-DefineTheme("Bandit", {
+DefineTheme("Undelted", {
     primary = Hex("#FF7F00"),
     white = RGB(255, 255, 255),
     black = RGB(0, 0, 0),

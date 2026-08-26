@@ -1,6 +1,6 @@
-local WindUI = bandithub.WindUI
-local utils = bandithub.Utils
-local config = bandithub.Config
+local WindUI = undeltedhub.WindUI
+local utils = undeltedhub.Utils
+local config = undeltedhub.Config
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -17,8 +17,8 @@ local function SafeNotify(data)
     end
 end
 
-if not bandithub.GetCurrentMurderer then
-    function bandithub.GetCurrentMurderer()
+if not undeltedhub.GetCurrentMurderer then
+    function undeltedhub.GetCurrentMurderer()
         for _, player in ipairs(game.Players:GetPlayers()) do
             if player ~= game.Players.LocalPlayer then
                 local char = player.Character
@@ -40,8 +40,8 @@ if not bandithub.GetCurrentMurderer then
     end
 end
 
-if not bandithub.GetCurrentSheriff then
-    function bandithub.GetCurrentSheriff()
+if not undeltedhub.GetCurrentSheriff then
+    function undeltedhub.GetCurrentSheriff()
         for _, player in ipairs(game.Players:GetPlayers()) do
             if player ~= game.Players.LocalPlayer then
                 local char = player.Character
@@ -63,7 +63,7 @@ if not bandithub.GetCurrentSheriff then
     end
 end
 
-local TrollTab = bandithub.Window:Tab({ Title = "Troll" })
+local TrollTab = undeltedhub.Window:Tab({ Title = "Troll" })
 
 local function getRoot(model)
     if not model then return nil end
@@ -493,17 +493,17 @@ local function FlingPlayer(target, silent)
     return true
 end
 
-local autoFlingMurdererEnabled = bandithub.Toggles.autoFlingMurdererEnabled or false
-local autoFlingSheriffEnabled = bandithub.Toggles.autoFlingSheriffEnabled or false
+local autoFlingMurdererEnabled = undeltedhub.Toggles.autoFlingMurdererEnabled or false
+local autoFlingSheriffEnabled = undeltedhub.Toggles.autoFlingSheriffEnabled or false
 local autoFlingCooldown = 5
 local lastFlingMurdererTime = 0
 local lastFlingSheriffTime = 0
 
 game:GetService("RunService").Heartbeat:Connect(function()
-    if autoFlingMurdererEnabled and _G.BANDITHUB_WINDOW_VISIBLE then
+    if autoFlingMurdererEnabled and _G.UNDELTEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastFlingMurdererTime >= autoFlingCooldown and IsRoundActive() then
-            local target = bandithub.GetCurrentMurderer()
+            local target = undeltedhub.GetCurrentMurderer()
             if target then
                 local char = target.Character
                 if char then
@@ -517,10 +517,10 @@ game:GetService("RunService").Heartbeat:Connect(function()
         end
     end
 
-    if autoFlingSheriffEnabled and _G.BANDITHUB_WINDOW_VISIBLE then
+    if autoFlingSheriffEnabled and _G.UNDELTEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastFlingSheriffTime >= autoFlingCooldown and IsRoundActive() then
-            local target = bandithub.GetCurrentSheriff()
+            local target = undeltedhub.GetCurrentSheriff()
             if target then
                 local char = target.Character
                 if char then
@@ -538,7 +538,7 @@ end)
 TrollTab:Button({
     Title = "Fling Murderer",
     Callback = function()
-        local murderer = bandithub.GetCurrentMurderer()
+        local murderer = undeltedhub.GetCurrentMurderer()
         if murderer then
             FlingPlayer(murderer, false)
         else
@@ -550,7 +550,7 @@ TrollTab:Button({
 TrollTab:Button({
     Title = "Fling Sheriff",
     Callback = function()
-        local sheriff = bandithub.GetCurrentSheriff()
+        local sheriff = undeltedhub.GetCurrentSheriff()
         if sheriff then
             FlingPlayer(sheriff, false)
         else
@@ -564,8 +564,8 @@ TrollTab:Toggle({
     Value = autoFlingMurdererEnabled,
     Callback = function(state)
         autoFlingMurdererEnabled = state
-        bandithub.Toggles.autoFlingMurdererEnabled = state
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        undeltedhub.Toggles.autoFlingMurdererEnabled = state
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         SafeNotify({ Title = "Auto Fling Murderer", Content = autoFlingMurdererEnabled and "Enabled" or "Disabled", Duration = 2 })
         if state then
             lastFlingMurdererTime = tick()
@@ -578,8 +578,8 @@ TrollTab:Toggle({
     Value = autoFlingSheriffEnabled,
     Callback = function(state)
         autoFlingSheriffEnabled = state
-        bandithub.Toggles.autoFlingSheriffEnabled = state
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        undeltedhub.Toggles.autoFlingSheriffEnabled = state
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         SafeNotify({ Title = "Auto Fling Sheriff", Content = autoFlingSheriffEnabled and "Enabled" or "Disabled", Duration = 2 })
         if state then
             lastFlingSheriffTime = tick()
@@ -610,7 +610,7 @@ local function KillSheriff()
     if not knife then return end
     local handleTouched = knife:FindFirstChild("Events") and knife.Events:FindFirstChild("HandleTouched")
     if not handleTouched or not handleTouched:IsA("RemoteEvent") then return end
-    local sheriff = bandithub.GetCurrentSheriff()
+    local sheriff = undeltedhub.GetCurrentSheriff()
     if not sheriff then return end
     if IsPlayerInLobby(sheriff) then return end
     local character = sheriff.Character
@@ -649,19 +649,19 @@ TrollTab:Button({
     end
 })
 
-local autoKillSheriffEnabled = bandithub.Toggles.autoKillSheriffEnabled or false
+local autoKillSheriffEnabled = undeltedhub.Toggles.autoKillSheriffEnabled or false
 local lastAutoKillSheriffTime = 0
 local KILL_COOLDOWN = 1
 
 game:GetService("RunService").Heartbeat:Connect(function()
-    if autoKillSheriffEnabled and _G.BANDITHUB_WINDOW_VISIBLE then
+    if autoKillSheriffEnabled and _G.UNDELTEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastAutoKillSheriffTime >= KILL_COOLDOWN and IsRoundActive() then
             local localPlayer = game.Players.LocalPlayer
             if localPlayer then
                 local knife = GetPlayerKnife()
                 if knife then
-                    local sheriff = bandithub.GetCurrentSheriff()
+                    local sheriff = undeltedhub.GetCurrentSheriff()
                     if sheriff then
                         local char = sheriff.Character
                         if char then
@@ -683,8 +683,8 @@ TrollTab:Toggle({
     Value = autoKillSheriffEnabled,
     Callback = function(state)
         autoKillSheriffEnabled = state
-        bandithub.Toggles.autoKillSheriffEnabled = state
-        if bandithub.SaveSettings then bandithub.SaveSettings() end
+        undeltedhub.Toggles.autoKillSheriffEnabled = state
+        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
         SafeNotify({
             Title = "Auto Kill Sheriff",
             Content = autoKillSheriffEnabled and "Enabled" or "Disabled",
@@ -696,12 +696,12 @@ TrollTab:Toggle({
     end
 })
 
-bandithub.DisableAll = function()
+undeltedhub.DisableAll = function()
     autoFlingMurdererEnabled = false
-    bandithub.Toggles.autoFlingMurdererEnabled = false
+    undeltedhub.Toggles.autoFlingMurdererEnabled = false
     autoFlingSheriffEnabled = false
-    bandithub.Toggles.autoFlingSheriffEnabled = false
+    undeltedhub.Toggles.autoFlingSheriffEnabled = false
     autoKillSheriffEnabled = false
-    bandithub.Toggles.autoKillSheriffEnabled = false
-    if bandithub.SaveSettings then bandithub.SaveSettings() end
+    undeltedhub.Toggles.autoKillSheriffEnabled = false
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
 end
