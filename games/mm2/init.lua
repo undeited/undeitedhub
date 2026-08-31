@@ -50,7 +50,7 @@ end
 
 if not CheckExecutor() then return end
 
-local GAME_FOLDER = "mm2"
+local GAME_FOLDER = "mm2"   -- CHANGE PER GAME
 
 local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
@@ -79,33 +79,16 @@ local function ResolveThemeName(themeName)
     return available[1] or "Default"
 end
 
-local function SaveSettings()
-    pcall(function()
-        if not makefolder then return end
-        makefolder("undeltedhub")
-        makefolder("undeltedhub/" .. GAME_FOLDER)
-        if not writefile then return end
-
-        local data = {
-            toggles = undeltedhub.Toggles,
-            theme = ResolveThemeName(undeltedhub.CurrentTheme or "Default"),
-            walkSpeed = config.walkSpeed or 16,
-            jumpPower = config.jumpPower or 50,
-            toggleKey = undeltedhub.ToggleKey or config.toggleKey or "K",
-        }
-        writefile(undeltedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
-    end)
-end
-
+-- 🔹 UPDATED LoadSettings with fallback
 local function LoadSettings()
     pcall(function()
-        if not isfile then return end
-        if isfile(undeltedhub.SettingsFile) then
+        -- Try file first
+        if isfile and isfile(undeltedhub.SettingsFile) then
             local data = game:GetService("HttpService"):JSONDecode(readfile(undeltedhub.SettingsFile))
             if data then
                 if data.toggles then
-                    for key, value in pairs(data.toggles) do
-                        undeltedhub.Toggles[key] = value
+                    for k, v in pairs(data.toggles) do
+                        undeltedhub.Toggles[k] = v
                     end
                 end
                 if data.theme then
@@ -114,19 +97,62 @@ local function LoadSettings()
                 if data.toggleKey then
                     undeltedhub.ToggleKey = data.toggleKey
                 end
-                if data.walkSpeed then
-                    config.walkSpeed = data.walkSpeed
-                end
-                if data.jumpPower then
-                    config.jumpPower = data.jumpPower
-                end
+                if data.walkSpeed then config.walkSpeed = data.walkSpeed end
+                if data.jumpPower then config.jumpPower = data.jumpPower end
+                return
             end
         end
+
+        -- Fallback: load from global storage (keyed by PlaceId)
+        if _G.UNDELTEDHUB_STORAGE and _G.UNDELTEDHUB_STORAGE[game.PlaceId] then
+            local stored = _G.UNDELTEDHUB_STORAGE[game.PlaceId]
+            if stored.toggles then
+                for k, v in pairs(stored.toggles) do
+                    undeltedhub.Toggles[k] = v
+                end
+            end
+            if stored.theme then
+                undeltedhub.CurrentTheme = ResolveThemeName(stored.theme)
+            end
+            if stored.toggleKey then
+                undeltedhub.ToggleKey = stored.toggleKey
+            end
+            if stored.walkSpeed then config.walkSpeed = stored.walkSpeed end
+            if stored.jumpPower then config.jumpPower = stored.jumpPower end
+        end
+    end)
+end
+
+-- 🔹 UPDATED SaveSettings with fallback
+local function SaveSettings()
+    pcall(function()
+        local data = {
+            toggles = undeltedhub.Toggles,
+            theme = ResolveThemeName(undeltedhub.CurrentTheme or "Default"),
+            toggleKey = undeltedhub.ToggleKey or config.toggleKey or "K",
+            walkSpeed = config.walkSpeed,
+            jumpPower = config.jumpPower,
+        }
+
+        -- Save to file if possible
+        if writefile and makefolder then
+            makefolder("undeltedhub")
+            makefolder("undeltedhub/" .. GAME_FOLDER)
+            writefile(undeltedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
+        end
+
+        -- Save to global fallback
+        _G.UNDELTEDHUB_STORAGE = _G.UNDELTEDHUB_STORAGE or {}
+        _G.UNDELTEDHUB_STORAGE[game.PlaceId] = data
     end)
 end
 
 LoadSettings()
 undeltedhub.ToggleKey = undeltedhub.ToggleKey or config.toggleKey or "K"
+
+-- 🔹 Apply theme after loading
+local themeToApply = ResolveThemeName(undeltedhub.CurrentTheme or "Default")
+WindUI:SetTheme(themeToApply)
 
 local Window = WindUI:CreateWindow({
     Title = "Undelted Hub",
@@ -136,7 +162,7 @@ local Window = WindUI:CreateWindow({
     MinSize = Vector2.new(560, 350),
     MaxSize = Vector2.new(850, 560),
     Transparent = true,
-    Theme = ResolveThemeName(undeltedhub.CurrentTheme or "Default"),
+    Theme = themeToApply,
     Resizable = true,
     SideBarWidth = 200,
     HideSearchBar = true,
@@ -148,10 +174,6 @@ Window:SetToggleKey(Enum.KeyCode[undeltedhub.ToggleKey])
 undeltedhub.Window = Window
 undeltedhub.SaveSettings = SaveSettings
 undeltedhub.LoadSettings = LoadSettings
-
-if undeltedhub.CurrentTheme then
-    WindUI:SetTheme(undeltedhub.CurrentTheme)
-end
 
 _G.UNDELTEDHUB_WINDOW_VISIBLE = true
 local frame = Window.Frame
@@ -168,26 +190,6 @@ if frame then
         end
     end)
 end
-
-local function ApplyStats()
-    local player = game.Players.LocalPlayer
-    if not player then return end
-    local char = player.Character
-    if not char then return end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    if config.walkSpeed and config.walkSpeed ~= 16 then
-        humanoid.WalkSpeed = config.walkSpeed
-    end
-    if config.jumpPower and config.jumpPower ~= 50 then
-        humanoid.JumpPower = config.jumpPower
-    end
-end
-
-task.spawn(function()
-    task.wait(0.5)
-    ApplyStats()
-end)
 
 LoadScript("games/mm2/esp.lua")
 LoadScript("games/mm2/combat.lua")
