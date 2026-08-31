@@ -205,7 +205,6 @@ local function startPushups()
                 local backpack = player:FindFirstChild("Backpack")
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
                 if humanoid and humanoid.Health > 0 and backpack then
-                    -- Move all equipped tools (except Pushups) to backpack
                     for _, tool in ipairs(character:GetChildren()) do
                         if tool:IsA("Tool") and tool.Name ~= "Pushups" then
                             tool.Parent = backpack
@@ -311,6 +310,17 @@ AutoTab:Toggle({
 local killEnabled = undeltedhub.Toggles.AutoKill or false
 local killTask = nil
 
+local function getStrength(player)
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if leaderstats then
+        local strength = leaderstats:FindFirstChild("Strength")
+        if strength then
+            return strength.Value
+        end
+    end
+    return nil
+end
+
 local function startKill()
     if killTask then return end
     killEnabled = true
@@ -325,6 +335,7 @@ local function startKill()
                 local character = player.Character
                 local myRoot = character and character:FindFirstChild("HumanoidRootPart")
                 if myRoot then
+                    local localStrength = getStrength(player)
                     local backpack = player:FindFirstChild("Backpack")
                     if character and not character:FindFirstChild("Punch") then
                         local punch = backpack and backpack:FindFirstChild("Punch")
@@ -337,6 +348,10 @@ local function startKill()
                     local shortestDistance = math.huge
                     for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
                         if otherPlayer ~= player then
+                            local targetStrength = getStrength(otherPlayer)
+                            if localStrength and targetStrength and targetStrength >= localStrength then
+                                continue
+                            end
                             local targetChar = otherPlayer.Character
                             if targetChar then
                                 local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
