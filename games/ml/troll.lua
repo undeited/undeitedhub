@@ -1,7 +1,4 @@
 local WindUI = undeltedhub.WindUI
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local LocalPlayer = Players.LocalPlayer
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -20,227 +17,163 @@ end
 
 local TrollTab = undeltedhub.Window:Tab({ Title = "Troll" })
 
-local function GetStrength(player)
-    local ls = player:FindFirstChild("leaderstats")
-    if ls then
-        local str = ls:FindFirstChild("Strength")
-        if str then return str.Value end
-    end
-    return 0
-end
-
-local function GetCharacter(player)
-    return player and player.Character
-end
-
-local function GetRoot(character)
-    return character and character:FindFirstChild("HumanoidRootPart")
-end
-
-local function GetHumanoid(character)
-    return character and character:FindFirstChildOfClass("Humanoid")
-end
-
-local function IsAlive(player)
-    local char = GetCharacter(player)
-    if not char then return false end
-    local hum = GetHumanoid(char)
-    return hum and hum.Health > 0
-end
-
-local function IsInLobby(player)
-    if not player then return false end
-    local char = GetCharacter(player)
-    if not char then return false end
-    local root = GetRoot(char)
-    if not root then return false end
-    local lobby = Workspace:FindFirstChild("Lobby") or Workspace:FindFirstChild("RegularLobby")
-    if not lobby then return false end
-    local lobbyPos
-    if lobby:IsA("BasePart") then
-        lobbyPos = lobby.Position
-    elseif lobby.PrimaryPart then
-        lobbyPos = lobby.PrimaryPart.Position
-    else
-        for _, part in ipairs(lobby:GetDescendants()) do
-            if part:IsA("BasePart") then
-                lobbyPos = part.Position
-                break
-            end
+local function getStrength(player)
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if leaderstats then
+        local strength = leaderstats:FindFirstChild("Strength")
+        if strength then
+            return strength.Value
         end
     end
-    if not lobbyPos then return false end
-    return (root.Position - lobbyPos).Magnitude < 50
+    return nil
 end
 
-local function EquipPunch()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local punch = char:FindFirstChild("Punch")
+local function equipPunch(player)
+    local character = player.Character
+    if not character then return false end
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then return false end
+
+    for _, tool in ipairs(character:GetChildren()) do
+        if tool:IsA("Tool") and tool.Name ~= "Punch" then
+            tool.Parent = backpack
+        end
+    end
+
+    local punch = character:FindFirstChild("Punch")
     if not punch then
-        local backpack = LocalPlayer:FindFirstChild("Backpack")
-        if backpack then
-            punch = backpack:FindFirstChild("Punch")
-            if punch then
-                punch.Parent = char
-                task.wait(0.05)
-            end
+        punch = backpack:FindFirstChild("Punch")
+        if punch then
+            punch.Parent = character
+            task.wait(0.05)
         end
     end
-    return punch
+    return punch ~= nil
 end
 
-local function TryPunch(targetRoot)
-    local punch = EquipPunch()
-    if not punch then return false end
-    if punch:IsA("Tool") then
-        pcall(function() punch:Activate() end)
-        local remote = punch:FindFirstChild("PunchRemote") or punch:FindFirstChild("Remote")
-        if remote and remote:IsA("RemoteEvent") then
-            pcall(function() remote:FireServer(targetRoot) end)
-        end
-        local bindable = punch:FindFirstChild("PunchEvent") or punch:FindFirstChild("Activate")
-        if bindable and bindable:IsA("BindableEvent") then
-            pcall(function() bindable:Fire() end)
-        end
-        return true
-    end
-    return false
-end
+local killEnabled = undeltedhub.Toggles.AutoKill or false
+local killTask = nil
 
-local function LockPlayer(lock)
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = GetHumanoid(char)
-    if not hum then return end
-    if lock then
-        hum.PlatformStand = true
-        hum.WalkSpeed = 0
-        hum.JumpPower = 0
-    else
-        hum.PlatformStand = false
-        hum.WalkSpeed = 16
-        hum.JumpPower = 50
-    end
-end
-
-local function FollowAndPunch(target)
-    if not target then return false end
-    if not IsAlive(target) or IsInLobby(target) then return false end
-    local myStrength = GetStrength(LocalPlayer)
-    local targetStrength = GetStrength(target)
-    if targetStrength >= myStrength then return false end
-
-    local targetChar = GetCharacter(target)
-    if not targetChar then return false end
-    local targetRoot = GetRoot(targetChar)
-    if not targetRoot then return false end
-
-    local myChar = LocalPlayer.Character
-    if not myChar then return false end
-    local myRoot = GetRoot(myChar)
-    if not myRoot then return false end
-
-    LockPlayer(true)
-    myRoot.CFrame = targetRoot.CFrame
-    while IsAlive(target) and not IsInLobby(target) and targetChar and targetRoot and myRoot do
-        local newCF = targetRoot.CFrame
-        myRoot.CFrame = newCF
-        TryPunch(targetRoot)
-        task.wait(0.1)
-        targetChar = GetCharacter(target)
-        if targetChar then
-            targetRoot = GetRoot(targetChar)
-        else
-            break
-        end
-        myChar = LocalPlayer.Character
-        if myChar then
-            myRoot = GetRoot(myChar)
-        else
-            break
-        end
-    end
-    LockPlayer(false)
-    return true
-end
-
-local autoKillEnabled = undeltedhub.Toggles.AutoKill or false
-local autoKillTask = nil
-
-local function GetBestTarget()
-    local myStrength = GetStrength(LocalPlayer)
-    local myRoot = GetRoot(GetCharacter(LocalPlayer))
-    if not myRoot then return nil end
-    local best, bestDist
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and IsAlive(player) and not IsInLobby(player) then
-            local str = GetStrength(player)
-            if str < myStrength then
-                local root = GetRoot(GetCharacter(player))
-                if root then
-                    local dist = (root.Position - myRoot.Position).Magnitude
-                    if not bestDist or dist < bestDist then
-                        best = player
-                        bestDist = dist
-                    end
-                end
-            end
-        end
-    end
-    return best
-end
-
-local function StartAutoKillLoop()
-    if autoKillTask then return end
-    autoKillEnabled = true
+local function startKill()
+    if killTask then return end
+    killEnabled = true
     undeltedhub.Toggles.AutoKill = true
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Kill", Content = "Enabled", Duration = 2 })
 
-    autoKillTask = task.spawn(function()
-        while autoKillEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE and LocalPlayer and GetCharacter(LocalPlayer) then
-                local target = GetBestTarget()
-                if target then
-                    pcall(FollowAndPunch, target)
-                else
-                    LockPlayer(false)
+    killTask = task.spawn(function()
+        local localPlayer = game:GetService("Players").LocalPlayer
+        local playerStrength = getStrength(localPlayer)
+
+        while killEnabled do
+            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+                local character = localPlayer.Character
+                local myRoot = character and character:FindFirstChild("HumanoidRootPart")
+                if not myRoot then
+                    task.wait(0.5)
+                    continue
+                end
+
+                if not equipPunch(localPlayer) then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local punchTool = character:FindFirstChild("Punch")
+                if not punchTool then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local targets = {}
+                for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
+                    if otherPlayer ~= localPlayer then
+                        local otherStrength = getStrength(otherPlayer)
+                        if playerStrength and otherStrength and otherStrength >= playerStrength then
+                            continue
+                        end
+                        local targetChar = otherPlayer.Character
+                        if targetChar then
+                            local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+                            if targetHum and targetHum.Health > 0 then
+                                local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                                if targetRoot then
+                                    table.insert(targets, {
+                                        player = otherPlayer,
+                                        root = targetRoot,
+                                        humanoid = targetHum
+                                    })
+                                end
+                            end
+                        end
+                    end
+                end
+
+                for _, target in ipairs(targets) do
+                    if not killEnabled then break end
+                    local targetRoot = target.root
+                    local targetHum = target.humanoid
+                    local targetPlayer = target.player
+
+                    local punchCount = 0
+                    local maxPunches = 10
+                    local angle = 0
+                    local radius = 3.0
+
+                    while killEnabled and targetHum.Health > 0 and punchCount < maxPunches do
+                        local otherStrength = getStrength(targetPlayer)
+                        if otherStrength and playerStrength and otherStrength >= playerStrength then
+                            break
+                        end
+
+                        local targetPos = targetRoot.Position
+
+                        angle = angle + 0.6
+                        local offset = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+                        local attackPos = targetPos + offset + Vector3.new(0, 1, 0)
+
+                        myRoot.CFrame = CFrame.new(attackPos, targetPos)
+
+                        pcall(function()
+                            punchTool:Activate()
+                        end)
+                        punchCount = punchCount + 1
+
+                        task.wait(0.15)
+                    end
+
+                    task.wait(0.1)
                 end
             end
             task.wait(0.2)
         end
-        LockPlayer(false)
-        autoKillTask = nil
+        killTask = nil
     end)
 end
 
-local function StopAutoKillLoop()
-    autoKillEnabled = false
+local function stopKill()
+    killEnabled = false
     undeltedhub.Toggles.AutoKill = false
-    if autoKillTask then
-        task.cancel(autoKillTask)
-        autoKillTask = nil
+    if killTask then
+        task.cancel(killTask)
+        killTask = nil
     end
-    LockPlayer(false)
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Kill", Content = "Disabled", Duration = 2 })
 end
 
 TrollTab:Toggle({
-    Title = "Auto Kill",
-    Value = autoKillEnabled,
+    Title = "Auto Kill (Orbit)",
+    Value = killEnabled,
     Callback = function(state)
-        if state then StartAutoKillLoop() else StopAutoKillLoop() end
+        if state then startKill() else stopKill() end
     end
 })
 
-if autoKillEnabled then
-    StartAutoKillLoop()
-end
+if killEnabled then startKill() end
 
 local oldDisable = undeltedhub.DisableAll or function() end
 undeltedhub.DisableAll = function()
-    if autoKillEnabled then StopAutoKillLoop() end
+    if killEnabled then stopKill() end
     oldDisable()
 end
