@@ -10,19 +10,6 @@ Just a basic script hub with a bunch of upcoming supported games. I made this sc
 - [Fling Things And People](https://www.roblox.com/games/6961824067/Fling-Things-and-People)
 - [Muscle Legends](https://www.roblox.com/games/3623096087/Muscle-Legends)
 
-Hydroxide is bundled as the single `shared/hydroxide.lua` file and can be started
-from the Universal tab.
-
-## Repository Layout
-
-- `main.lua` is the public loader and selects a game by place ID.
-- `games.lua` maps place IDs to game initializers.
-- `games/` contains one initializer and its feature modules per game.
-- `shared/` contains common configuration, settings, utilities, and WindUI setup.
-- `docs/adding-a-game.md` explains how to add another supported game.
-
-Run `./tools/validate.sh` before publishing changes to catch missing module paths.
-
 ### Loadstring
 
 ```lua
