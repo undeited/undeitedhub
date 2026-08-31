@@ -1,21 +1,39 @@
 local WindUI = undeltedhub.WindUI
+local AutoTab = undeltedhub.Window:Tab({ Title = "Autofarm" })
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
+local function getTool(player, toolName)
+    local char = player.Character
+    if char then
+        local tool = char:FindFirstChild(toolName)
+        if tool then return tool end
     end
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        return backpack:FindFirstChild(toolName)
+    end
+    return nil
 end
 
-local AutoTab = undeltedhub.Window:Tab({ Title = "Autofarm" })
+local function equipTool(player, toolName)
+    local char = player.Character
+    if not char then return false end
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then return false end
+    local tool = char:FindFirstChild(toolName)
+    if tool then return true end
+    tool = backpack:FindFirstChild(toolName)
+    if tool then
+        for _, t in ipairs(char:GetChildren()) do
+            if t:IsA("Tool") and t.Name ~= toolName then
+                t.Parent = backpack
+            end
+        end
+        tool.Parent = char
+        task.wait(0.02)
+        return true
+    end
+    return false
+end
 
 local handstandEnabled = undeltedhub.Toggles.AutoHandstand or false
 local handstandTask = nil
@@ -25,7 +43,6 @@ local function startHandstand()
     handstandEnabled = true
     undeltedhub.Toggles.AutoHandstand = true
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Handstand", Content = "Enabled", Duration = 2 })
 
     handstandTask = task.spawn(function()
         local player = game:GetService("Players").LocalPlayer
@@ -35,21 +52,15 @@ local function startHandstand()
                 local backpack = player:FindFirstChild("Backpack")
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
                 if humanoid and humanoid.Health > 0 and backpack then
-                    for _, tool in ipairs(character:GetChildren()) do
-                        if tool:IsA("Tool") and tool.Name ~= "Handstands" then
-                            tool.Parent = backpack
-                        end
+                    if not equipTool(player, "Handstands") then
+                        task.wait()
+                        continue
                     end
-                    local handstands = character:FindFirstChild("Handstands")
-                    if not handstands then
-                        handstands = backpack:FindFirstChild("Handstands")
-                        if handstands then
-                            handstands.Parent = character
-                            task.wait(0.1)
-                        end
-                    end
+                    local handstands = getTool(player, "Handstands")
                     if handstands and handstands.Parent == character then
-                        handstands:Activate()
+                        pcall(function()
+                            handstands:Activate()
+                        end)
                     end
                 end
             end
@@ -67,7 +78,6 @@ local function stopHandstand()
         handstandTask = nil
     end
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Handstand", Content = "Disabled", Duration = 2 })
 end
 
 AutoTab:Toggle({
@@ -86,7 +96,6 @@ local function startRebirth()
     rebirthEnabled = true
     undeltedhub.Toggles.AutoRebirth = true
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Rebirth", Content = "Enabled", Duration = 2 })
 
     rebirthTask = task.spawn(function()
         local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -113,7 +122,6 @@ local function stopRebirth()
         rebirthTask = nil
     end
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Rebirth", Content = "Disabled", Duration = 2 })
 end
 
 AutoTab:Toggle({
@@ -132,7 +140,6 @@ local function startSitups()
     situpsEnabled = true
     undeltedhub.Toggles.AutoSitups = true
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Situps", Content = "Enabled", Duration = 2 })
 
     situpsTask = task.spawn(function()
         local player = game:GetService("Players").LocalPlayer
@@ -142,23 +149,15 @@ local function startSitups()
                 local backpack = player:FindFirstChild("Backpack")
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
                 if humanoid and humanoid.Health > 0 and backpack then
-                    for _, tool in ipairs(character:GetChildren()) do
-                        if tool:IsA("Tool") and tool.Name ~= "Situps" then
-                            tool.Parent = backpack
-                        end
+                    if not equipTool(player, "Situps") then
+                        task.wait()
+                        continue
                     end
-                    task.wait(0.1)
-                    local situpsInChar = character:FindFirstChild("Situps")
-                    local situpsInBack = backpack:FindFirstChild("Situps")
-                    if situpsInChar then
-                        situpsInChar:Activate()
-                    elseif situpsInBack then
-                        situpsInBack.Parent = character
-                        task.wait(0.1)
-                        local newSitups = character:FindFirstChild("Situps")
-                        if newSitups then
-                            newSitups:Activate()
-                        end
+                    local situps = getTool(player, "Situps")
+                    if situps and situps.Parent == character then
+                        pcall(function()
+                            situps:Activate()
+                        end)
                     end
                 end
             end
@@ -176,7 +175,6 @@ local function stopSitups()
         situpsTask = nil
     end
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Situps", Content = "Disabled", Duration = 2 })
 end
 
 AutoTab:Toggle({
@@ -195,7 +193,6 @@ local function startPushups()
     pushupsEnabled = true
     undeltedhub.Toggles.AutoPushups = true
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Pushups", Content = "Enabled", Duration = 2 })
 
     pushupsTask = task.spawn(function()
         local player = game:GetService("Players").LocalPlayer
@@ -205,23 +202,15 @@ local function startPushups()
                 local backpack = player:FindFirstChild("Backpack")
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
                 if humanoid and humanoid.Health > 0 and backpack then
-                    for _, tool in ipairs(character:GetChildren()) do
-                        if tool:IsA("Tool") and tool.Name ~= "Pushups" then
-                            tool.Parent = backpack
-                        end
+                    if not equipTool(player, "Pushups") then
+                        task.wait()
+                        continue
                     end
-                    task.wait(0.1)
-                    local pushupsInChar = character:FindFirstChild("Pushups")
-                    local pushupsInBack = backpack:FindFirstChild("Pushups")
-                    if pushupsInChar then
-                        pushupsInChar:Activate()
-                    elseif pushupsInBack then
-                        pushupsInBack.Parent = character
-                        task.wait(0.1)
-                        local newPushups = character:FindFirstChild("Pushups")
-                        if newPushups then
-                            newPushups:Activate()
-                        end
+                    local pushups = getTool(player, "Pushups")
+                    if pushups and pushups.Parent == character then
+                        pcall(function()
+                            pushups:Activate()
+                        end)
                     end
                 end
             end
@@ -239,7 +228,6 @@ local function stopPushups()
         pushupsTask = nil
     end
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Pushups", Content = "Disabled", Duration = 2 })
 end
 
 AutoTab:Toggle({
@@ -258,7 +246,6 @@ local function startWeight()
     weightEnabled = true
     undeltedhub.Toggles.AutoWeight = true
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Weight", Content = "Enabled", Duration = 2 })
 
     weightTask = task.spawn(function()
         local player = game:GetService("Players").LocalPlayer
@@ -266,19 +253,17 @@ local function startWeight()
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
                 local character = player.Character
                 local backpack = player:FindFirstChild("Backpack")
-                if character and backpack then
-                    local humanoid = character:FindFirstChildOfClass("Humanoid")
-                    if humanoid and humanoid.Health > 0 then
-                        local weight = character:FindFirstChild("Weight") or backpack:FindFirstChild("Weight")
-                        if weight then
-                            if weight.Parent == backpack then
-                                weight.Parent = character
-                                task.wait(0.1)
-                            end
-                            if weight.Parent == character then
-                                weight:Activate()
-                            end
-                        end
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 and backpack then
+                    if not equipTool(player, "Weight") then
+                        task.wait()
+                        continue
+                    end
+                    local weight = getTool(player, "Weight")
+                    if weight and weight.Parent == character then
+                        pcall(function()
+                            weight:Activate()
+                        end)
                     end
                 end
             end
@@ -296,7 +281,6 @@ local function stopWeight()
         weightTask = nil
     end
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Weight", Content = "Disabled", Duration = 2 })
 end
 
 AutoTab:Toggle({

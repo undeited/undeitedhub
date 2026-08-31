@@ -34,6 +34,11 @@ local function equipPunch(player)
     if punch then return true end
     punch = backpack:FindFirstChild("Punch")
     if punch then
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") and tool.Name ~= "Punch" then
+                tool.Parent = backpack
+            end
+        end
         punch.Parent = char
         task.wait(0.02)
         return true
