@@ -154,7 +154,6 @@ end
 
 LoadScript("games/fbr/esp.lua")
 LoadScript("games/fbr/misc.lua")
-LoadScript("games/fbr/nametag.lua")
 LoadScript("shared/settings.lua")
 
 if _G.UNDELTEDHUB_STATES then
