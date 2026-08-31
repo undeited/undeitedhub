@@ -163,7 +163,7 @@ local function stopKill()
 end
 
 TrollTab:Toggle({
-    Title = "Auto Kill (MAX SPEED)",
+    Title = "Auto Kill",
     Value = killEnabled,
     Callback = function(state)
         if state then startKill() else stopKill() end
