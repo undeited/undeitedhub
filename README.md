@@ -8,6 +8,7 @@ Just a basic script hub with a bunch of upcoming supported games. I made this sc
 - [Giant Simulator: REBORN](https://www.roblox.com/games/12645083079/Giant-Simulator-REBORN)
 - [Free Boombox/Radio](https://www.roblox.com/games/6116002492/Free-Boombox-Radio)
 - [Fling Things And People](https://www.roblox.com/games/6961824067/Fling-Things-and-People)
+- [Muscle Legends](https://www.roblox.com/games/3623096087/Muscle-Legends)
 
 Hydroxide is bundled as the single `shared/hydroxide.lua` file and can be started
 from the Universal tab.

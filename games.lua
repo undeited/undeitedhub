@@ -3,4 +3,5 @@ return {
     [12645083079] = "games/gsr/init.lua",
     [6116002492] = "games/fbr/init.lua",
     [6961824067] = "games/ftap/init.lua",
+    [3623096087] = "games/ml/init.lua",
 }
