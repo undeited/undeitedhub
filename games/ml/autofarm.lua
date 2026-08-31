@@ -1,56 +1,38 @@
 local WindUI = undeltedhub.WindUI
 local AutoTab = undeltedhub.Window:Tab({ Title = "Autofarm" })
 
+local function getTool(player, toolName)
+    local char = player.Character
+    if char then
+        local tool = char:FindFirstChild(toolName)
+        if tool then return tool end
+    end
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        return backpack:FindFirstChild(toolName)
+    end
+    return nil
+end
+
 local function equipTool(player, toolName)
     local char = player.Character
     if not char then return false end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return false end
     local backpack = player:FindFirstChild("Backpack")
     if not backpack then return false end
-
     local tool = char:FindFirstChild(toolName)
-    if tool and humanoid.ActiveTool == tool then
-        return true, tool
-    end
-
-    if tool then
-        humanoid:EquipTool(tool)
-        for _ = 1, 3 do
-            task.wait(0.03)
-            if humanoid.ActiveTool == tool then
-                return true, tool
-            end
-        end
-    end
-
+    if tool then return true end
     tool = backpack:FindFirstChild(toolName)
     if tool then
         for _, t in ipairs(char:GetChildren()) do
-            if t:IsA("Tool") and t ~= tool then
+            if t:IsA("Tool") and t.Name ~= toolName then
                 t.Parent = backpack
             end
         end
         tool.Parent = char
-        task.wait(0.05)
-        humanoid:EquipTool(tool)
-        for _ = 1, 3 do
-            task.wait(0.03)
-            if humanoid.ActiveTool == tool then
-                return true, tool
-            end
-        end
+        task.wait(0.02)
+        return true
     end
-    return false, nil
-end
-
-local function activateTool(player, toolName)
-    local success, tool = equipTool(player, toolName)
-    if not success or not tool then return false end
-    pcall(function()
-        tool:Activate()
-    end)
-    return true
+    return false
 end
 
 local handstandEnabled = undeltedhub.Toggles.AutoHandstand or false
@@ -66,9 +48,23 @@ local function startHandstand()
         local player = game:GetService("Players").LocalPlayer
         while handstandEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
-                activateTool(player, "Handstands")
+                local character = player.Character
+                local backpack = player:FindFirstChild("Backpack")
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 and backpack then
+                    if not equipTool(player, "Handstands") then
+                        task.wait()
+                        continue
+                    end
+                    local handstands = getTool(player, "Handstands")
+                    if handstands and handstands.Parent == character then
+                        pcall(function()
+                            handstands:Activate()
+                        end)
+                    end
+                end
             end
-            task.wait(0.25)
+            task.wait(0.1)
         end
         handstandTask = nil
     end)
@@ -149,9 +145,23 @@ local function startSitups()
         local player = game:GetService("Players").LocalPlayer
         while situpsEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
-                activateTool(player, "Situps")
+                local character = player.Character
+                local backpack = player:FindFirstChild("Backpack")
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 and backpack then
+                    if not equipTool(player, "Situps") then
+                        task.wait()
+                        continue
+                    end
+                    local situps = getTool(player, "Situps")
+                    if situps and situps.Parent == character then
+                        pcall(function()
+                            situps:Activate()
+                        end)
+                    end
+                end
             end
-            task.wait(0.25)
+            task.wait(0.1)
         end
         situpsTask = nil
     end)
@@ -188,9 +198,23 @@ local function startPushups()
         local player = game:GetService("Players").LocalPlayer
         while pushupsEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
-                activateTool(player, "Pushups")
+                local character = player.Character
+                local backpack = player:FindFirstChild("Backpack")
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 and backpack then
+                    if not equipTool(player, "Pushups") then
+                        task.wait()
+                        continue
+                    end
+                    local pushups = getTool(player, "Pushups")
+                    if pushups and pushups.Parent == character then
+                        pcall(function()
+                            pushups:Activate()
+                        end)
+                    end
+                end
             end
-            task.wait(0.25)
+            task.wait(0.1)
         end
         pushupsTask = nil
     end)
@@ -227,9 +251,23 @@ local function startWeight()
         local player = game:GetService("Players").LocalPlayer
         while weightEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
-                activateTool(player, "Weight")
+                local character = player.Character
+                local backpack = player:FindFirstChild("Backpack")
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 and backpack then
+                    if not equipTool(player, "Weight") then
+                        task.wait()
+                        continue
+                    end
+                    local weight = getTool(player, "Weight")
+                    if weight and weight.Parent == character then
+                        pcall(function()
+                            weight:Activate()
+                        end)
+                    end
+                end
             end
-            task.wait(0.25)
+            task.wait(0.1)
         end
         weightTask = nil
     end)

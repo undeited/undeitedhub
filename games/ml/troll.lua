@@ -12,48 +12,38 @@ local function getStrength(player)
     return nil
 end
 
+local function getPunchTool(player)
+    local char = player.Character
+    if char then
+        local punch = char:FindFirstChild("Punch")
+        if punch then return punch end
+    end
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        return backpack:FindFirstChild("Punch")
+    end
+    return nil
+end
+
 local function equipPunch(player)
     local char = player.Character
     if not char then return false end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return false end
     local backpack = player:FindFirstChild("Backpack")
     if not backpack then return false end
-
-    local toolName = "Punch"
-    local tool = char:FindFirstChild(toolName)
-    if tool and humanoid.ActiveTool == tool then
-        return true, tool
-    end
-
-    if tool then
-        humanoid:EquipTool(tool)
-        for _ = 1, 3 do
-            task.wait(0.03)
-            if humanoid.ActiveTool == tool then
-                return true, tool
+    local punch = char:FindFirstChild("Punch")
+    if punch then return true end
+    punch = backpack:FindFirstChild("Punch")
+    if punch then
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") and tool.Name ~= "Punch" then
+                tool.Parent = backpack
             end
         end
+        punch.Parent = char
+        task.wait(0.02)
+        return true
     end
-
-    tool = backpack:FindFirstChild(toolName)
-    if tool then
-        for _, t in ipairs(char:GetChildren()) do
-            if t:IsA("Tool") and t ~= tool then
-                t.Parent = backpack
-            end
-        end
-        tool.Parent = char
-        task.wait(0.05)
-        humanoid:EquipTool(tool)
-        for _ = 1, 3 do
-            task.wait(0.03)
-            if humanoid.ActiveTool == tool then
-                return true, tool
-            end
-        end
-    end
-    return false, nil
+    return false
 end
 
 local killEnabled = undeltedhub.Toggles.AutoKill or false
@@ -78,14 +68,13 @@ local function startKill()
                     continue
                 end
 
-                local success, punchTool = equipPunch(localPlayer)
-                if not success or not punchTool then
+                if not equipPunch(localPlayer) then
                     task.wait()
                     continue
                 end
 
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                if not humanoid or humanoid.ActiveTool ~= punchTool then
+                local punchTool = getPunchTool(localPlayer)
+                if not punchTool then
                     task.wait()
                     continue
                 end
@@ -128,10 +117,16 @@ local function startKill()
                             break
                         end
 
-                        if humanoid.ActiveTool ~= punchTool then
-                            local success2, newTool = equipPunch(localPlayer)
-                            if not success2 then break end
-                            punchTool = newTool
+                        local currentPunch = getPunchTool(localPlayer)
+                        if not currentPunch then
+                            if not equipPunch(localPlayer) then
+                                break
+                            end
+                            currentPunch = getPunchTool(localPlayer)
+                            if not currentPunch then
+                                break
+                            end
+                            punchTool = currentPunch
                         end
 
                         local targetPos = targetRoot.Position
