@@ -119,7 +119,7 @@ undeltedhub.ToggleKey = undeltedhub.ToggleKey or config.toggleKey or "K"
 
 local Window = WindUI:CreateWindow({
     Title = "Undelted Hub",
-    Author = "by coolio",
+    Author = "by undelted",
     Folder = "undeltedhub/" .. GAME_FOLDER,
     Size = UDim2.fromOffset(580, 460),
     MinSize = Vector2.new(560, 350),
