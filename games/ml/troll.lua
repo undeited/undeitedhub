@@ -1,4 +1,5 @@
 local WindUI = undeltedhub.WindUI
+local RunService = game:GetService("RunService")
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -42,7 +43,7 @@ local function equipPunch(player)
     punch = backpack:FindFirstChild("Punch")
     if punch then
         punch.Parent = character
-        task.wait(0.03) -- minimal wait for equip
+        task.wait(0.02)
         return true
     end
     return false
@@ -57,30 +58,37 @@ local function startKill()
     killEnabled = true
     undeltedhub.Toggles.AutoKill = true
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Kill", Content = "Enabled (MAX SPEED)", Duration = 2 })
+    SafeNotify({ Title = "Auto Kill", Content = "Enabled (MAX SPEED + TELEPORT)", Duration = 2 })
 
     killTask = task.spawn(function()
         local localPlayer = game:GetService("Players").LocalPlayer
         local playerStrength = getStrength(localPlayer)
+
+        -- Keep the punch tool equipped
+        local punchTool = nil
 
         while killEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
                 local character = localPlayer.Character
                 local myRoot = character and character:FindFirstChild("HumanoidRootPart")
                 if not myRoot then
-                    task.wait(0.1)
+                    task.wait()
                     continue
                 end
 
-                -- Equip punch once per cycle
-                if not equipPunch(localPlayer) then
-                    task.wait(0.1)
-                    continue
-                end
-
-                local punchTool = character:FindFirstChild("Punch")
+                -- Equip punch once
                 if not punchTool then
-                    task.wait(0.1)
+                    if equipPunch(localPlayer) then
+                        punchTool = character:FindFirstChild("Punch")
+                    else
+                        task.wait()
+                        continue
+                    end
+                end
+
+                if not punchTool or not punchTool.Parent then
+                    punchTool = nil
+                    task.wait()
                     continue
                 end
 
@@ -117,13 +125,10 @@ local function startKill()
                     local targetHum = target.hum
                     local targetPlayer = target.ply
 
-                    -- Teleport directly onto target (slightly above)
-                    local attackPos = targetRoot.Position + Vector3.new(0, 0.5, 0)
-                    myRoot.CFrame = CFrame.new(attackPos, targetRoot.Position)
-
-                    -- SPAM PUNCH until dead or strength changes
                     local punchCount = 0
-                    local maxPunches = 15  -- safety limit
+                    local maxPunches = 20 -- safety limit
+
+                    -- Keep punching until dead or limit reached
                     while killEnabled and targetHum.Health > 0 and punchCount < maxPunches do
                         -- Re-check strength (fast)
                         local otherStrength = getStrength(targetPlayer)
@@ -131,21 +136,25 @@ local function startKill()
                             break
                         end
 
+                        -- Teleport directly onto target (slightly above to avoid being stuck)
+                        local targetPos = targetRoot.Position
+                        local attackPos = targetPos + Vector3.new(0, 0.5, 0) -- chest level
+                        myRoot.CFrame = CFrame.new(attackPos, targetPos)
+
                         -- Punch
                         pcall(function()
                             punchTool:Activate()
                         end)
                         punchCount = punchCount + 1
 
-                        -- Minimal delay (just enough for game to process)
-                        task.wait(0.02)
+                        -- Absolute minimum delay to let game process damage
+                        task.wait()
                     end
 
-                    -- Immediate move to next target
-                    task.wait(0.02)
+                    -- Move to next target instantly
                 end
             end
-            task.wait(0.05) -- main loop speed
+            task.wait() -- main loop minimal yield
         end
         killTask = nil
     end)
