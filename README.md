@@ -1,6 +1,6 @@
 # Undelted Hub
 
-Just a basic script hub with a bunch of upcoming supported games. I made this script hub using the [WindUI](https://footagesus.github.io/WindUI-Docs/docs) documentation. I am going to try and make this script hub support all executors.
+Just a basic script hub with a bunch of upcoming supported games. I made this script hub using the [WindUI](https://footagesus.github.io/WindUI-Docs/docs) documentation. I am going to try and make this script hub supported with all executors.
 
 ## Supported Games
 
