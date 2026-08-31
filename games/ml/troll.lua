@@ -31,14 +31,6 @@ local function getStrength(player)
     return nil
 end
 
-local function getRootPart(character)
-    return character and character:FindFirstChild("HumanoidRootPart")
-end
-
-local function getHumanoid(character)
-    return character and character:FindFirstChildOfClass("Humanoid")
-end
-
 local function startKill()
     if killTask then return end
     killEnabled = true
@@ -51,7 +43,7 @@ local function startKill()
         while killEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
                 local character = player.Character
-                local myRoot = getRootPart(character)
+                local myRoot = character and character:FindFirstChild("HumanoidRootPart")
                 if myRoot then
                     local localStrength = getStrength(player)
                     local backpack = player:FindFirstChild("Backpack")
@@ -82,8 +74,8 @@ local function startKill()
                             end
                             local targetChar = otherPlayer.Character
                             if targetChar then
-                                local targetRoot = getRootPart(targetChar)
-                                local targetHumanoid = getHumanoid(targetChar)
+                                local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                                local targetHumanoid = targetChar:FindFirstChildOfClass("Humanoid")
                                 if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
                                     local dist = (myRoot.Position - targetRoot.Position).Magnitude
                                     if dist < shortestDistance then
@@ -94,36 +86,20 @@ local function startKill()
                             end
                         end
                     end
-                    
                     if closestTarget then
                         local targetChar = closestTarget.Character
                         if targetChar then
-                            local targetRoot = getRootPart(targetChar)
-                            local targetHumanoid = getHumanoid(targetChar)
+                            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
                             local punchTool = character:FindFirstChild("Punch")
-                            
-                            if targetRoot and targetHumanoid and targetHumanoid.Health > 0 and punchTool then
-                                local teleportPos = myRoot.CFrame * CFrame.new(0, 0, 2)
-                                targetRoot.CFrame = teleportPos
-                                targetRoot.Velocity = Vector3.new(0, 0, 0)
-                                targetRoot.RotVelocity = Vector3.new(0, 0, 0)
-                                
-                                targetHumanoid.PlatformStand = true
-                                targetHumanoid.WalkSpeed = 0
-                                targetHumanoid.JumpPower = 0
-                                
-                                myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -1)
-                                
+                            if targetRoot and punchTool then
+                                myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 2)
                                 punchTool:Activate()
-                                
-                                task.wait(0.1)
-                                
                             end
                         end
                     end
                 end
             end
-            task.wait(0.05)
+            task.wait(0.1)
         end
         killTask = nil
     end)
