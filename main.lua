@@ -43,7 +43,6 @@ end
 
 if not CheckExecutor() then return end
 
--- 🔹 Initialize global fallback storage
 _G.UNDELTEDHUB_STORAGE = _G.UNDELTEDHUB_STORAGE or {}
 
 if undeltedhub then
