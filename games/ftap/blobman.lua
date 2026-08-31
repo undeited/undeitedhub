@@ -26,88 +26,82 @@ local grabTask = nil
 
 local INTERACT_KEY = Enum.KeyCode.F
 local PROXIMITY_RANGE = 20
-local CHECK_DELAY = 0.3
+local CHECK_DELAY = 0.5
 
 local leftHeldTarget = nil
 local rightHeldTarget = nil
+local toyFolder = nil
 
-local function manageBlobmanSeating(toyFolder)
-    local char = LocalPlayer.Character
-    if not char then
-        return nil
+local function updateToyFolder()
+    toyFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+end
+updateToyFolder()
+Workspace.DescendantAdded:Connect(function(child)
+    if child.Name == LocalPlayer.Name .. "SpawnedInToys" then
+        toyFolder = child
     end
+end)
 
+local function getNearestUnheldPlayer(blobmanModel, excludeLeft, excludeRight)
+    local rootPart = blobmanModel:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return nil end
+
+    local pivotPoint = rootPart.Position
+    local best = nil
+    local bestDist = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        local char = player.Character
+        if not char then continue end
+        local targetRoot = char:FindFirstChild("HumanoidRootPart")
+        local targetHum = char:FindFirstChildOfClass("Humanoid")
+        if not targetRoot or not targetHum or targetHum.Health <= 0 then continue end
+        if char:FindFirstChildOfClass("ForceField") then continue end
+        if char == excludeLeft or char == excludeRight then continue end
+
+        local dist = (pivotPoint - targetRoot.Position).Magnitude
+        if dist < PROXIMITY_RANGE and dist < bestDist then
+            best = char
+            bestDist = dist
+        end
+    end
+    return best
+end
+
+local function manageBlobmanSeating()
+    local char = LocalPlayer.Character
+    if not char then return nil end
     local hum = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp or hum.Health <= 0 then
-        return nil
-    end
+    if not hum or not hrp or hum.Health <= 0 then return nil end
 
     if hum.SeatPart and hum.SeatPart.Name == "VehicleSeat" and hum.SeatPart.Parent and hum.SeatPart.Parent.Name == "CreatureBlobman" then
         return hum.SeatPart.Parent
     end
 
-    if toyFolder then
-        for _, blobman in ipairs(toyFolder:GetChildren()) do
-            if blobman.Name == "CreatureBlobman" then
-                local seat = blobman:FindFirstChild("VehicleSeat")
-                if seat and (not seat.Occupant or seat.Occupant == hum) then
-                    local camera = Workspace.CurrentCamera
+    if not toyFolder then return nil end
 
-                    hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
-                    task.wait(0.05)
-
-                    camera.CFrame = CFrame.new(camera.CFrame.Position, seat.Position)
-                    task.wait(0.05)
-
-                    VirtualInputManager:SendKeyEvent(true, INTERACT_KEY, false, game)
-                    task.wait(0.05)
-                    VirtualInputManager:SendKeyEvent(false, INTERACT_KEY, false, game)
-
-                    task.wait(0.3)
-                    if hum.SeatPart and hum.SeatPart.Parent == blobman then
-                        return blobman
-                    end
+    for _, blobman in ipairs(toyFolder:GetChildren()) do
+        if blobman.Name == "CreatureBlobman" then
+            local seat = blobman:FindFirstChild("VehicleSeat")
+            if seat and (not seat.Occupant or seat.Occupant == hum) then
+                local camera = Workspace.CurrentCamera
+                hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
+                task.wait(0.05)
+                camera.CFrame = CFrame.new(camera.CFrame.Position, seat.Position)
+                task.wait(0.05)
+                VirtualInputManager:SendKeyEvent(true, INTERACT_KEY, false, game)
+                task.wait(0.05)
+                VirtualInputManager:SendKeyEvent(false, INTERACT_KEY, false, game)
+                task.wait(0.3)
+                if hum.SeatPart and hum.SeatPart.Parent == blobman then
+                    return blobman
                 end
             end
         end
     end
-
     return nil
-end
-
-local function getSortedNearbyPlayers(blobmanModel)
-    local rootPart = blobmanModel:FindFirstChild("HumanoidRootPart")
-    if not rootPart then
-        return {}
-    end
-
-    local pivotPoint = rootPart.Position
-    local nearbyList = {}
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
-            local targetHum = player.Character:FindFirstChildOfClass("Humanoid")
-
-            if targetRoot and targetHum and targetHum.Health > 0 and not player.Character:FindFirstChildOfClass("ForceField") then
-                local distance = (pivotPoint - targetRoot.Position).Magnitude
-                if distance < PROXIMITY_RANGE then
-                    table.insert(nearbyList, {Player = player.Character, Distance = distance})
-                end
-            end
-        end
-    end
-
-    table.sort(nearbyList, function(a, b)
-        return a.Distance < b.Distance
-    end)
-
-    local finalTargets = {}
-    for _, item in ipairs(nearbyList) do
-        table.insert(finalTargets, item.Player)
-    end
-    return finalTargets
 end
 
 local function startGrabLoop()
@@ -120,77 +114,65 @@ local function startGrabLoop()
     grabTask = task.spawn(function()
         while grabEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
-                local toyFolderName = LocalPlayer.Name .. "SpawnedInToys"
-                local toyFolder = Workspace:FindFirstChild(toyFolderName)
-
-                local blobman = manageBlobmanSeating(toyFolder)
-
+                local blobman = manageBlobmanSeating()
                 if blobman then
                     local leftDetector = blobman:FindFirstChild("LeftDetector")
                     local rightDetector = blobman:FindFirstChild("RightDetector")
                     local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
                     local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
-
                     local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
                     local creatureGrab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
 
                     if leftWeld and rightWeld and creatureGrab then
                         if leftHeldTarget then
                             local leftHum = leftHeldTarget:FindFirstChildOfClass("Humanoid")
-                            if leftWeld.Attachment0 == nil or not leftWeld.Attachment0:IsDescendantOf(leftHeldTarget) or (leftHum and leftHum.Health <= 0) or not leftHeldTarget.Parent then
+                            if not leftWeld.Attachment0 or not leftWeld.Attachment0:IsDescendantOf(leftHeldTarget) or (leftHum and leftHum.Health <= 0) or not leftHeldTarget.Parent then
                                 leftHeldTarget = nil
                             end
                         end
-
                         if rightHeldTarget then
                             local rightHum = rightHeldTarget:FindFirstChildOfClass("Humanoid")
-                            if rightWeld.Attachment0 == nil or not rightWeld.Attachment0:IsDescendantOf(rightHeldTarget) or (rightHum and rightHum.Health <= 0) or not rightHeldTarget.Parent then
+                            if not rightWeld.Attachment0 or not rightWeld.Attachment0:IsDescendantOf(rightHeldTarget) or (rightHum and rightHum.Health <= 0) or not rightHeldTarget.Parent then
                                 rightHeldTarget = nil
                             end
                         end
 
-                        if not leftHeldTarget or not rightHeldTarget then
-                            local targets = getSortedNearbyPlayers(blobman)
-
-                            for _, victim in ipairs(targets) do
-                                if victim ~= leftHeldTarget and victim ~= rightHeldTarget then
-                                    local victimRoot = victim:FindFirstChild("HumanoidRootPart")
-                                    local victimHum = victim:FindFirstChildOfClass("Humanoid")
-
-                                    if victimRoot and victimHum and victimHum.Health > 0 and victim.Parent then
-                                        if not leftHeldTarget and leftDetector then
-                                            leftHeldTarget = victim
-
-                                            victimRoot.CFrame = leftDetector.CFrame
-                                            victimRoot.Velocity = Vector3.new(0, 0, 0)
-                                            task.wait(0.08)
-
-                                            if victimHum.Health > 0 and victim.Parent then
-                                                creatureGrab:FireServer(victim, victimRoot, leftWeld)
-                                            else
-                                                leftHeldTarget = nil
-                                            end
-                                            task.wait(0.12)
-
-                                        elseif not rightHeldTarget and rightDetector then
-                                            rightHeldTarget = victim
-
-                                            victimRoot.CFrame = rightDetector.CFrame
-                                            victimRoot.Velocity = Vector3.new(0, 0, 0)
-                                            task.wait(0.08)
-
-                                            if victimHum.Health > 0 and victim.Parent then
-                                                creatureGrab:FireServer(victim, victimRoot, rightWeld)
-                                            else
-                                                rightHeldTarget = nil
-                                            end
-                                            task.wait(0.12)
-                                        end
+                        if not leftHeldTarget then
+                            local victim = getNearestUnheldPlayer(blobman, nil, rightHeldTarget)
+                            if victim then
+                                local victimRoot = victim:FindFirstChild("HumanoidRootPart")
+                                local victimHum = victim:FindFirstChildOfClass("Humanoid")
+                                if victimRoot and victimHum and victimHum.Health > 0 and victim.Parent then
+                                    leftHeldTarget = victim
+                                    victimRoot.CFrame = leftDetector.CFrame
+                                    victimRoot.Velocity = Vector3.new(0,0,0)
+                                    task.wait(0.08)
+                                    if victimHum.Health > 0 and victim.Parent then
+                                        creatureGrab:FireServer(victim, victimRoot, leftWeld)
+                                    else
+                                        leftHeldTarget = nil
                                     end
+                                    task.wait(0.12)
                                 end
+                            end
+                        end
 
-                                if leftHeldTarget and rightHeldTarget then
-                                    break
+                        if not rightHeldTarget then
+                            local victim = getNearestUnheldPlayer(blobman, leftHeldTarget, nil)
+                            if victim then
+                                local victimRoot = victim:FindFirstChild("HumanoidRootPart")
+                                local victimHum = victim:FindFirstChildOfClass("Humanoid")
+                                if victimRoot and victimHum and victimHum.Health > 0 and victim.Parent then
+                                    rightHeldTarget = victim
+                                    victimRoot.CFrame = rightDetector.CFrame
+                                    victimRoot.Velocity = Vector3.new(0,0,0)
+                                    task.wait(0.08)
+                                    if victimHum.Health > 0 and victim.Parent then
+                                        creatureGrab:FireServer(victim, victimRoot, rightWeld)
+                                    else
+                                        rightHeldTarget = nil
+                                    end
+                                    task.wait(0.12)
                                 end
                             end
                         end
