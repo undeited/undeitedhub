@@ -337,6 +337,15 @@ local function startKill()
                 if myRoot then
                     local localStrength = getStrength(player)
                     local backpack = player:FindFirstChild("Backpack")
+                    
+                    if character then
+                        for _, tool in ipairs(character:GetChildren()) do
+                            if tool:IsA("Tool") and tool.Name ~= "Punch" then
+                                tool.Parent = backpack
+                            end
+                        end
+                    end
+                    
                     if character and not character:FindFirstChild("Punch") then
                         local punch = backpack and backpack:FindFirstChild("Punch")
                         if punch then
@@ -344,6 +353,7 @@ local function startKill()
                             task.wait(0.05)
                         end
                     end
+                    
                     local closestTarget = nil
                     local shortestDistance = math.huge
                     for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
