@@ -187,6 +187,70 @@ AutoTab:Toggle({
     end
 })
 
+local pushupsEnabled = undeltedhub.Toggles.AutoPushups or false
+local pushupsTask = nil
+
+local function startPushups()
+    if pushupsTask then return end
+    pushupsEnabled = true
+    undeltedhub.Toggles.AutoPushups = true
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    SafeNotify({ Title = "Auto Pushups", Content = "Enabled", Duration = 2 })
+
+    pushupsTask = task.spawn(function()
+        local player = game:GetService("Players").LocalPlayer
+        while pushupsEnabled do
+            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+                local character = player.Character
+                local backpack = player:FindFirstChild("Backpack")
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 and backpack then
+                    -- Move all equipped tools (except Pushups) to backpack
+                    for _, tool in ipairs(character:GetChildren()) do
+                        if tool:IsA("Tool") and tool.Name ~= "Pushups" then
+                            tool.Parent = backpack
+                        end
+                    end
+                    task.wait(0.1)
+                    local pushupsInChar = character:FindFirstChild("Pushups")
+                    local pushupsInBack = backpack:FindFirstChild("Pushups")
+                    if pushupsInChar then
+                        pushupsInChar:Activate()
+                    elseif pushupsInBack then
+                        pushupsInBack.Parent = character
+                        task.wait(0.1)
+                        local newPushups = character:FindFirstChild("Pushups")
+                        if newPushups then
+                            newPushups:Activate()
+                        end
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+        pushupsTask = nil
+    end)
+end
+
+local function stopPushups()
+    pushupsEnabled = false
+    undeltedhub.Toggles.AutoPushups = false
+    if pushupsTask then
+        task.cancel(pushupsTask)
+        pushupsTask = nil
+    end
+    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    SafeNotify({ Title = "Auto Pushups", Content = "Disabled", Duration = 2 })
+end
+
+AutoTab:Toggle({
+    Title = "Auto Pushups",
+    Value = pushupsEnabled,
+    Callback = function(state)
+        if state then startPushups() else stopPushups() end
+    end
+})
+
 local weightEnabled = undeltedhub.Toggles.AutoWeight or false
 local weightTask = nil
 
@@ -330,6 +394,7 @@ undeltedhub.DisableAll = function()
     if handstandEnabled then stopHandstand() end
     if rebirthEnabled then stopRebirth() end
     if situpsEnabled then stopSitups() end
+    if pushupsEnabled then stopPushups() end
     if weightEnabled then stopWeight() end
     if killEnabled then stopKill() end
     oldDisable()
