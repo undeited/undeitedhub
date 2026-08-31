@@ -162,6 +162,7 @@ LoadScript("games/ftap/esp.lua")
 LoadScript("games/ftap/combat.lua")
 LoadScript("games/ftap/misc.lua")
 LoadScript("games/ftap/troll.lua")
+LoadScript("games/ftap/blobman.lua")
 LoadScript("shared/settings.lua")
 
 if _G.UNDELTEDHUB_STATES then
