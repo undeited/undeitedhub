@@ -1,6 +1,5 @@
 local WindUI = undeltedhub.WindUI
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
@@ -31,6 +30,15 @@ end
 
 local function GetHumanoid(character)
     return character and character:FindFirstChildOfClass("Humanoid")
+end
+
+local function GetStrength(player)
+    local ls = player:FindFirstChild("leaderstats")
+    if ls then
+        local str = ls:FindFirstChild("Strength")
+        if str then return str.Value end
+    end
+    return 0
 end
 
 local function IsAlive(player)
@@ -65,6 +73,19 @@ local function IsInLobby(player)
     return (root.Position - lobbyPos).Magnitude < 50
 end
 
+local function FreezePlayer(character, freeze)
+    local hum = GetHumanoid(character)
+    if not hum then return end
+    hum.PlatformStand = freeze
+    if freeze then
+        hum.WalkSpeed = 0
+        hum.JumpPower = 0
+    else
+        hum.WalkSpeed = 16
+        hum.JumpPower = 50
+    end
+end
+
 local function KillTarget(target)
     if not target or target == LocalPlayer then return false end
     if not IsAlive(target) then return false end
@@ -94,10 +115,18 @@ local function KillTarget(target)
     end
     if not punch then return false end
 
-    local behind = targetRoot.CFrame * CFrame.new(0, 1, -2)
-    myRoot.CFrame = behind
+    myRoot.CFrame = targetRoot.CFrame
+    FreezePlayer(myChar, true)
 
-    if punch:IsA("Tool") then
+    local startTime = tick()
+    local timeout = 5
+    local success = false
+
+    while tick() - startTime < timeout do
+        if not IsAlive(target) then
+            success = true
+            break
+        end
         pcall(function() punch:Activate() end)
         local remote = punch:FindFirstChild("PunchRemote") or punch:FindFirstChild("Remote")
         if remote and remote:IsA("RemoteEvent") then
@@ -107,27 +136,42 @@ local function KillTarget(target)
         if bindable and bindable:IsA("BindableEvent") then
             pcall(function() bindable:Fire() end)
         end
-        return true
+        task.wait(0.1)
     end
-    return false
+
+    FreezePlayer(myChar, false)
+    return success
 end
 
 local autoKillEnabled = undeltedhub.Toggles.AutoKill or false
 local autoKillTask = nil
 
+local function GetValidTargets()
+    local myStrength = GetStrength(LocalPlayer)
+    local targets = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and IsAlive(player) and not IsInLobby(player) then
+            local str = GetStrength(player)
+            if str < myStrength then
+                table.insert(targets, player)
+            end
+        end
+    end
+    return targets
+end
+
 local function GetNearestTarget()
     local myRoot = GetRoot(GetCharacter(LocalPlayer))
     if not myRoot then return nil end
+    local targets = GetValidTargets()
     local best, bestDist
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and IsAlive(player) and not IsInLobby(player) then
-            local root = GetRoot(GetCharacter(player))
-            if root then
-                local dist = (root.Position - myRoot.Position).Magnitude
-                if not bestDist or dist < bestDist then
-                    best = player
-                    bestDist = dist
-                end
+    for _, player in ipairs(targets) do
+        local root = GetRoot(GetCharacter(player))
+        if root then
+            local dist = (root.Position - myRoot.Position).Magnitude
+            if not bestDist or dist < bestDist then
+                best = player
+                bestDist = dist
             end
         end
     end
@@ -139,10 +183,9 @@ local function StartAutoKillLoop()
     autoKillEnabled = true
     undeltedhub.Toggles.AutoKill = true
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Kill", Content = "Enabled (nearest)", Duration = 2 })
+    SafeNotify({ Title = "Auto Kill", Content = "Enabled (nearest weaker)", Duration = 2 })
 
     autoKillTask = task.spawn(function()
-        local cooldown = 0.3
         while autoKillEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE and LocalPlayer and GetCharacter(LocalPlayer) then
                 local target = GetNearestTarget()
@@ -150,7 +193,7 @@ local function StartAutoKillLoop()
                     pcall(KillTarget, target)
                 end
             end
-            task.wait(cooldown)
+            task.wait(0.3)
         end
         autoKillTask = nil
     end)
