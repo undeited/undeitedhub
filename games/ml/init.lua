@@ -156,7 +156,7 @@ end
 
 LoadScript("games/ml/esp.lua")
 LoadScript("games/ml/autofarm.lua")
-
+LoadScript("games/ml/troll.lua")
 LoadScript("shared/settings.lua")
 
 if _G.UNDELTEDHUB_STATES then
