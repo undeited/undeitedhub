@@ -12,16 +12,29 @@ local function getStrength(player)
     return nil
 end
 
+local function getPunchTool(player)
+    local char = player.Character
+    if char then
+        local punch = char:FindFirstChild("Punch")
+        if punch then return punch end
+    end
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        return backpack:FindFirstChild("Punch")
+    end
+    return nil
+end
+
 local function equipPunch(player)
-    local character = player.Character
-    if not character then return false end
+    local char = player.Character
+    if not char then return false end
     local backpack = player:FindFirstChild("Backpack")
     if not backpack then return false end
-    local punch = character:FindFirstChild("Punch")
+    local punch = char:FindFirstChild("Punch")
     if punch then return true end
     punch = backpack:FindFirstChild("Punch")
     if punch then
-        punch.Parent = character
+        punch.Parent = char
         task.wait(0.02)
         return true
     end
@@ -40,7 +53,6 @@ local function startKill()
     killTask = task.spawn(function()
         local localPlayer = game:GetService("Players").LocalPlayer
         local playerStrength = getStrength(localPlayer)
-        local punchTool = nil
 
         while killEnabled do
             if _G.UNDELTEDHUB_WINDOW_VISIBLE then
@@ -51,17 +63,13 @@ local function startKill()
                     continue
                 end
 
-                if not punchTool then
-                    if equipPunch(localPlayer) then
-                        punchTool = character:FindFirstChild("Punch")
-                    else
-                        task.wait()
-                        continue
-                    end
+                if not equipPunch(localPlayer) then
+                    task.wait()
+                    continue
                 end
 
-                if not punchTool or not punchTool.Parent then
-                    punchTool = nil
+                local punchTool = getPunchTool(localPlayer)
+                if not punchTool then
                     task.wait()
                     continue
                 end
@@ -103,9 +111,23 @@ local function startKill()
                         if otherStrength and playerStrength and otherStrength >= playerStrength then
                             break
                         end
+
+                        local currentPunch = getPunchTool(localPlayer)
+                        if not currentPunch then
+                            if not equipPunch(localPlayer) then
+                                break
+                            end
+                            currentPunch = getPunchTool(localPlayer)
+                            if not currentPunch then
+                                break
+                            end
+                            punchTool = currentPunch
+                        end
+
                         local targetPos = targetRoot.Position
                         local attackPos = targetPos + Vector3.new(0, 0.5, 0)
                         myRoot.CFrame = CFrame.new(attackPos, targetPos)
+
                         pcall(function()
                             punchTool:Activate()
                         end)
