@@ -307,6 +307,12 @@ AutoTab:Toggle({
     end
 })
 
+if handstandEnabled then startHandstand() end
+if rebirthEnabled then startRebirth() end
+if situpsEnabled then startSitups() end
+if pushupsEnabled then startPushups() end
+if weightEnabled then startWeight() end
+
 local oldDisable = undeltedhub.DisableAll or function() end
 undeltedhub.DisableAll = function()
     if handstandEnabled then stopHandstand() end
