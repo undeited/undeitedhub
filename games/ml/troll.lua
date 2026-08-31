@@ -22,16 +22,17 @@ local function equipPunch(player)
 
     local toolName = "Punch"
     local tool = char:FindFirstChild(toolName)
-
     if tool and humanoid.ActiveTool == tool then
-        return true
+        return true, tool
     end
 
     if tool then
         humanoid:EquipTool(tool)
-        task.wait(0.05)
-        if humanoid.ActiveTool == tool then
-            return true
+        for _ = 1, 3 do
+            task.wait(0.03)
+            if humanoid.ActiveTool == tool then
+                return true, tool
+            end
         end
     end
 
@@ -45,12 +46,14 @@ local function equipPunch(player)
         tool.Parent = char
         task.wait(0.05)
         humanoid:EquipTool(tool)
-        task.wait(0.05)
-        if humanoid.ActiveTool == tool then
-            return true
+        for _ = 1, 3 do
+            task.wait(0.03)
+            if humanoid.ActiveTool == tool then
+                return true, tool
+            end
         end
     end
-    return false
+    return false, nil
 end
 
 local killEnabled = undeltedhub.Toggles.AutoKill or false
@@ -75,14 +78,14 @@ local function startKill()
                     continue
                 end
 
-                if not equipPunch(localPlayer) then
+                local success, punchTool = equipPunch(localPlayer)
+                if not success or not punchTool then
                     task.wait()
                     continue
                 end
 
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
-                local punchTool = humanoid and humanoid.ActiveTool
-                if not punchTool or punchTool.Name ~= "Punch" then
+                if not humanoid or humanoid.ActiveTool ~= punchTool then
                     task.wait()
                     continue
                 end
@@ -125,16 +128,10 @@ local function startKill()
                             break
                         end
 
-                        local currentPunch = humanoid.ActiveTool
-                        if not currentPunch or currentPunch.Name ~= "Punch" then
-                            if not equipPunch(localPlayer) then
-                                break
-                            end
-                            currentPunch = humanoid.ActiveTool
-                            if not currentPunch or currentPunch.Name ~= "Punch" then
-                                break
-                            end
-                            punchTool = currentPunch
+                        if humanoid.ActiveTool ~= punchTool then
+                            local success2, newTool = equipPunch(localPlayer)
+                            if not success2 then break end
+                            punchTool = newTool
                         end
 
                         local targetPos = targetRoot.Position
@@ -166,7 +163,7 @@ local function stopKill()
 end
 
 TrollTab:Toggle({
-    Title = "Auto Kill",
+    Title = "Auto Kill (MAX SPEED)",
     Value = killEnabled,
     Callback = function(state)
         if state then startKill() else stopKill() end
