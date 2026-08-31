@@ -50,7 +50,7 @@ end
 
 if not CheckExecutor() then return end
 
-local GAME_FOLDER = "mm2"   -- CHANGE PER GAME
+local GAME_FOLDER = "mm2"
 
 local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
@@ -79,10 +79,8 @@ local function ResolveThemeName(themeName)
     return available[1] or "Default"
 end
 
--- 🔹 UPDATED LoadSettings with fallback
 local function LoadSettings()
     pcall(function()
-        -- Try file first
         if isfile and isfile(undeltedhub.SettingsFile) then
             local data = game:GetService("HttpService"):JSONDecode(readfile(undeltedhub.SettingsFile))
             if data then
@@ -103,7 +101,6 @@ local function LoadSettings()
             end
         end
 
-        -- Fallback: load from global storage (keyed by PlaceId)
         if _G.UNDELTEDHUB_STORAGE and _G.UNDELTEDHUB_STORAGE[game.PlaceId] then
             local stored = _G.UNDELTEDHUB_STORAGE[game.PlaceId]
             if stored.toggles then
@@ -123,7 +120,6 @@ local function LoadSettings()
     end)
 end
 
--- 🔹 UPDATED SaveSettings with fallback
 local function SaveSettings()
     pcall(function()
         local data = {
@@ -134,14 +130,12 @@ local function SaveSettings()
             jumpPower = config.jumpPower,
         }
 
-        -- Save to file if possible
         if writefile and makefolder then
             makefolder("undeltedhub")
             makefolder("undeltedhub/" .. GAME_FOLDER)
             writefile(undeltedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
         end
 
-        -- Save to global fallback
         _G.UNDELTEDHUB_STORAGE = _G.UNDELTEDHUB_STORAGE or {}
         _G.UNDELTEDHUB_STORAGE[game.PlaceId] = data
     end)
@@ -150,7 +144,6 @@ end
 LoadSettings()
 undeltedhub.ToggleKey = undeltedhub.ToggleKey or config.toggleKey or "K"
 
--- 🔹 Apply theme after loading
 local themeToApply = ResolveThemeName(undeltedhub.CurrentTheme or "Default")
 WindUI:SetTheme(themeToApply)
 
@@ -181,7 +174,6 @@ if frame then
     frame:GetPropertyChangedSignal("Visible"):Connect(function()
         _G.UNDELTEDHUB_WINDOW_VISIBLE = frame.Visible
     end)
-
     frame.AncestryChanged:Connect(function()
         if not frame.Parent then
             if undeltedhub.DisableAll then

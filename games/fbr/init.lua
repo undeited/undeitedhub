@@ -53,10 +53,12 @@ if not CheckExecutor() then return end
 local GAME_FOLDER = "fbr"
 
 local WindUI = LoadScript("shared/windui.lua")
+local utils = LoadScript("shared/utils.lua")
 local config = LoadScript("shared/config.lua")
 
 undeltedhub = undeltedhub or {}
 undeltedhub.WindUI = WindUI
+undeltedhub.Utils = utils
 undeltedhub.Config = config
 undeltedhub.Toggles = undeltedhub.Toggles or {}
 undeltedhub.SettingsFile = "undeltedhub/" .. GAME_FOLDER .. "/settings.json"
@@ -77,43 +79,73 @@ local function ResolveThemeName(themeName)
     return available[1] or "Default"
 end
 
+local function LoadSettings()
+    pcall(function()
+        if isfile and isfile(undeltedhub.SettingsFile) then
+            local data = game:GetService("HttpService"):JSONDecode(readfile(undeltedhub.SettingsFile))
+            if data then
+                if data.toggles then
+                    for k, v in pairs(data.toggles) do
+                        undeltedhub.Toggles[k] = v
+                    end
+                end
+                if data.theme then
+                    undeltedhub.CurrentTheme = ResolveThemeName(data.theme)
+                end
+                if data.toggleKey then
+                    undeltedhub.ToggleKey = data.toggleKey
+                end
+                if data.walkSpeed then config.walkSpeed = data.walkSpeed end
+                if data.jumpPower then config.jumpPower = data.jumpPower end
+                return
+            end
+        end
+
+        if _G.UNDELTEDHUB_STORAGE and _G.UNDELTEDHUB_STORAGE[game.PlaceId] then
+            local stored = _G.UNDELTEDHUB_STORAGE[game.PlaceId]
+            if stored.toggles then
+                for k, v in pairs(stored.toggles) do
+                    undeltedhub.Toggles[k] = v
+                end
+            end
+            if stored.theme then
+                undeltedhub.CurrentTheme = ResolveThemeName(stored.theme)
+            end
+            if stored.toggleKey then
+                undeltedhub.ToggleKey = stored.toggleKey
+            end
+            if stored.walkSpeed then config.walkSpeed = stored.walkSpeed end
+            if stored.jumpPower then config.jumpPower = stored.jumpPower end
+        end
+    end)
+end
+
 local function SaveSettings()
     pcall(function()
-        if not makefolder then return end
-        makefolder("undeltedhub")
-        makefolder("undeltedhub/" .. GAME_FOLDER)
-        if not writefile then return end
         local data = {
             toggles = undeltedhub.Toggles,
             theme = ResolveThemeName(undeltedhub.CurrentTheme or "Default"),
             toggleKey = undeltedhub.ToggleKey or config.toggleKey or "K",
+            walkSpeed = config.walkSpeed,
+            jumpPower = config.jumpPower,
         }
-        writefile(undeltedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
-    end)
-end
 
-local function LoadSettings()
-    pcall(function()
-        if not isfile then return end
-        if isfile(undeltedhub.SettingsFile) then
-            local data = game:GetService("HttpService"):JSONDecode(readfile(undeltedhub.SettingsFile))
-            if data and data.toggles then
-                for key, value in pairs(data.toggles) do
-                    undeltedhub.Toggles[key] = value
-                end
-            end
-            if data and data.theme then
-                undeltedhub.CurrentTheme = ResolveThemeName(data.theme)
-            end
-            if data and data.toggleKey then
-                undeltedhub.ToggleKey = data.toggleKey
-            end
+        if writefile and makefolder then
+            makefolder("undeltedhub")
+            makefolder("undeltedhub/" .. GAME_FOLDER)
+            writefile(undeltedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
         end
+
+        _G.UNDELTEDHUB_STORAGE = _G.UNDELTEDHUB_STORAGE or {}
+        _G.UNDELTEDHUB_STORAGE[game.PlaceId] = data
     end)
 end
 
 LoadSettings()
 undeltedhub.ToggleKey = undeltedhub.ToggleKey or config.toggleKey or "K"
+
+local themeToApply = ResolveThemeName(undeltedhub.CurrentTheme or "Default")
+WindUI:SetTheme(themeToApply)
 
 local Window = WindUI:CreateWindow({
     Title = "Undelted Hub",
@@ -123,7 +155,7 @@ local Window = WindUI:CreateWindow({
     MinSize = Vector2.new(560, 350),
     MaxSize = Vector2.new(850, 560),
     Transparent = true,
-    Theme = ResolveThemeName(undeltedhub.CurrentTheme or "Default"),
+    Theme = themeToApply,
     Resizable = true,
     SideBarWidth = 200,
     HideSearchBar = true,
@@ -142,7 +174,6 @@ if frame then
     frame:GetPropertyChangedSignal("Visible"):Connect(function()
         _G.UNDELTEDHUB_WINDOW_VISIBLE = frame.Visible
     end)
-
     frame.AncestryChanged:Connect(function()
         if not frame.Parent then
             if undeltedhub.DisableAll then
