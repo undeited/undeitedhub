@@ -15,7 +15,7 @@ local function SafeNotify(data)
     end
 end
 
-local AutoTab = undeltedhub.Window:Tab({ Title = "Auto" })
+local AutoTab = undeltedhub.Window:Tab({ Title = "Autofarm" })
 
 local handstandEnabled = undeltedhub.Toggles.AutoHandstand or false
 local handstandTask = nil
