@@ -24,7 +24,6 @@ local espEnabled = undeltedhub.Toggles.espEnabled or false
 local highlightInstances = {}
 local gunHighlightEnabled = undeltedhub.Toggles.gunHighlightEnabled or false
 local gunHighlightInstances = {}
-
 local coinHighlightEnabled = undeltedhub.Toggles.coinHighlightEnabled or false
 local coinHighlightMap = {}
 local coinHighlightLastUpdate = 0
@@ -36,13 +35,25 @@ local shouldShowESP = false
 
 local function IsInLobby()
     local localPlayer = game.Players.LocalPlayer
-    if not localPlayer then return false end
+    if not localPlayer then return true end
+
+    if roundTimer then
+        local time = roundTimer:GetAttribute("Time")
+        if time ~= nil and time > 0 then
+            return false
+        end
+    end
+
     local character = localPlayer.Character
-    if not character then return false end
+    if not character then return true end
     local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return false end
+    if not rootPart then return true end
+
     local lobby = workspace:FindFirstChild("Lobby") or workspace:FindFirstChild("RegularLobby")
-    if not lobby then return false end
+    if not lobby then
+        return false
+    end
+
     local lobbyPos
     if lobby:IsA("BasePart") then
         lobbyPos = lobby.Position
@@ -57,7 +68,9 @@ local function IsInLobby()
         end
     end
     if not lobbyPos then return false end
-    return (rootPart.Position - lobbyPos).Magnitude < 50
+
+    local dist = (rootPart.Position - lobbyPos).Magnitude
+    return dist < 75
 end
 
 local function IsPlayerInLobby(player)
@@ -66,6 +79,7 @@ local function IsPlayerInLobby(player)
     if not character then return false end
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return false end
+
     local lobby = workspace:FindFirstChild("Lobby") or workspace:FindFirstChild("RegularLobby")
     if not lobby then return false end
     local lobbyPos
@@ -82,7 +96,7 @@ local function IsPlayerInLobby(player)
         end
     end
     if not lobbyPos then return false end
-    return (rootPart.Position - lobbyPos).Magnitude < 50
+    return (rootPart.Position - lobbyPos).Magnitude < 75
 end
 
 local function IsRoundActive()
@@ -187,7 +201,12 @@ local function ClearESP()
 end
 
 local function UpdateESP()
-    if not espEnabled or not shouldShowESP or IsInLobby() or not IsRoundActive() then
+    if not espEnabled then
+        ClearESP()
+        return
+    end
+
+    if IsInLobby() or not IsRoundActive() then
         ClearESP()
         return
     end
@@ -223,7 +242,7 @@ local function UpdateESP()
                 pcall(function()
                     highlight.FillColor = roleColor
                     highlight.OutlineColor = roleColor
-                end)
+                })
             else
                 pcall(function()
                     highlight = Instance.new("Highlight")
@@ -251,7 +270,11 @@ local function ClearGunHighlights()
 end
 
 local function UpdateGunHighlights()
-    if not gunHighlightEnabled or not shouldShowESP or IsInLobby() or not IsRoundActive() then
+    if not gunHighlightEnabled then
+        ClearGunHighlights()
+        return
+    end
+    if IsInLobby() or not IsRoundActive() then
         ClearGunHighlights()
         return
     end
@@ -315,7 +338,11 @@ local function ClearCoinHighlights()
 end
 
 local function UpdateCoinHighlights()
-    if not coinHighlightEnabled or not shouldShowESP or IsInLobby() or not IsRoundActive() then
+    if not coinHighlightEnabled then
+        ClearCoinHighlights()
+        return
+    end
+    if IsInLobby() or not IsRoundActive() then
         ClearCoinHighlights()
         return
     end
@@ -421,19 +448,19 @@ local function updateRolesFromData(data)
 end
 
 workspace.DescendantAdded:Connect(function(obj)
-    if obj.Name == "GunDrop" and gunHighlightEnabled and shouldShowESP and not IsInLobby() and IsRoundActive() then
+    if obj.Name == "GunDrop" and gunHighlightEnabled and not IsInLobby() and IsRoundActive() then
         UpdateGunHighlights()
     end
 end)
 
 workspace.DescendantRemoving:Connect(function(obj)
-    if obj.Name == "GunDrop" and shouldShowESP and not IsInLobby() and IsRoundActive() then
+    if obj.Name == "GunDrop" and not IsInLobby() and IsRoundActive() then
         pcall(UpdateESP)
     end
 end)
 
 local function forceRoleScan()
-    if not shouldShowESP or IsInLobby() or not IsRoundActive() then return end
+    if IsInLobby() or not IsRoundActive() then return end
     local changed = false
     for _, player in pairs(game.Players:GetPlayers()) do
         if IsPlayerInLobby(player) then continue end
@@ -508,9 +535,9 @@ game.Players.PlayerAdded:Connect(setupToolListener)
 
 local function refreshRoundState()
     pcall(function()
-        local active = IsRoundActive()
         local inLobby = IsInLobby()
-        if active and not inLobby then
+        local active = IsRoundActive()
+        if not inLobby and active then
             if not shouldShowESP then
                 shouldShowESP = true
                 undeltedhub.playerRoles = {}
@@ -537,7 +564,7 @@ end
 game:GetService("RunService").Heartbeat:Connect(function()
     pcall(refreshRoundState)
 
-    if coinHighlightEnabled and shouldShowESP and not IsInLobby() and IsRoundActive() then
+    if coinHighlightEnabled and not IsInLobby() and IsRoundActive() then
         local now = tick()
         if now - coinHighlightLastUpdate > 2 then
             coinHighlightLastUpdate = now
@@ -674,5 +701,13 @@ undeltedhub.DisableAll = function()
         ClearESP()
         ClearGunHighlights()
         ClearCoinHighlights()
+    end)
+end
+
+if espEnabled then
+    task.spawn(function()
+        task.wait(0.5)
+        refreshRoundState()
+        UpdateESP()
     end)
 end
