@@ -75,8 +75,7 @@ _G.UNDEITEDHUB_WINDOW_VISIBLE = true
 
 local placeId = game.PlaceId or game.GameId
 local gameEntry = games[placeId]
-if not gameEntry then
-    LoadScript("games/universal/init.lua")
-else
+
+if gameEntry then
     LoadScript(gameEntry)
 end
