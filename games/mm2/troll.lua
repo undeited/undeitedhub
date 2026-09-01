@@ -43,20 +43,14 @@ end
 if not undeltedhub.GetCurrentSheriff then
     function undeltedhub.GetCurrentSheriff()
         for _, player in ipairs(game.Players:GetPlayers()) do
-            if player ~= game.Players.LocalPlayer then
-                local char = player.Character
-                if char then
-                    local gun = char:FindFirstChild("Gun") or player.Backpack:FindFirstChild("Gun")
-                    if not gun then
-                        for _, child in ipairs(char:GetDescendants()) do
-                            if child.Name:lower():find("gun") then
-                                gun = child
-                                break
-                            end
-                        end
-                    end
-                    if gun then return player end
-                end
+            if player == game.Players.LocalPlayer then continue end
+            local char = player.Character
+            if not char then continue end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum or hum.Health <= 0 then continue end
+            local hasGun = char:FindFirstChild("Gun") or player.Backpack:FindFirstChild("Gun")
+            if hasGun then
+                return player
             end
         end
         return nil
@@ -64,29 +58,6 @@ if not undeltedhub.GetCurrentSheriff then
 end
 
 local TrollTab = undeltedhub.Window:Tab({ Title = "Troll" })
-
-local function getRoot(model)
-    if not model then return nil end
-    local hum = model:FindFirstChildOfClass("Humanoid")
-    if hum and hum.RootPart then return hum.RootPart end
-    return model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
-end
-
-local function getHum(model)
-    if not model then return nil end
-    return model:FindFirstChildOfClass("Humanoid")
-end
-
-local function getHead(model)
-    if not model then return nil end
-    return model:FindFirstChild("Head") or model:FindFirstChildWhichIsA("BasePart")
-end
-
-local function IsSeated(player)
-    local char = player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    return hum and (hum.SeatPart or hum:GetState() == Enum.HumanoidStateType.Seated)
-end
 
 local function IsInLobby()
     local localPlayer = game.Players.LocalPlayer
@@ -111,7 +82,7 @@ local function IsInLobby()
         end
     end
     if not lobbyPos then return false end
-    return (rootPart.Position - lobbyPos).Magnitude < 50
+    return (rootPart.Position - lobbyPos).Magnitude < 75
 end
 
 local function IsPlayerInLobby(player)
@@ -136,7 +107,7 @@ local function IsPlayerInLobby(player)
         end
     end
     if not lobbyPos then return false end
-    return (rootPart.Position - lobbyPos).Magnitude < 50
+    return (rootPart.Position - lobbyPos).Magnitude < 75
 end
 
 local function IsRoundActive()
@@ -238,64 +209,61 @@ function flingManager.GetPlayerCharacter(plr)
     return char
 end
 
-function flingManager.WaitForFlingSuccess(target, initialPos, timeout)
-    timeout = timeout or 15
-    local start = tick()
-    while tick() - start < timeout do
-        local char = flingManager.GetPlayerCharacter(target)
-        if not char then
-            return true
-        end
-        local hum = getHum(char)
-        if not hum or hum.Health <= 0 then
-            return true
-        end
-        local root = hum and hum.RootPart or getRoot(char)
-        if root then
-            local dist = (root.Position - initialPos).Magnitude
-            if dist > 500 then
-                return true
-            end
-        end
-        task.wait(1)
-    end
-    return false
+local function getRoot(model)
+    if not model then return nil end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if hum and hum.RootPart then return hum.RootPart end
+    return model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
+end
+
+local function getHum(model)
+    if not model then return nil end
+    return model:FindFirstChildOfClass("Humanoid")
+end
+
+local function getHead(model)
+    if not model then return nil end
+    return model:FindFirstChild("Head") or model:FindFirstChildWhichIsA("BasePart")
+end
+
+local function IsSeated(player)
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    return hum and (hum.SeatPart or hum:GetState() == Enum.HumanoidStateType.Seated)
 end
 
 local function FlingPlayer(target, silent)
     if not target or target == game.Players.LocalPlayer then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Invalid target", Duration = 2 })
-        end
+        if not silent then SafeNotify({ Title = "Fling", Content = "Invalid target", Duration = 2 }) end
         return false
     end
 
     local targetChar = target.Character
     if not targetChar then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Target has no character", Duration = 2 })
-        end
+        if not silent then SafeNotify({ Title = "Fling", Content = "Target has no character", Duration = 2 }) end
         return false
     end
     local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
     if not targetHum or targetHum.Health <= 0 then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Target is dead", Duration = 2 })
+        if not silent then SafeNotify({ Title = "Fling", Content = "Target is dead", Duration = 2 }) end
+        return false
+    end
+
+    if undeltedhub.GetCurrentSheriff and undeltedhub.GetCurrentSheriff() == target then
+        local hasGun = targetChar:FindFirstChild("Gun") or target.Backpack:FindFirstChild("Gun")
+        if not hasGun then
+            if not silent then SafeNotify({ Title = "Fling", Content = "Sheriff has no gun, waiting for new sheriff", Duration = 2 }) end
+            return false
         end
+    end
+
+    if IsPlayerInLobby(target) then
+        if not silent then SafeNotify({ Title = "Fling", Content = "Target is in lobby", Duration = 2 }) end
         return false
     end
 
     if not IsRoundActive() then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Round is not active", Duration = 2 })
-        end
-        return false
-    end
-
-    if IsPlayerInLobby(target) then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Target is in lobby", Duration = 2 })
-        end
+        if not silent then SafeNotify({ Title = "Fling", Content = "Round not active", Duration = 2 }) end
         return false
     end
 
@@ -305,17 +273,18 @@ local function FlingPlayer(target, silent)
     local rootPart = humanoid and humanoid.RootPart or getRoot(character)
 
     if not rootPart or not humanoid then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Local character invalid", Duration = 2 })
-        end
+        if not silent then SafeNotify({ Title = "Fling", Content = "Local character invalid", Duration = 2 }) end
+        return false
+    end
+
+    if IsSeated(target) then
+        if not silent then SafeNotify({ Title = "Fling", Content = "Target is seated", Duration = 2 }) end
         return false
     end
 
     local tChar = flingManager.GetPlayerCharacter(target)
     if not tChar then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Target character missing", Duration = 2 })
-        end
+        if not silent then SafeNotify({ Title = "Fling", Content = "Target character missing", Duration = 2 }) end
         return false
     end
 
@@ -324,16 +293,7 @@ local function FlingPlayer(target, silent)
     local tHead = getHead(tChar)
 
     if not tRoot or not tHum or tHum.Health <= 0 then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Target invalid or dead", Duration = 2 })
-        end
-        return false
-    end
-
-    if IsSeated(target) then
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Target is seated", Duration = 2 })
-        end
+        if not silent then SafeNotify({ Title = "Fling", Content = "Target invalid or dead", Duration = 2 }) end
         return false
     end
 
@@ -375,9 +335,7 @@ local function FlingPlayer(target, silent)
     if not tChar:FindFirstChildWhichIsA("BasePart") then
         cleanupFlingPart()
         workspace.FallenPartsDestroyHeight = originalFPDH
-        if not silent then
-            SafeNotify({ Title = "Fling", Content = "Target has no parts", Duration = 2 })
-        end
+        if not silent then SafeNotify({ Title = "Fling", Content = "Target has no parts", Duration = 2 }) end
         return false
     end
 
@@ -392,11 +350,9 @@ local function FlingPlayer(target, silent)
         local timeLimit = 2
         local startTime = tick()
         local angle = 0
-
         repeat
             if rootPart and tHum then
                 local _, baseSpeed = flingManager.GetPartVelocity(BasePart)
-
                 if baseSpeed < 50 then
                     angle = angle + 100
                     FPos(BasePart, CFrame.new(0, 1.5, 0) + tHum.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(angle), 0, 0))
@@ -486,10 +442,7 @@ local function FlingPlayer(target, silent)
 
     workspace.FallenPartsDestroyHeight = originalFPDH
 
-    if not silent then
-        SafeNotify({ Title = "Fling", Content = "Flung " .. target.Name .. " into the void!", Duration = 2 })
-    end
-
+    if not silent then SafeNotify({ Title = "Fling", Content = "Flung " .. target.Name .. " into the void!", Duration = 2 }) end
     return true
 end
 
@@ -526,8 +479,10 @@ game:GetService("RunService").Heartbeat:Connect(function()
                 if char then
                     local hum = char:FindFirstChildOfClass("Humanoid")
                     if hum and hum.Health > 0 and not IsPlayerInLobby(target) then
-                        lastFlingSheriffTime = now
-                        pcall(FlingPlayer, target, true)
+                        if char:FindFirstChild("Gun") or target.Backpack:FindFirstChild("Gun") then
+                            lastFlingSheriffTime = now
+                            pcall(FlingPlayer, target, true)
+                        end
                     end
                 end
             end
@@ -552,7 +507,12 @@ TrollTab:Button({
     Callback = function()
         local sheriff = undeltedhub.GetCurrentSheriff()
         if sheriff then
-            FlingPlayer(sheriff, false)
+            local char = sheriff.Character
+            if char and (char:FindFirstChild("Gun") or sheriff.Backpack:FindFirstChild("Gun")) then
+                FlingPlayer(sheriff, false)
+            else
+                SafeNotify({ Title = "Fling", Content = "Sheriff has no gun or is dead, waiting for new sheriff", Duration = 2 })
+            end
         else
             SafeNotify({ Title = "Fling", Content = "No sheriff found", Duration = 2 })
         end
@@ -566,10 +526,8 @@ TrollTab:Toggle({
         autoFlingMurdererEnabled = state
         undeltedhub.Toggles.autoFlingMurdererEnabled = state
         if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-        SafeNotify({ Title = "Auto Fling Murderer", Content = autoFlingMurdererEnabled and "Enabled" or "Disabled", Duration = 2 })
-        if state then
-            lastFlingMurdererTime = tick()
-        end
+        SafeNotify({ Title = "Auto Fling Murderer", Content = state and "Enabled" or "Disabled", Duration = 2 })
+        if state then lastFlingMurdererTime = tick() end
     end
 })
 
@@ -580,10 +538,8 @@ TrollTab:Toggle({
         autoFlingSheriffEnabled = state
         undeltedhub.Toggles.autoFlingSheriffEnabled = state
         if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
-        SafeNotify({ Title = "Auto Fling Sheriff", Content = autoFlingSheriffEnabled and "Enabled" or "Disabled", Duration = 2 })
-        if state then
-            lastFlingSheriffTime = tick()
-        end
+        SafeNotify({ Title = "Auto Fling Sheriff", Content = state and "Enabled" or "Disabled", Duration = 2 })
+        if state then lastFlingSheriffTime = tick() end
     end
 })
 
