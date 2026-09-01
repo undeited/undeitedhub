@@ -183,12 +183,10 @@ if frame then
     end)
 end
 
--- 🔹 LOAD MM2 MODULES WITH IMPROVED ERROR REPORTING
 local function SafeLoad(name)
     local success, err = pcall(LoadScript, name)
     if not success then
-        local errMsg = tostring(err):sub(1, 200) -- truncate for notification
-        print("❌ Failed to load " .. name .. ": " .. tostring(err))
+        local errMsg = tostring(err):sub(1, 200)
         WindUI:Notify({
             Title = "Error: " .. name,
             Content = errMsg,
