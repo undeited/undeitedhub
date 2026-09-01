@@ -45,7 +45,7 @@ local function UpdateESP()
                 local highlight = highlightMap[player]
                 if not highlight then
                     highlight = Instance.new("Highlight")
-                    highlight.Name = "UndeltedESP"
+                    highlight.Name = "UndeitedSP"
                     highlight.FillColor = Color3.fromRGB(255, 0, 0)
                     highlight.FillTransparency = 0.5
                     highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
