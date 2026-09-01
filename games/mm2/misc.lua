@@ -649,7 +649,7 @@ local function ToggleNoclip(state)
     if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
     if state then
         StartNoclipLoop()
-        WindUI:Notify({ Title = "Noclip", Content = "Enabled (floor protection active)", Duration = 2 })
+        WindUI:Notify({ Title = "Noclip", Content = "Enabled", Duration = 2 })
     else
         StopNoclipLoop()
         WindUI:Notify({ Title = "Noclip", Content = "Disabled", Duration = 2 })
