@@ -71,11 +71,19 @@ end
 local gamesList = Fetch(BASE_URL .. "games.lua")
 local games = assert(LoadString(gamesList, "games"))()
 
-_G.UNDEITEDHUB_WINDOW_VISIBLE = true
-
 local placeId = game.PlaceId or game.GameId
 local gameEntry = games[placeId]
 
-if gameEntry then
-    LoadScript(gameEntry)
+if not gameEntry then
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Undeited Hub",
+            Text = "This game is not supported.",
+            Duration = 5,
+        })
+    end)
+    return
 end
+
+_G.UNDEITEDHUB_WINDOW_VISIBLE = true
+LoadScript(gameEntry)

@@ -1,6 +1,7 @@
 local WindUI = undeitedhub.WindUI
 local utils = undeitedhub.Utils
 local config = undeitedhub.Config
+local MathUtils = undeitedhub.MathUtils
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end

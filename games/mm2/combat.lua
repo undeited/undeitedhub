@@ -1,6 +1,7 @@
 local WindUI = undeitedhub.WindUI
 local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
 local config = undeitedhub.Config
+local MathUtils = undeitedhub.MathUtils
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -294,21 +295,7 @@ local murdererHistory = {}
 local function GetMurdererVelocity(murderer)
     local history = murdererHistory[murderer]
     if not history then return Vector3.new(0,0,0) end
-    if #history.positions < 2 then return Vector3.new(0,0,0) end
-    local avgVel = Vector3.new(0,0,0)
-    local count = 0
-    for i = #history.positions, 2, -1 do
-        local dt = history.times[i] - history.times[i-1]
-        if dt > 0 and dt < 0.3 then
-            local vel = (history.positions[i] - history.positions[i-1]) / dt
-            if vel.Magnitude < 500 then
-                avgVel = avgVel + vel
-                count = count + 1
-            end
-        end
-    end
-    if count == 0 then return Vector3.new(0,0,0) end
-    return avgVel / count
+    return MathUtils.SmoothVelocity(history, 3)
 end
 
 local function UpdateMurdererHistory(murderer, pos)
@@ -317,12 +304,8 @@ local function UpdateMurdererHistory(murderer, pos)
         history = {positions = {}, times = {}}
         murdererHistory[murderer] = history
     end
-    table.insert(history.positions, pos)
-    table.insert(history.times, tick())
-    if #history.positions > 3 then
-        table.remove(history.positions, 1)
-        table.remove(history.times, 1)
-    end
+    table.insert(history, {pos = pos, time = tick()})
+    if #history > 3 then table.remove(history, 1) end
 end
 
 local function GetShootRemote()
@@ -388,18 +371,20 @@ local function ShootMurdererOnce()
     UpdateMurdererHistory(murderer, currentPos)
     local velocity = GetMurdererVelocity(murderer)
 
-    local distance = (currentPos - originCFrame.Position).Magnitude
-    local travelTime = distance / BULLET_SPEED
-    local predictionTime = travelTime * PREDICTION_MULTIPLIER
-    predictionTime = math.min(predictionTime, 0.5)
-
-    local predictedPos = currentPos + velocity * predictionTime
+    local predictedPos = MathUtils.PredictPosition(
+        originCFrame.Position,
+        currentPos,
+        velocity,
+        BULLET_SPEED,
+        Vector3.new(0, -workspace.Gravity, 0)
+    )
+    predictedPos = MathUtils.ClampMagnitude(predictedPos - currentPos, 10) + currentPos
 
     local raycastParams = RaycastParams.new()
     raycastParams.FilterDescendantsInstances = {localPlayer.Character}
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     local origin = originCFrame.Position
-    local direction = (predictedPos - origin).Unit * (distance + 5)
+    local direction = (predictedPos - origin).Unit * ((predictedPos - origin).Magnitude + 5)
     local rayResult = workspace:Raycast(origin, direction, raycastParams)
 
     local visible = false
@@ -468,40 +453,31 @@ local function ShootAtMurderer()
     UpdateMurdererHistory(murderer, currentPos)
     local velocity = GetMurdererVelocity(murderer)
 
-    local distance = (currentPos - originCFrame.Position).Magnitude
-    local travelTime = distance / BULLET_SPEED
-    local predictionTime = travelTime * PREDICTION_MULTIPLIER
-    predictionTime = math.min(predictionTime, 0.5)
-
-    local predictedPos = currentPos + velocity * predictionTime
+    local predictedPos = MathUtils.PredictPosition(
+        originCFrame.Position,
+        currentPos,
+        velocity,
+        BULLET_SPEED,
+        Vector3.new(0, -workspace.Gravity, 0)
+    )
+    predictedPos = MathUtils.ClampMagnitude(predictedPos - currentPos, 10) + currentPos
 
     local raycastParams = RaycastParams.new()
     raycastParams.FilterDescendantsInstances = {localPlayer.Character}
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     local origin = originCFrame.Position
-    local direction = (predictedPos - origin).Unit * (distance + 5)
+    local direction = (predictedPos - origin).Unit * ((predictedPos - origin).Magnitude + 5)
     local rayResult = workspace:Raycast(origin, direction, raycastParams)
 
     local visible = false
-    local blockedByInnocent = false
     if rayResult then
         local hitPart = rayResult.Instance
         if hitPart:IsDescendantOf(murdererChar) then
             visible = true
-        else
-            local playerHit = game.Players:GetPlayerFromCharacter(hitPart.Parent)
-            if playerHit and playerHit ~= localPlayer and playerHit ~= murderer then
-                local role = undeitedhub.GetPlayerRole and undeitedhub.GetPlayerRole(playerHit)
-                if role == "Innocent" or role == nil then
-                    blockedByInnocent = true
-                end
-            end
         end
     end
 
-    if not visible then
-        return
-    end
+    if not visible then return end
 
     local targetCFrame = CFrame.new(predictedPos)
     pcall(function()
