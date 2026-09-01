@@ -183,16 +183,6 @@ if frame then
     end)
 end
 
--- 🧪 CREATE A TEST TAB TO VERIFY WINDOW IS WORKING
-local TestTab = Window:Tab({ Title = "Test" })
-TestTab:Button({
-    Title = "Click me to test",
-    Callback = function()
-        WindUI:Notify({ Title = "Test", Content = "Window works!", Duration = 2 })
-    end
-})
-
--- 🔹 LOAD MM2 MODULES WITH ERROR HANDLING
 local function SafeLoad(name)
     local success, err = pcall(LoadScript, name)
     if not success then
