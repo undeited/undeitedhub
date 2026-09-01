@@ -17,7 +17,7 @@ local function SafeNotify(data)
     end
 end
 
-local ProtectionsTab = undeltedhub.Window:Tab({ Title = "Protections" })
+local AntisTab = undeltedhub.Window:Tab({ Title = "Antis" })
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -52,7 +52,7 @@ end
 
 local antiGrabV1Active = false
 local antiGrabV1Task = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Grab V1",
     Value = Toggles.antiGrabV1 or false,
     Callback = function(state)
@@ -89,7 +89,7 @@ ProtectionsTab:Toggle({
 
 local antiGrabV2Active = false
 local antiGrabV2Task = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Grab V2 (Ocarina)",
     Value = Toggles.antiGrabV2 or false,
     Callback = function(state)
@@ -311,7 +311,7 @@ local function GucciAntiGrab()
     end)
 end
 
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Gucci Anti Grab",
     Value = Toggles.gucciAntiGrab or false,
     Callback = function(state)
@@ -374,7 +374,7 @@ ProtectionsTab:Toggle({
 
 local antiOwnershipActive = false
 local antiOwnershipTask = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Ownership",
     Value = Toggles.antiOwnership or false,
     Callback = function(state)
@@ -420,7 +420,7 @@ ProtectionsTab:Toggle({
 
 local paintPartsBackup = {}
 local paintConnections = {}
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Paint",
     Value = Toggles.antiPaint or false,
     Callback = function(state)
@@ -483,7 +483,7 @@ ProtectionsTab:Toggle({
 local antiFireActive = false
 local antiFireTask = nil
 local hkFirePart = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Fire",
     Value = Toggles.antiFire or false,
     Callback = function(state)
@@ -538,7 +538,7 @@ ProtectionsTab:Toggle({
 
 local antiExplosionActive = false
 local antiExplosionConnection = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Explosion",
     Value = Toggles.antiExplosion or false,
     Callback = function(state)
@@ -597,7 +597,7 @@ local function StartAntiVoid()
         end
     end)
 end
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Void",
     Value = Toggles.antiVoid or false,
     Callback = function(state)
@@ -613,7 +613,7 @@ ProtectionsTab:Toggle({
 })
 
 local hkABlob = false
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Blob",
     Value = Toggles.antiBlob or false,
     Callback = function(state)
@@ -666,7 +666,7 @@ ProtectionsTab:Toggle({
 
 local antiSnowballActive = false
 local antiSnowballTask = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Snowball",
     Value = Toggles.antiSnowball or false,
     Callback = function(state)
@@ -723,7 +723,7 @@ local function ApplyAntiRagdoll(char)
         end
     end)
 end
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Ragdoll (on Blob)",
     Value = Toggles.antiRagdollBlob or false,
     Callback = function(state)
@@ -741,7 +741,7 @@ ProtectionsTab:Toggle({
 })
 
 local ocnAntiLagOn = false
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Lag",
     Value = Toggles.antiLag or false,
     Callback = function(state)
@@ -769,7 +769,7 @@ ProtectionsTab:Toggle({
     end
 })
 
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Oat Anti-Kick",
     Value = Toggles.oatAntiKick or false,
     Callback = function(state)
@@ -802,7 +802,7 @@ ProtectionsTab:Toggle({
     end
 })
 
-ProtectionsTab:Button({
+AntisTab:Button({
     Title = "Delete Legs",
     Callback = function()
         pcall(function()
@@ -865,7 +865,7 @@ local ShurikenDropdownValues = {}
 for shortName in pairs(ShurikenToyList) do table.insert(ShurikenDropdownValues, shortName) end
 table.sort(ShurikenDropdownValues)
 local SelectedShurikenToy = ShurikenToyList["Shuriken"]
-ProtectionsTab:Dropdown({
+AntisTab:Dropdown({
     Title = "Select Anti Kick Toy",
     Values = ShurikenDropdownValues,
     Value = "Shuriken",
@@ -908,7 +908,7 @@ local function ClearKunai()
     end
 end
 
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Shuriken Anti Kick",
     Value = Toggles.shurikenAntiKick or false,
     Callback = function(state)
@@ -1142,7 +1142,7 @@ local function fixPencil()
     end)
 end
 
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Kick (Pencil)",
     Value = Toggles.pencilAntiKick or false,
     Callback = function(state)
@@ -1188,7 +1188,7 @@ local ToyDropdownValues = {}
 for shortName in pairs(ToyList) do table.insert(ToyDropdownValues, shortName) end
 table.sort(ToyDropdownValues)
 local SelectedToy = ToyList["Spooky Candle"]
-ProtectionsTab:Dropdown({
+AntisTab:Dropdown({
     Title = "Anti Kick Item",
     Values = ToyDropdownValues,
     Value = "Spooky Candle",
@@ -1315,7 +1315,7 @@ local function fixCharacterItem(char)
     end
 end
 
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Kick (Item)",
     Value = Toggles.antiKickItem or false,
     Callback = function(state)
@@ -1625,7 +1625,7 @@ LocalPlayer.CharacterAdded:Connect(function()
     if defenseEnabled then task.wait(1); startDefense() end
 end)
 
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Counter Attacks",
     Value = Toggles.counterAttacks or false,
     Callback = function(state)
@@ -1636,7 +1636,7 @@ ProtectionsTab:Toggle({
     end
 })
 
-ProtectionsTab:Dropdown({
+AntisTab:Dropdown({
     Title = "Attack Mode",
     Values = {"Fling","Kill","Send to Heaven","Kick","Ragdoll","Hell","China","GrabLine"},
     Value = "Fling",
@@ -1645,7 +1645,7 @@ ProtectionsTab:Dropdown({
 
 local ocnKakuConn = nil
 local ocnKakuAng = 0
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Blobman Kill",
     Value = Toggles.antiBlobmanKill or false,
     Callback = function(state)
@@ -1672,7 +1672,7 @@ ProtectionsTab:Toggle({
 
 local ocnGroovConn = nil
 local ocnGroovPos = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Pos Lock",
     Value = Toggles.posLock or false,
     Callback = function(state)
@@ -1712,7 +1712,7 @@ ProtectionsTab:Toggle({
 })
 
 local ocnStasisConn = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Anti Loop Kill",
     Value = Toggles.antiLoopKill or false,
     Callback = function(state)
@@ -1734,7 +1734,7 @@ ProtectionsTab:Toggle({
 
 local ocnTornadoConn = nil
 local ocnTornadoAng = 0
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Loop Tp (Op)",
     Value = Toggles.loopTpOp or false,
     Callback = function(state)
@@ -1760,7 +1760,7 @@ ProtectionsTab:Toggle({
 })
 
 local ocnManiacConn = nil
-ProtectionsTab:Toggle({
+AntisTab:Toggle({
     Title = "Loop Tp",
     Value = Toggles.loopTp or false,
     Callback = function(state)
@@ -1881,4 +1881,4 @@ undeltedhub.DisableAll = function()
     oldDisable()
 end
 
-SafeNotify({ Title = "Protections", Content = "Loaded", Duration = 2 })
+SafeNotify({ Title = "Antis", Content = "Loaded", Duration = 2 })
