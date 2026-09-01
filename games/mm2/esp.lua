@@ -36,24 +36,18 @@ local shouldShowESP = false
 local function IsInLobby()
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return true end
-
     if roundTimer then
         local time = roundTimer:GetAttribute("Time")
         if time ~= nil and time > 0 then
             return false
         end
     end
-
     local character = localPlayer.Character
     if not character then return true end
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return true end
-
     local lobby = workspace:FindFirstChild("Lobby") or workspace:FindFirstChild("RegularLobby")
-    if not lobby then
-        return false
-    end
-
+    if not lobby then return false end
     local lobbyPos
     if lobby:IsA("BasePart") then
         lobbyPos = lobby.Position
@@ -68,9 +62,7 @@ local function IsInLobby()
         end
     end
     if not lobbyPos then return false end
-
-    local dist = (rootPart.Position - lobbyPos).Magnitude
-    return dist < 75
+    return (rootPart.Position - lobbyPos).Magnitude < 75
 end
 
 local function IsPlayerInLobby(player)
@@ -79,7 +71,6 @@ local function IsPlayerInLobby(player)
     if not character then return false end
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return false end
-
     local lobby = workspace:FindFirstChild("Lobby") or workspace:FindFirstChild("RegularLobby")
     if not lobby then return false end
     local lobbyPos
@@ -205,15 +196,12 @@ local function UpdateESP()
         ClearESP()
         return
     end
-
     if IsInLobby() or not IsRoundActive() then
         ClearESP()
         return
     end
-
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
-
     local playersToHighlight = {}
     for _, player in pairs(game.Players:GetPlayers()) do
         if player == localPlayer then continue end
@@ -224,7 +212,6 @@ local function UpdateESP()
         if not humanoid or humanoid.Health <= 0 then continue end
         playersToHighlight[player] = true
     end
-
     for player, highlight in pairs(highlightInstances) do
         if not playersToHighlight[player] then
             if highlight and highlight.Parent then
@@ -233,7 +220,6 @@ local function UpdateESP()
             highlightInstances[player] = nil
         end
     end
-
     for player, _ in pairs(playersToHighlight) do
         local roleColor = GetPlayerRoleColor(player)
         if roleColor then
@@ -242,7 +228,7 @@ local function UpdateESP()
                 pcall(function()
                     highlight.FillColor = roleColor
                     highlight.OutlineColor = roleColor
-                })
+                end)
             else
                 pcall(function()
                     highlight = Instance.new("Highlight")
@@ -278,14 +264,12 @@ local function UpdateGunHighlights()
         ClearGunHighlights()
         return
     end
-
     local gunDrops = {}
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj.Name == "GunDrop" then
             table.insert(gunDrops, obj)
         end
     end
-
     local newHighlightList = {}
     for _, gd in ipairs(gunDrops) do
         if gd and gd.Parent then
@@ -302,7 +286,6 @@ local function UpdateGunHighlights()
             end)
         end
     end
-
     for _, highlight in pairs(gunHighlightInstances) do
         if highlight and highlight.Parent then
             pcall(highlight.Destroy, highlight)
@@ -346,13 +329,11 @@ local function UpdateCoinHighlights()
         ClearCoinHighlights()
         return
     end
-
     local currentParts = GetAllCoinParts()
     local currentSet = {}
     for _, part in ipairs(currentParts) do
         currentSet[part] = true
     end
-
     for part, highlight in pairs(coinHighlightMap) do
         if not currentSet[part] or not part.Parent then
             if highlight and highlight.Parent then
@@ -361,7 +342,6 @@ local function UpdateCoinHighlights()
             coinHighlightMap[part] = nil
         end
     end
-
     for _, part in ipairs(currentParts) do
         if not coinHighlightMap[part] then
             pcall(function()
@@ -398,7 +378,6 @@ if gameplay then
             end)
         end)
     end
-
     local roundStart = gameplay:FindFirstChild("RoundStart")
     if roundStart and roundStart:IsA("RemoteEvent") then
         roundStart.OnClientEvent:Connect(function(time, playerData)
@@ -416,14 +395,12 @@ if gameplay then
             end)
         end)
     end
-
     local playerDataChanged = gameplay:FindFirstChild("PlayerDataChanged")
     if playerDataChanged and playerDataChanged:IsA("RemoteEvent") then
         playerDataChanged.OnClientEvent:Connect(function(data)
             pcall(function() updateRolesFromData(data) end)
         end)
     end
-
     local roleData = gameplay:FindFirstChild("RoleData")
     if roleData and roleData:IsA("RemoteEvent") then
         roleData.OnClientEvent:Connect(function(data)
@@ -452,7 +429,6 @@ workspace.DescendantAdded:Connect(function(obj)
         UpdateGunHighlights()
     end
 end)
-
 workspace.DescendantRemoving:Connect(function(obj)
     if obj.Name == "GunDrop" and not IsInLobby() and IsRoundActive() then
         pcall(UpdateESP)
@@ -494,17 +470,14 @@ end)
 
 local function setupToolListener(player)
     if not player then return end
-
     local function onCharacterAdded(char)
         if not char then return end
-
         local function onDescendantAdded(desc)
             if desc:IsA("Tool") and string.lower(desc.Name):find("gun") then
                 pcall(UpdateESP)
             end
         end
         char.DescendantAdded:Connect(onDescendantAdded)
-
         local backpack = player:FindFirstChild("Backpack")
         if backpack then
             backpack.DescendantAdded:Connect(function(desc)
@@ -513,7 +486,6 @@ local function setupToolListener(player)
                 end
             end)
         end
-
         for _, child in ipairs(char:GetChildren()) do
             if child:IsA("Tool") and string.lower(child.Name):find("gun") then
                 pcall(UpdateESP)
@@ -521,7 +493,6 @@ local function setupToolListener(player)
             end
         end
     end
-
     if player.Character then
         onCharacterAdded(player.Character)
     end
@@ -563,7 +534,6 @@ end
 
 game:GetService("RunService").Heartbeat:Connect(function()
     pcall(refreshRoundState)
-
     if coinHighlightEnabled and not IsInLobby() and IsRoundActive() then
         local now = tick()
         if now - coinHighlightLastUpdate > 2 then
