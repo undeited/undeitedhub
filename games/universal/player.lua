@@ -1,5 +1,5 @@
-local WindUI = undeltedhub.WindUI
-local PlayerTab = undeltedhub.Window:Tab({ Title = "Player" })
+local WindUI = undeitedhub.WindUI
+local PlayerTab = undeitedhub.Window:Tab({ Title = "Player" })
 
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
@@ -8,17 +8,17 @@ local VirtualUser = game:GetService("VirtualUser")
 local localPlayer = Players.LocalPlayer
 
 local connections = {}
-local antiAfkEnabled = undeltedhub.Toggles.antiAfkEnabled or false
-local fullbrightEnabled = undeltedhub.Toggles.fullbrightEnabled or false
-local fovEnabled = undeltedhub.Toggles.fovEnabled or false
-local movementEnabled = undeltedhub.Toggles.movementEnabled or false
+local antiAfkEnabled = undeitedhub.Toggles.antiAfkEnabled or false
+local fullbrightEnabled = undeitedhub.Toggles.fullbrightEnabled or false
+local fovEnabled = undeitedhub.Toggles.fovEnabled or false
+local movementEnabled = undeitedhub.Toggles.movementEnabled or false
 local originalLighting = {}
 local originalFov
 local originalMovement
 
 local function SaveToggle(name, value)
-    undeltedhub.Toggles[name] = value
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles[name] = value
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 local function Notify(title, content)
@@ -153,8 +153,8 @@ if fullbrightEnabled then SetFullbright(true) end
 if fovEnabled then SetFov(true) end
 if movementEnabled then SetMovement(true) end
 
-local oldDisable = undeltedhub.DisableAll or function() end
-undeltedhub.DisableAll = function()
+local oldDisable = undeitedhub.DisableAll or function() end
+undeitedhub.DisableAll = function()
     SetAntiAfk(false)
     SetFullbright(false)
     SetFov(false)
@@ -165,8 +165,8 @@ undeltedhub.DisableAll = function()
     end
     oldDisable()
 end
-local WindUI = undeltedhub.WindUI
-local PlayerTab = undeltedhub.Window:Tab({ Title = "Player" })
+local WindUI = undeitedhub.WindUI
+local PlayerTab = undeitedhub.Window:Tab({ Title = "Player" })
 
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
@@ -176,18 +176,18 @@ local VirtualUser = game:GetService("VirtualUser")
 local localPlayer = Players.LocalPlayer
 
 local connections = {}
-local antiAfkEnabled = undeltedhub.Toggles.antiAfkEnabled or false
-local fullbrightEnabled = undeltedhub.Toggles.fullbrightEnabled or false
-local fovEnabled = undeltedhub.Toggles.fovEnabled or false
-local movementEnabled = undeltedhub.Toggles.movementEnabled or false
+local antiAfkEnabled = undeitedhub.Toggles.antiAfkEnabled or false
+local fullbrightEnabled = undeitedhub.Toggles.fullbrightEnabled or false
+local fovEnabled = undeitedhub.Toggles.fovEnabled or false
+local movementEnabled = undeitedhub.Toggles.movementEnabled or false
 local originalLighting = {}
 local originalFov = nil
 local originalMovement = nil
 
 local function SaveToggle(name, value)
-    undeltedhub.Toggles[name] = value
-    if undeltedhub.SaveSettings then
-        undeltedhub.SaveSettings()
+    undeitedhub.Toggles[name] = value
+    if undeitedhub.SaveSettings then
+        undeitedhub.SaveSettings()
     end
 end
 
@@ -340,8 +340,8 @@ if fullbrightEnabled then SetFullbright(true) end
 if fovEnabled then SetFov(true) end
 if movementEnabled then SetMovement(true) end
 
-local oldDisable = undeltedhub.DisableAll or function() end
-undeltedhub.DisableAll = function()
+local oldDisable = undeitedhub.DisableAll or function() end
+undeitedhub.DisableAll = function()
     SetAntiAfk(false)
     SetFullbright(false)
     SetFov(false)

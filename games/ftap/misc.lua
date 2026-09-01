@@ -1,4 +1,4 @@
-local WindUI = undeltedhub.WindUI
+local WindUI = undeitedhub.WindUI
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -15,7 +15,7 @@ local function SafeNotify(data)
     end
 end
 
-local MiscTab = undeltedhub.Window:Tab({ Title = "Misc" })
+local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
 
 MiscTab:Button({
     Title = "Delete All Toys",
@@ -73,7 +73,7 @@ MiscTab:Button({
     end
 })
 
-local antiVoidEnabled = undeltedhub.Toggles.antiVoidEnabled or false
+local antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
 local antiVoidLoop = nil
 
 local function StartAntiVoid()
@@ -96,7 +96,7 @@ local function StartAntiVoid()
 
     antiVoidLoop = task.spawn(function()
         while antiVoidEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local char = player.Character
                 if char then
                     local root = char:FindFirstChild("HumanoidRootPart")
@@ -131,8 +131,8 @@ end
 
 local function ToggleAntiVoid(state)
     antiVoidEnabled = state
-    undeltedhub.Toggles.antiVoidEnabled = state
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.antiVoidEnabled = state
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     if state then
         StartAntiVoid()
@@ -151,14 +151,14 @@ MiscTab:Toggle({
     end
 })
 
-undeltedhub.DisableAll = undeltedhub.DisableAll or function() end
-local oldDisable = undeltedhub.DisableAll
-undeltedhub.DisableAll = function()
+undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
+local oldDisable = undeitedhub.DisableAll
+undeitedhub.DisableAll = function()
     if antiVoidEnabled then
         StopAntiVoid()
         antiVoidEnabled = false
-        undeltedhub.Toggles.antiVoidEnabled = false
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.antiVoidEnabled = false
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     end
     oldDisable()
 end

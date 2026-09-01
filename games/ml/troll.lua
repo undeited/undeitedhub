@@ -1,5 +1,5 @@
-local WindUI = undeltedhub.WindUI
-local TrollTab = undeltedhub.Window:Tab({ Title = "Troll" })
+local WindUI = undeitedhub.WindUI
+local TrollTab = undeitedhub.Window:Tab({ Title = "Troll" })
 
 local function getStrength(player)
     local leaderstats = player:FindFirstChild("leaderstats")
@@ -46,21 +46,21 @@ local function equipPunch(player)
     return false
 end
 
-local killEnabled = undeltedhub.Toggles.AutoKill or false
+local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
 
 local function startKill()
     if killTask then return end
     killEnabled = true
-    undeltedhub.Toggles.AutoKill = true
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.AutoKill = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     killTask = task.spawn(function()
         local localPlayer = game:GetService("Players").LocalPlayer
         local playerStrength = getStrength(localPlayer)
 
         while killEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local character = localPlayer.Character
                 local myRoot = character and character:FindFirstChild("HumanoidRootPart")
                 if not myRoot then
@@ -150,12 +150,12 @@ end
 
 local function stopKill()
     killEnabled = false
-    undeltedhub.Toggles.AutoKill = false
+    undeitedhub.Toggles.AutoKill = false
     if killTask then
         task.cancel(killTask)
         killTask = nil
     end
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 TrollTab:Toggle({
@@ -168,8 +168,8 @@ TrollTab:Toggle({
 
 if killEnabled then startKill() end
 
-local oldDisable = undeltedhub.DisableAll or function() end
-undeltedhub.DisableAll = function()
+local oldDisable = undeitedhub.DisableAll or function() end
+undeitedhub.DisableAll = function()
     if killEnabled then stopKill() end
     oldDisable()
 end

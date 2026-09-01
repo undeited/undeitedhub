@@ -1,5 +1,5 @@
-local WindUI = undeltedhub.WindUI
-local utils = undeltedhub.Utils
+local WindUI = undeitedhub.WindUI
+local utils = undeitedhub.Utils
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -105,7 +105,7 @@ local function IsPlayerAlive()
     return humanoid.Health > 0
 end
 
-local MiscTab = undeltedhub.Window:Tab({
+local MiscTab = undeitedhub.Window:Tab({
     Title = "Misc"
 })
 
@@ -124,7 +124,7 @@ end
 MiscTab:Button({
     Title = "Expose Murderer",
     Callback = function()
-        local murderer = undeltedhub.GetCurrentMurderer()
+        local murderer = undeitedhub.GetCurrentMurderer()
         if murderer then
             SendChatMessage("Murderer is " .. murderer.Name)
             SafeNotify({ Title = "Expose", Content = "Murderer exposed in chat", Duration = 2 })
@@ -137,7 +137,7 @@ MiscTab:Button({
 MiscTab:Button({
     Title = "Expose Sheriff",
     Callback = function()
-        local sheriff = undeltedhub.GetCurrentSheriff()
+        local sheriff = undeitedhub.GetCurrentSheriff()
         if sheriff then
             SendChatMessage("Sheriff is " .. sheriff.Name)
             SafeNotify({ Title = "Expose", Content = "Sheriff exposed in chat", Duration = 2 })
@@ -184,14 +184,14 @@ end
 MiscTab:Button({
     Title = "Teleport to Murderer",
     Callback = function()
-        TeleportToPlayer(undeltedhub.GetCurrentMurderer())
+        TeleportToPlayer(undeitedhub.GetCurrentMurderer())
     end
 })
 
 MiscTab:Button({
     Title = "Teleport to Sheriff",
     Callback = function()
-        TeleportToPlayer(undeltedhub.GetCurrentSheriff())
+        TeleportToPlayer(undeitedhub.GetCurrentSheriff())
     end
 })
 
@@ -342,7 +342,7 @@ MiscTab:Button({
     end
 })
 
-local antiFlingEnabled = undeltedhub.Toggles.antiFlingEnabled or false
+local antiFlingEnabled = undeitedhub.Toggles.antiFlingEnabled or false
 local antiFlingHeartbeat = nil
 
 local lastSafePosition = nil
@@ -394,8 +394,8 @@ local function FreezeCharacter(humanoid, freeze)
 end
 
 local function StrongAntiFling()
-    if not antiFlingEnabled or not _G.UNDELTEDHUB_WINDOW_VISIBLE then return end
-    if _G.UNDELTEDHUB_AUTOFARM_MOVING then return end
+    if not antiFlingEnabled or not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+    if _G.UNDEITEDHUB_AUTOFARM_MOVING then return end
 
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
@@ -544,8 +544,8 @@ MiscTab:Toggle({
     Value = antiFlingEnabled,
     Callback = function(state)
         antiFlingEnabled = state
-        undeltedhub.Toggles.antiFlingEnabled = state
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.antiFlingEnabled = state
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         WindUI:Notify({
             Title = "Anti Fling",
             Content = antiFlingEnabled and "Enabled" or "Disabled",
@@ -557,7 +557,7 @@ MiscTab:Toggle({
 
 SetupAntiFling()
 
-local noclipEnabled = undeltedhub.Toggles.noclipEnabled or false
+local noclipEnabled = undeitedhub.Toggles.noclipEnabled or false
 local noclipLoopTask = nil
 
 local function KeepOnFloor(character)
@@ -605,7 +605,7 @@ local function StartNoclipLoop()
     if noclipLoopTask then return end
     noclipLoopTask = task.spawn(function()
         while noclipEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local localPlayer = game.Players.LocalPlayer
                 local character = localPlayer and localPlayer.Character
                 if character then
@@ -645,8 +645,8 @@ end
 
 local function ToggleNoclip(state)
     noclipEnabled = state
-    undeltedhub.Toggles.noclipEnabled = state
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.noclipEnabled = state
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     if state then
         StartNoclipLoop()
         WindUI:Notify({ Title = "Noclip", Content = "Enabled", Duration = 2 })
@@ -664,9 +664,9 @@ MiscTab:Toggle({
     end
 })
 
-undeltedhub.DisableAll = function()
+undeitedhub.DisableAll = function()
     antiFlingEnabled = false
-    undeltedhub.Toggles.antiFlingEnabled = false
+    undeitedhub.Toggles.antiFlingEnabled = false
     if antiFlingHeartbeat then
         antiFlingHeartbeat:Disconnect()
         antiFlingHeartbeat = nil
@@ -688,7 +688,7 @@ undeltedhub.DisableAll = function()
     if noclipEnabled then
         StopNoclipLoop()
         noclipEnabled = false
-        undeltedhub.Toggles.noclipEnabled = false
+        undeitedhub.Toggles.noclipEnabled = false
     end
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end

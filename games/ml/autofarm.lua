@@ -1,5 +1,5 @@
-local WindUI = undeltedhub.WindUI
-local AutoTab = undeltedhub.Window:Tab({ Title = "Autofarm" })
+local WindUI = undeitedhub.WindUI
+local AutoTab = undeitedhub.Window:Tab({ Title = "Autofarm" })
 
 local function getTool(player, toolName)
     local char = player.Character
@@ -35,19 +35,19 @@ local function equipTool(player, toolName)
     return false
 end
 
-local handstandEnabled = undeltedhub.Toggles.AutoHandstand or false
+local handstandEnabled = undeitedhub.Toggles.AutoHandstand or false
 local handstandTask = nil
 
 local function startHandstand()
     if handstandTask then return end
     handstandEnabled = true
-    undeltedhub.Toggles.AutoHandstand = true
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.AutoHandstand = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     handstandTask = task.spawn(function()
         local player = game:GetService("Players").LocalPlayer
         while handstandEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local character = player.Character
                 local backpack = player:FindFirstChild("Backpack")
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -72,12 +72,12 @@ end
 
 local function stopHandstand()
     handstandEnabled = false
-    undeltedhub.Toggles.AutoHandstand = false
+    undeitedhub.Toggles.AutoHandstand = false
     if handstandTask then
         task.cancel(handstandTask)
         handstandTask = nil
     end
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 AutoTab:Toggle({
@@ -88,19 +88,19 @@ AutoTab:Toggle({
     end
 })
 
-local rebirthEnabled = undeltedhub.Toggles.AutoRebirth or false
+local rebirthEnabled = undeitedhub.Toggles.AutoRebirth or false
 local rebirthTask = nil
 
 local function startRebirth()
     if rebirthTask then return end
     rebirthEnabled = true
-    undeltedhub.Toggles.AutoRebirth = true
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.AutoRebirth = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     rebirthTask = task.spawn(function()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         while rebirthEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local remote = replicatedStorage:FindFirstChild("rEvents") and replicatedStorage.rEvents:FindFirstChild("rebirthRemote")
                 if remote then
                     pcall(function()
@@ -116,12 +116,12 @@ end
 
 local function stopRebirth()
     rebirthEnabled = false
-    undeltedhub.Toggles.AutoRebirth = false
+    undeitedhub.Toggles.AutoRebirth = false
     if rebirthTask then
         task.cancel(rebirthTask)
         rebirthTask = nil
     end
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 AutoTab:Toggle({
@@ -132,19 +132,19 @@ AutoTab:Toggle({
     end
 })
 
-local situpsEnabled = undeltedhub.Toggles.AutoSitups or false
+local situpsEnabled = undeitedhub.Toggles.AutoSitups or false
 local situpsTask = nil
 
 local function startSitups()
     if situpsTask then return end
     situpsEnabled = true
-    undeltedhub.Toggles.AutoSitups = true
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.AutoSitups = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     situpsTask = task.spawn(function()
         local player = game:GetService("Players").LocalPlayer
         while situpsEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local character = player.Character
                 local backpack = player:FindFirstChild("Backpack")
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -169,12 +169,12 @@ end
 
 local function stopSitups()
     situpsEnabled = false
-    undeltedhub.Toggles.AutoSitups = false
+    undeitedhub.Toggles.AutoSitups = false
     if situpsTask then
         task.cancel(situpsTask)
         situpsTask = nil
     end
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 AutoTab:Toggle({
@@ -185,19 +185,19 @@ AutoTab:Toggle({
     end
 })
 
-local pushupsEnabled = undeltedhub.Toggles.AutoPushups or false
+local pushupsEnabled = undeitedhub.Toggles.AutoPushups or false
 local pushupsTask = nil
 
 local function startPushups()
     if pushupsTask then return end
     pushupsEnabled = true
-    undeltedhub.Toggles.AutoPushups = true
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.AutoPushups = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     pushupsTask = task.spawn(function()
         local player = game:GetService("Players").LocalPlayer
         while pushupsEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local character = player.Character
                 local backpack = player:FindFirstChild("Backpack")
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -222,12 +222,12 @@ end
 
 local function stopPushups()
     pushupsEnabled = false
-    undeltedhub.Toggles.AutoPushups = false
+    undeitedhub.Toggles.AutoPushups = false
     if pushupsTask then
         task.cancel(pushupsTask)
         pushupsTask = nil
     end
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 AutoTab:Toggle({
@@ -238,19 +238,19 @@ AutoTab:Toggle({
     end
 })
 
-local weightEnabled = undeltedhub.Toggles.AutoWeight or false
+local weightEnabled = undeitedhub.Toggles.AutoWeight or false
 local weightTask = nil
 
 local function startWeight()
     if weightTask then return end
     weightEnabled = true
-    undeltedhub.Toggles.AutoWeight = true
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.AutoWeight = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     weightTask = task.spawn(function()
         local player = game:GetService("Players").LocalPlayer
         while weightEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local character = player.Character
                 local backpack = player:FindFirstChild("Backpack")
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -275,12 +275,12 @@ end
 
 local function stopWeight()
     weightEnabled = false
-    undeltedhub.Toggles.AutoWeight = false
+    undeitedhub.Toggles.AutoWeight = false
     if weightTask then
         task.cancel(weightTask)
         weightTask = nil
     end
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 AutoTab:Toggle({
@@ -297,8 +297,8 @@ if situpsEnabled then startSitups() end
 if pushupsEnabled then startPushups() end
 if weightEnabled then startWeight() end
 
-local oldDisable = undeltedhub.DisableAll or function() end
-undeltedhub.DisableAll = function()
+local oldDisable = undeitedhub.DisableAll or function() end
+undeitedhub.DisableAll = function()
     if handstandEnabled then stopHandstand() end
     if rebirthEnabled then stopRebirth() end
     if situpsEnabled then stopSitups() end

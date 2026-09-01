@@ -1,5 +1,5 @@
-local WindUI = undeltedhub.WindUI
-local TeleportTab = undeltedhub.Window:Tab({ Title = "Teleport" })
+local WindUI = undeitedhub.WindUI
+local TeleportTab = undeitedhub.Window:Tab({ Title = "Teleport" })
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -130,5 +130,5 @@ TeleportTab:Button({
     Callback = TeleportToCurrentMap
 })
 
-undeltedhub.DisableAll = function()
+undeitedhub.DisableAll = function()
 end

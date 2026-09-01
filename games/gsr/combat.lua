@@ -1,15 +1,15 @@
-local WindUI = undeltedhub.WindUI
-local utils = undeltedhub.Utils
-local config = undeltedhub.Config
+local WindUI = undeitedhub.WindUI
+local utils = undeitedhub.Utils
+local config = undeitedhub.Config
 
-local CombatTab = undeltedhub.Window:Tab({ Title = "Combat" })
+local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AeroServices = ReplicatedStorage:WaitForChild("Aero"):WaitForChild("AeroRemoteServices"):WaitForChild("GameService")
 local AttackStart = AeroServices:WaitForChild("WeaponAttackStart")
 local AnimComplete = AeroServices:WaitForChild("WeaponAnimComplete")
 
-local autoSwingEnabled = undeltedhub.Toggles.AutoSwing or false
+local autoSwingEnabled = undeitedhub.Toggles.AutoSwing or false
 local lastSwingTime = 0
 local SWING_COOLDOWN = 0.1
 
@@ -24,7 +24,7 @@ local function SwingWeapon()
 end
 
 game:GetService("RunService").Heartbeat:Connect(function()
-    if autoSwingEnabled and _G.UNDELTEDHUB_WINDOW_VISIBLE then
+    if autoSwingEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastSwingTime >= SWING_COOLDOWN then
             lastSwingTime = now
@@ -38,8 +38,8 @@ CombatTab:Toggle({
     Value = autoSwingEnabled,
     Callback = function(state)
         autoSwingEnabled = state
-        undeltedhub.Toggles.AutoSwing = state
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.AutoSwing = state
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         WindUI:Notify({
             Title = "Auto Swing",
             Content = state and "Enabled" or "Disabled",
@@ -51,11 +51,11 @@ CombatTab:Toggle({
     end
 })
 
-undeltedhub.DisableAll = undeltedhub.DisableAll or function() end
-local oldDisable = undeltedhub.DisableAll
-undeltedhub.DisableAll = function()
+undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
+local oldDisable = undeitedhub.DisableAll
+undeitedhub.DisableAll = function()
     autoSwingEnabled = false
-    undeltedhub.Toggles.AutoSwing = false
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.AutoSwing = false
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end

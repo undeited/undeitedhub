@@ -1,8 +1,8 @@
-local WindUI = undeltedhub.WindUI
-local utils = undeltedhub.Utils
-local config = undeltedhub.Config
+local WindUI = undeitedhub.WindUI
+local utils = undeitedhub.Utils
+local config = undeitedhub.Config
 
-local CombatTab = undeltedhub.Window:Tab({ Title = "Combat" })
+local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -15,9 +15,9 @@ local camera = Workspace.CurrentCamera
 local targetPosition = nil
 
 local silentAimConfig = {
-    Enabled = undeltedhub.Toggles.SilentAim or false,
-    TargetMode = undeltedhub.Toggles.SilentAimTargetMode or "center",
-    TargetPlayer = undeltedhub.Toggles.SilentAimTargetPlayer or "None",
+    Enabled = undeitedhub.Toggles.SilentAim or false,
+    TargetMode = undeitedhub.Toggles.SilentAimTargetMode or "center",
+    TargetPlayer = undeitedhub.Toggles.SilentAimTargetPlayer or "None",
     Distance = 28,
 }
 
@@ -66,8 +66,8 @@ local function updateTarget()
         targetPlayer = Players:FindFirstChild(silentAimConfig.TargetPlayer)
         if not targetPlayer then
             silentAimConfig.TargetPlayer = "None"
-            undeltedhub.Toggles.SilentAimTargetPlayer = "None"
-            if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+            undeitedhub.Toggles.SilentAimTargetPlayer = "None"
+            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             refreshTargetDropdown()
             return
         end
@@ -139,11 +139,11 @@ CombatTab:Toggle({
     Value = silentAimConfig.Enabled,
     Callback = function(state)
         silentAimConfig.Enabled = state
-        undeltedhub.Toggles.SilentAim = state
+        undeitedhub.Toggles.SilentAim = state
         if state and not hookActive then
             setupHook()
         end
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         WindUI:Notify({
             Title = "Silent Aim",
             Content = state and "Enabled" or "Disabled",
@@ -158,8 +158,8 @@ CombatTab:Dropdown({
     Value = silentAimConfig.TargetMode,
     Callback = function(value)
         silentAimConfig.TargetMode = value
-        undeltedhub.Toggles.SilentAimTargetMode = value
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.SilentAimTargetMode = value
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     end
 })
 
@@ -193,8 +193,8 @@ local function refreshTargetDropdown()
     if not valid then
         current = "None"
         silentAimConfig.TargetPlayer = "None"
-        undeltedhub.Toggles.SilentAimTargetPlayer = "None"
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.SilentAimTargetPlayer = "None"
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     end
 
     targetDropdown = CombatTab:Dropdown({
@@ -203,8 +203,8 @@ local function refreshTargetDropdown()
         Value = current,
         Callback = function(value)
             silentAimConfig.TargetPlayer = value
-            undeltedhub.Toggles.SilentAimTargetPlayer = value
-            if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+            undeitedhub.Toggles.SilentAimTargetPlayer = value
+            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         end
     })
 end
@@ -219,21 +219,21 @@ end)
 Players.PlayerRemoving:Connect(function(player)
     if silentAimConfig.TargetPlayer == player.Name then
         silentAimConfig.TargetPlayer = "None"
-        undeltedhub.Toggles.SilentAimTargetPlayer = "None"
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.SilentAimTargetPlayer = "None"
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     end
     refreshTargetDropdown()
 end)
 
-undeltedhub.DisableAll = undeltedhub.DisableAll or function() end
-local oldDisable = undeltedhub.DisableAll
-undeltedhub.DisableAll = function()
+undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
+local oldDisable = undeitedhub.DisableAll
+undeitedhub.DisableAll = function()
     silentAimConfig.Enabled = false
-    undeltedhub.Toggles.SilentAim = false
+    undeitedhub.Toggles.SilentAim = false
     if targetDropdown then
         pcall(function() targetDropdown:Destroy() end)
         targetDropdown = nil
     end
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end

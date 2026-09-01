@@ -1,4 +1,4 @@
-local WindUI = undeltedhub.WindUI
+local WindUI = undeitedhub.WindUI
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -15,9 +15,9 @@ local function SafeNotify(data)
     end
 end
 
-local VisualTab = undeltedhub.Window:Tab({ Title = "Visual" })
+local VisualTab = undeitedhub.Window:Tab({ Title = "Visual" })
 
-local espEnabled = undeltedhub.Toggles.espEnabled or false
+local espEnabled = undeitedhub.Toggles.espEnabled or false
 local highlightMap = {}
 
 local function ClearESP()
@@ -30,7 +30,7 @@ local function ClearESP()
 end
 
 local function UpdateESP()
-    if not espEnabled or not _G.UNDELTEDHUB_WINDOW_VISIBLE then
+    if not espEnabled or not _G.UNDEITEDHUB_WINDOW_VISIBLE then
         ClearESP()
         return
     end
@@ -80,8 +80,8 @@ VisualTab:Toggle({
     Callback = function(state)
         pcall(function()
             espEnabled = state
-            undeltedhub.Toggles.espEnabled = state
-            if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+            undeitedhub.Toggles.espEnabled = state
+            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             SafeNotify({
                 Title = "ESP",
                 Content = espEnabled and "Enabled" or "Disabled",

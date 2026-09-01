@@ -1,6 +1,6 @@
-local WindUI = undeltedhub.WindUI
-local CombatTab = undeltedhub.Window:Tab({ Title = "Combat" })
-local config = undeltedhub.Config
+local WindUI = undeitedhub.WindUI
+local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
+local config = undeitedhub.Config
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -209,7 +209,7 @@ local function KillAll()
     end
 end
 
-undeltedhub.KillAll = KillAll
+undeitedhub.KillAll = KillAll
 
 CombatTab:Button({
     Title = "Kill All",
@@ -256,11 +256,11 @@ CombatTab:Button({
     end
 })
 
-local autoKillAllEnabled = undeltedhub.Toggles.autoKillAllEnabled or false
+local autoKillAllEnabled = undeitedhub.Toggles.autoKillAllEnabled or false
 local lastAutoKillAllTime = 0
 
 game:GetService("RunService").Heartbeat:Connect(function()
-    if autoKillAllEnabled and _G.UNDELTEDHUB_WINDOW_VISIBLE then
+    if autoKillAllEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastAutoKillAllTime >= 0.5 then
             lastAutoKillAllTime = now
@@ -274,8 +274,8 @@ CombatTab:Toggle({
     Value = autoKillAllEnabled,
     Callback = function(state)
         autoKillAllEnabled = state
-        undeltedhub.Toggles.autoKillAllEnabled = state
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.autoKillAllEnabled = state
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({
             Title = "Auto Kill All",
             Content = autoKillAllEnabled and "Enabled" or "Disabled",
@@ -287,7 +287,7 @@ CombatTab:Toggle({
     end
 })
 
-local autoShootEnabled = undeltedhub.Toggles.autoShootEnabled or false
+local autoShootEnabled = undeitedhub.Toggles.autoShootEnabled or false
 local lastShootTime = 0
 local SHOOT_COOLDOWN = config.cooldowns.autoShoot or 0.3
 local BULLET_SPEED = 1200
@@ -340,7 +340,7 @@ local function GetShootRemote()
 end
 
 local function ShootMurdererOnce()
-    if not _G.UNDELTEDHUB_WINDOW_VISIBLE then return false end
+    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return false end
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return false end
     if not IsRoundActive() or not IsPlayerAlive() or IsInLobby() then
@@ -363,7 +363,7 @@ local function ShootMurdererOnce()
         SafeNotify({ Title = "Shoot Murderer", Content = "Shoot remote not found", Duration = 2 })
         return false
     end
-    local murderer = undeltedhub.GetCurrentMurderer()
+    local murderer = undeitedhub.GetCurrentMurderer()
     if not murderer then
         SafeNotify({ Title = "Shoot Murderer", Content = "No alive murderer found", Duration = 2 })
         return false
@@ -428,7 +428,7 @@ local function ShootMurdererOnce()
 end
 
 local function ShootAtMurderer()
-    if not _G.UNDELTEDHUB_WINDOW_VISIBLE then return end
+    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
     if not IsRoundActive() or not IsPlayerAlive() or IsInLobby() then return end
@@ -439,7 +439,7 @@ local function ShootAtMurderer()
     if not gun then return end
     local shootRemote = GetShootRemote()
     if not shootRemote then return end
-    local murderer = undeltedhub.GetCurrentMurderer()
+    local murderer = undeitedhub.GetCurrentMurderer()
     if not murderer then return end
     local murdererChar = murderer.Character
     if not murdererChar then return end
@@ -492,7 +492,7 @@ local function ShootAtMurderer()
 end
 
 game:GetService("RunService").Heartbeat:Connect(function()
-    if autoShootEnabled and _G.UNDELTEDHUB_WINDOW_VISIBLE then
+    if autoShootEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastShootTime >= SHOOT_COOLDOWN then
             lastShootTime = now
@@ -513,8 +513,8 @@ CombatTab:Toggle({
     Value = autoShootEnabled,
     Callback = function(state)
         autoShootEnabled = state
-        undeltedhub.Toggles.autoShootEnabled = state
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.autoShootEnabled = state
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({
             Title = "Auto Shoot Murderer",
             Content = autoShootEnabled and "Enabled" or "Disabled",
@@ -681,11 +681,11 @@ local function GrabGun(gunDrop, silent)
     end
 end
 
-local autoGrabGunEnabled = undeltedhub.Toggles.autoGrabGunEnabled or false
+local autoGrabGunEnabled = undeitedhub.Toggles.autoGrabGunEnabled or false
 local gunDropAddedConnection = nil
 
 local function AttemptAutoGrab()
-    if not autoGrabGunEnabled or not _G.UNDELTEDHUB_WINDOW_VISIBLE then return end
+    if not autoGrabGunEnabled or not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
     if IsInLobby() or IsLocalPlayerMurderer() or not IsRoundActive() or not IsPlayerAlive() then return end
     if isGrabbing then return end
 
@@ -703,8 +703,8 @@ end
 
 local function ToggleAutoGrab(state)
     autoGrabGunEnabled = state
-    undeltedhub.Toggles.autoGrabGunEnabled = state
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.autoGrabGunEnabled = state
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     if state then
         pcall(AttemptAutoGrab)
@@ -713,7 +713,7 @@ local function ToggleAutoGrab(state)
             gunDropAddedConnection = nil
         end
         gunDropAddedConnection = workspace.DescendantAdded:Connect(function(obj)
-            if autoGrabGunEnabled and obj.Name == "GunDrop" and _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if autoGrabGunEnabled and obj.Name == "GunDrop" and _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 pcall(AttemptAutoGrab)
             end
         end)
@@ -776,14 +776,14 @@ CombatTab:Button({
     end
 })
 
-undeltedhub.DisableAll = function()
+undeitedhub.DisableAll = function()
     autoKillAllEnabled = false
-    undeltedhub.Toggles.autoKillAllEnabled = false
+    undeitedhub.Toggles.autoKillAllEnabled = false
     autoShootEnabled = false
-    undeltedhub.Toggles.autoShootEnabled = false
+    undeitedhub.Toggles.autoShootEnabled = false
     autoGrabGunEnabled = false
-    undeltedhub.Toggles.autoGrabGunEnabled = false
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.autoGrabGunEnabled = false
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     if gunDropAddedConnection then
         gunDropAddedConnection:Disconnect()
         gunDropAddedConnection = nil

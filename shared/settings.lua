@@ -1,11 +1,11 @@
-local WindUI = undeltedhub.WindUI
-local config = undeltedhub.Config
+local WindUI = undeitedhub.WindUI
+local config = undeitedhub.Config
 
-local SettingsTab = undeltedhub.Window:Tab({ Title = "Settings" })
+local SettingsTab = undeitedhub.Window:Tab({ Title = "Settings" })
 
 local themes = config.themes or { "Default", "Midnight", "Ocean", "Sunset", "Emerald", "Rose", "Plasma", "Snow", "Neon", "Crimson", "Lavender", "Gold", "Mint", "Cyber" }
 
-local currentTheme = undeltedhub.CurrentTheme or "Default"
+local currentTheme = undeitedhub.CurrentTheme or "Default"
 
 local function ApplyTheme(themeName)
     if not themeName or themeName == "" then
@@ -22,12 +22,12 @@ local function ApplyTheme(themeName)
         themeName = "Default"
     end
     currentTheme = themeName
-    undeltedhub.CurrentTheme = themeName
+    undeitedhub.CurrentTheme = themeName
     pcall(function()
         WindUI:SetTheme(themeName)
     end)
-    if undeltedhub.SaveSettings then
-        pcall(undeltedhub.SaveSettings)
+    if undeitedhub.SaveSettings then
+        pcall(undeitedhub.SaveSettings)
     end
 end
 
@@ -40,4 +40,4 @@ SettingsTab:Dropdown({
     end
 })
 
-undeltedhub.ApplyTheme = ApplyTheme
+undeitedhub.ApplyTheme = ApplyTheme

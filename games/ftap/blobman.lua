@@ -1,4 +1,4 @@
-local WindUI = undeltedhub.WindUI
+local WindUI = undeitedhub.WindUI
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
@@ -19,9 +19,9 @@ local function SafeNotify(data)
     end
 end
 
-local BlobmanTab = undeltedhub.Window:Tab({ Title = "Blobman" })
+local BlobmanTab = undeitedhub.Window:Tab({ Title = "Blobman" })
 
-local grabEnabled = undeltedhub.Toggles.autoGrabPlayers or false
+local grabEnabled = undeitedhub.Toggles.autoGrabPlayers or false
 local grabTask = nil
 
 local INTERACT_KEY = Enum.KeyCode.F
@@ -107,13 +107,13 @@ end
 local function startGrabLoop()
     if grabTask then return end
     grabEnabled = true
-    undeltedhub.Toggles.autoGrabPlayers = true
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    undeitedhub.Toggles.autoGrabPlayers = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Grab Nearest", Content = "Enabled", Duration = 2 })
 
     grabTask = task.spawn(function()
         while grabEnabled do
-            if _G.UNDELTEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local blobman = manageBlobmanSeating()
                 if blobman then
                     local leftDetector = blobman:FindFirstChild("LeftDetector")
@@ -190,14 +190,14 @@ end
 
 local function stopGrabLoop()
     grabEnabled = false
-    undeltedhub.Toggles.autoGrabPlayers = false
+    undeitedhub.Toggles.autoGrabPlayers = false
     if grabTask then
         task.cancel(grabTask)
         grabTask = nil
     end
     leftHeldTarget = nil
     rightHeldTarget = nil
-    if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Grab Nearest", Content = "Disabled", Duration = 2 })
 end
 
@@ -209,8 +209,8 @@ BlobmanTab:Toggle({
     end
 })
 
-local oldDisable = undeltedhub.DisableAll or function() end
-undeltedhub.DisableAll = function()
+local oldDisable = undeitedhub.DisableAll or function() end
+undeitedhub.DisableAll = function()
     if grabEnabled then stopGrabLoop() end
     oldDisable()
 end

@@ -1,6 +1,6 @@
-local WindUI = undeltedhub and undeltedhub.WindUI
-local utils = undeltedhub and undeltedhub.Utils
-local config = undeltedhub and undeltedhub.Config
+local WindUI = undeitedhub and undeitedhub.WindUI
+local utils = undeitedhub and undeitedhub.Utils
+local config = undeitedhub and undeitedhub.Config
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -17,18 +17,18 @@ local function SafeNotify(data)
     end
 end
 
-local VisualTab = undeltedhub and undeltedhub.Window and undeltedhub.Window:Tab({ Title = "Visual" })
+local VisualTab = undeitedhub and undeitedhub.Window and undeitedhub.Window:Tab({ Title = "Visual" })
 if not VisualTab then return end
 
-local espEnabled = undeltedhub.Toggles.espEnabled or false
+local espEnabled = undeitedhub.Toggles.espEnabled or false
 local highlightInstances = {}
-local gunHighlightEnabled = undeltedhub.Toggles.gunHighlightEnabled or false
+local gunHighlightEnabled = undeitedhub.Toggles.gunHighlightEnabled or false
 local gunHighlightInstances = {}
-local coinHighlightEnabled = undeltedhub.Toggles.coinHighlightEnabled or false
+local coinHighlightEnabled = undeitedhub.Toggles.coinHighlightEnabled or false
 local coinHighlightMap = {}
 local coinHighlightLastUpdate = 0
 
-undeltedhub.playerRoles = undeltedhub.playerRoles or {}
+undeitedhub.playerRoles = undeitedhub.playerRoles or {}
 
 local roundTimer = workspace:FindFirstChild("RoundTimerPart")
 local shouldShowESP = false
@@ -147,8 +147,8 @@ end
 
 local function GetPlayerRole(player)
     if not player then return "Innocent" end
-    if undeltedhub.playerRoles and undeltedhub.playerRoles[player] then
-        return normalizeRole(undeltedhub.playerRoles[player])
+    if undeitedhub.playerRoles and undeitedhub.playerRoles[player] then
+        return normalizeRole(undeitedhub.playerRoles[player])
     end
     local role = player:GetAttribute("Role")
     if role then
@@ -166,10 +166,10 @@ end
 
 local function GetPlayerRoleColor(player)
     if not config or not config.colors then return Color3.new(1, 1, 1) end
-    if undeltedhub.GetCurrentMurderer and undeltedhub.GetCurrentMurderer() == player then
+    if undeitedhub.GetCurrentMurderer and undeitedhub.GetCurrentMurderer() == player then
         return config.colors.murderer or Color3.fromRGB(255, 0, 0)
     end
-    if undeltedhub.GetCurrentSheriff and undeltedhub.GetCurrentSheriff() == player then
+    if undeitedhub.GetCurrentSheriff and undeitedhub.GetCurrentSheriff() == player then
         return config.colors.sheriff or Color3.fromRGB(0, 100, 255)
     end
     local role = GetPlayerRole(player)
@@ -371,7 +371,7 @@ if gameplay then
                 local localPlayer = game.Players.LocalPlayer
                 if localPlayer then
                     local normalized = normalizeRole(role)
-                    undeltedhub.playerRoles[localPlayer] = normalized
+                    undeitedhub.playerRoles[localPlayer] = normalized
                     localPlayer:SetAttribute("Role", normalized)
                     UpdateESP()
                 end
@@ -387,7 +387,7 @@ if gameplay then
                     local player = game.Players:FindFirstChild(playerName)
                     if player and data.Role then
                         local role = normalizeRole(data.Role)
-                        undeltedhub.playerRoles[player] = role
+                        undeitedhub.playerRoles[player] = role
                         player:SetAttribute("Role", role)
                     end
                 end
@@ -415,7 +415,7 @@ local function updateRolesFromData(data)
         local player = game.Players:FindFirstChild(playerName)
         if player then
             local normalized = normalizeRole(role)
-            undeltedhub.playerRoles[player] = normalized
+            undeitedhub.playerRoles[player] = normalized
             if type(normalized) == "string" then
                 player:SetAttribute("Role", normalized)
             end
@@ -446,9 +446,9 @@ local function forceRoleScan()
         if not humanoid or humanoid.Health <= 0 then continue end
         local role = detectRoleFromTools(player)
         if role ~= "Innocent" then
-            local current = undeltedhub.playerRoles[player]
+            local current = undeitedhub.playerRoles[player]
             if current ~= role then
-                undeltedhub.playerRoles[player] = role
+                undeitedhub.playerRoles[player] = role
                 player:SetAttribute("Role", role)
                 changed = true
             end
@@ -459,7 +459,7 @@ local function forceRoleScan()
     end
 end
 
-undeltedhub.ForceRoleScan = forceRoleScan
+undeitedhub.ForceRoleScan = forceRoleScan
 
 task.spawn(function()
     while true do
@@ -511,7 +511,7 @@ local function refreshRoundState()
         if not inLobby and active then
             if not shouldShowESP then
                 shouldShowESP = true
-                undeltedhub.playerRoles = {}
+                undeitedhub.playerRoles = {}
                 UpdateESP()
                 UpdateGunHighlights()
                 UpdateCoinHighlights()
@@ -522,7 +522,7 @@ local function refreshRoundState()
                 ClearESP()
                 ClearGunHighlights()
                 ClearCoinHighlights()
-                undeltedhub.playerRoles = {}
+                undeitedhub.playerRoles = {}
             end
         end
     end)
@@ -560,7 +560,7 @@ game.Players.PlayerRemoving:Connect(function(player)
             highlightInstances[player] = nil
         end)
     end
-    undeltedhub.playerRoles[player] = nil
+    undeitedhub.playerRoles[player] = nil
 end)
 
 VisualTab:Toggle({
@@ -569,8 +569,8 @@ VisualTab:Toggle({
     Callback = function(state)
         pcall(function()
             espEnabled = state
-            undeltedhub.Toggles.espEnabled = state
-            if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+            undeitedhub.Toggles.espEnabled = state
+            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             SafeNotify({
                 Title = "Player Highlight",
                 Content = espEnabled and "Enabled" or "Disabled",
@@ -591,8 +591,8 @@ VisualTab:Toggle({
     Callback = function(state)
         pcall(function()
             gunHighlightEnabled = state
-            undeltedhub.Toggles.gunHighlightEnabled = state
-            if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+            undeitedhub.Toggles.gunHighlightEnabled = state
+            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             SafeNotify({
                 Title = "Gun Highlight",
                 Content = gunHighlightEnabled and "Enabled" or "Disabled",
@@ -613,8 +613,8 @@ VisualTab:Toggle({
     Callback = function(state)
         pcall(function()
             coinHighlightEnabled = state
-            undeltedhub.Toggles.coinHighlightEnabled = state
-            if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+            undeitedhub.Toggles.coinHighlightEnabled = state
+            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             SafeNotify({
                 Title = "Coin Highlight",
                 Content = coinHighlightEnabled and "Enabled" or "Disabled",
@@ -629,7 +629,7 @@ VisualTab:Toggle({
     end
 })
 
-undeltedhub.GetCurrentMurderer = function()
+undeitedhub.GetCurrentMurderer = function()
     for _, player in pairs(game.Players:GetPlayers()) do
         if player == game.Players.LocalPlayer then continue end
         if IsPlayerInLobby(player) then continue end
@@ -644,7 +644,7 @@ undeltedhub.GetCurrentMurderer = function()
     return nil
 end
 
-undeltedhub.GetCurrentSheriff = function()
+undeitedhub.GetCurrentSheriff = function()
     for _, player in pairs(game.Players:GetPlayers()) do
         if player == game.Players.LocalPlayer then continue end
         if IsPlayerInLobby(player) then continue end
@@ -659,15 +659,15 @@ undeltedhub.GetCurrentSheriff = function()
     return nil
 end
 
-undeltedhub.DisableAll = function()
+undeitedhub.DisableAll = function()
     pcall(function()
         espEnabled = false
         gunHighlightEnabled = false
         coinHighlightEnabled = false
-        undeltedhub.Toggles.espEnabled = false
-        undeltedhub.Toggles.gunHighlightEnabled = false
-        undeltedhub.Toggles.coinHighlightEnabled = false
-        if undeltedhub.SaveSettings then undeltedhub.SaveSettings() end
+        undeitedhub.Toggles.espEnabled = false
+        undeitedhub.Toggles.gunHighlightEnabled = false
+        undeitedhub.Toggles.coinHighlightEnabled = false
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         ClearESP()
         ClearGunHighlights()
         ClearCoinHighlights()

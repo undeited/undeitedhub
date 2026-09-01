@@ -1,4 +1,4 @@
-local BASE_URL = "https://raw.githubusercontent.com/undelted/undeltedhub/main/"
+local BASE_URL = "https://raw.githubusercontent.com/undeited/undeitedhub/main/"
 
 local function HttpGet(url)
     if game and type(game.HttpGet) == "function" then
@@ -56,12 +56,12 @@ local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
 local config = LoadScript("shared/config.lua")
 
-undeltedhub = undeltedhub or {}
-undeltedhub.WindUI = WindUI
-undeltedhub.Utils = utils
-undeltedhub.Config = config
-undeltedhub.Toggles = undeltedhub.Toggles or {}
-undeltedhub.SettingsFile = "undeltedhub/" .. GAME_FOLDER .. "/settings.json"
+undeitedhub = undeitedhub or {}
+undeitedhub.WindUI = WindUI
+undeitedhub.Utils = utils
+undeitedhub.Config = config
+undeitedhub.Toggles = undeitedhub.Toggles or {}
+undeitedhub.SettingsFile = "undeitedhub/" .. GAME_FOLDER .. "/settings.json"
 
 local function ResolveThemeName(themeName)
     local available = config and config.themes or { "Default" }
@@ -81,19 +81,19 @@ end
 
 local function LoadSettings()
     pcall(function()
-        if isfile and isfile(undeltedhub.SettingsFile) then
-            local data = game:GetService("HttpService"):JSONDecode(readfile(undeltedhub.SettingsFile))
+        if isfile and isfile(undeitedhub.SettingsFile) then
+            local data = game:GetService("HttpService"):JSONDecode(readfile(undeitedhub.SettingsFile))
             if data then
                 if data.toggles then
                     for k, v in pairs(data.toggles) do
-                        undeltedhub.Toggles[k] = v
+                        undeitedhub.Toggles[k] = v
                     end
                 end
                 if data.theme then
-                    undeltedhub.CurrentTheme = ResolveThemeName(data.theme)
+                    undeitedhub.CurrentTheme = ResolveThemeName(data.theme)
                 end
                 if data.toggleKey then
-                    undeltedhub.ToggleKey = data.toggleKey
+                    undeitedhub.ToggleKey = data.toggleKey
                 end
                 if data.walkSpeed then config.walkSpeed = data.walkSpeed end
                 if data.jumpPower then config.jumpPower = data.jumpPower end
@@ -101,18 +101,18 @@ local function LoadSettings()
             end
         end
 
-        if _G.UNDELTEDHUB_STORAGE and _G.UNDELTEDHUB_STORAGE[game.PlaceId] then
-            local stored = _G.UNDELTEDHUB_STORAGE[game.PlaceId]
+        if _G.UNDEITEDHUB_STORAGE and _G.UNDEITEDHUB_STORAGE[game.PlaceId] then
+            local stored = _G.UNDEITEDHUB_STORAGE[game.PlaceId]
             if stored.toggles then
                 for k, v in pairs(stored.toggles) do
-                    undeltedhub.Toggles[k] = v
+                    undeitedhub.Toggles[k] = v
                 end
             end
             if stored.theme then
-                undeltedhub.CurrentTheme = ResolveThemeName(stored.theme)
+                undeitedhub.CurrentTheme = ResolveThemeName(stored.theme)
             end
             if stored.toggleKey then
-                undeltedhub.ToggleKey = stored.toggleKey
+                undeitedhub.ToggleKey = stored.toggleKey
             end
             if stored.walkSpeed then config.walkSpeed = stored.walkSpeed end
             if stored.jumpPower then config.jumpPower = stored.jumpPower end
@@ -123,34 +123,34 @@ end
 local function SaveSettings()
     pcall(function()
         local data = {
-            toggles = undeltedhub.Toggles,
-            theme = ResolveThemeName(undeltedhub.CurrentTheme or "Default"),
-            toggleKey = undeltedhub.ToggleKey or config.toggleKey or "K",
+            toggles = undeitedhub.Toggles,
+            theme = ResolveThemeName(undeitedhub.CurrentTheme or "Default"),
+            toggleKey = undeitedhub.ToggleKey or config.toggleKey or "K",
             walkSpeed = config.walkSpeed,
             jumpPower = config.jumpPower,
         }
 
         if writefile and makefolder then
-            makefolder("undeltedhub")
-            makefolder("undeltedhub/" .. GAME_FOLDER)
-            writefile(undeltedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
+            makefolder("undeitedhub")
+            makefolder("undeitedhub/" .. GAME_FOLDER)
+            writefile(undeitedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
         end
 
-        _G.UNDELTEDHUB_STORAGE = _G.UNDELTEDHUB_STORAGE or {}
-        _G.UNDELTEDHUB_STORAGE[game.PlaceId] = data
+        _G.UNDEITEDHUB_STORAGE = _G.UNDEITEDHUB_STORAGE or {}
+        _G.UNDEITEDHUB_STORAGE[game.PlaceId] = data
     end)
 end
 
 LoadSettings()
-undeltedhub.ToggleKey = undeltedhub.ToggleKey or config.toggleKey or "K"
+undeitedhub.ToggleKey = undeitedhub.ToggleKey or config.toggleKey or "K"
 
-local themeToApply = ResolveThemeName(undeltedhub.CurrentTheme or "Default")
+local themeToApply = ResolveThemeName(undeitedhub.CurrentTheme or "Default")
 WindUI:SetTheme(themeToApply)
 
 local Window = WindUI:CreateWindow({
-    Title = "Undelted Hub",
-    Author = "by undelted",
-    Folder = "undeltedhub/" .. GAME_FOLDER,
+    Title = "Undeited Hub",
+    Author = "by undeited",
+    Folder = "undeitedhub/" .. GAME_FOLDER,
     Size = UDim2.fromOffset(580, 460),
     MinSize = Vector2.new(560, 350),
     MaxSize = Vector2.new(850, 560),
@@ -162,23 +162,23 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
-Window:SetToggleKey(Enum.KeyCode[undeltedhub.ToggleKey])
+Window:SetToggleKey(Enum.KeyCode[undeitedhub.ToggleKey])
 
-undeltedhub.Window = Window
-undeltedhub.SaveSettings = SaveSettings
-undeltedhub.LoadSettings = LoadSettings
+undeitedhub.Window = Window
+undeitedhub.SaveSettings = SaveSettings
+undeitedhub.LoadSettings = LoadSettings
 
-_G.UNDELTEDHUB_WINDOW_VISIBLE = true
+_G.UNDEITEDHUB_WINDOW_VISIBLE = true
 local frame = Window.Frame
 if frame then
     frame:GetPropertyChangedSignal("Visible"):Connect(function()
-        _G.UNDELTEDHUB_WINDOW_VISIBLE = frame.Visible
+        _G.UNDEITEDHUB_WINDOW_VISIBLE = frame.Visible
     end)
 
     frame.AncestryChanged:Connect(function()
         if not frame.Parent then
-            if undeltedhub.DisableAll then
-                undeltedhub.DisableAll()
+            if undeitedhub.DisableAll then
+                undeitedhub.DisableAll()
             end
         end
     end)
@@ -189,15 +189,15 @@ LoadScript("games/ml/autofarm.lua")
 LoadScript("games/ml/troll.lua")
 LoadScript("shared/settings.lua")
 
-if _G.UNDELTEDHUB_STATES then
-    for key, value in pairs(_G.UNDELTEDHUB_STATES) do
-        undeltedhub.Toggles[key] = value
+if _G.UNDEITEDHUB_STATES then
+    for key, value in pairs(_G.UNDEITEDHUB_STATES) do
+        undeitedhub.Toggles[key] = value
     end
-    _G.UNDELTEDHUB_STATES = nil
+    _G.UNDEITEDHUB_STATES = nil
 end
 
-if undeltedhub.RestoreStates then
-    undeltedhub.RestoreStates()
+if undeitedhub.RestoreStates then
+    undeitedhub.RestoreStates()
 end
 
 SaveSettings()
