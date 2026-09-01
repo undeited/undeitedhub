@@ -108,10 +108,8 @@ local function startKill()
                     local targetRoot = target.root
                     local targetHum = target.hum
                     local targetPlayer = target.ply
-                    local punchCount = 0
-                    local maxPunches = 20
 
-                    while killEnabled and targetHum.Health > 0 and punchCount < maxPunches do
+                    while killEnabled and targetHum and targetHum.Health > 0 do
                         local otherStrength = getStrength(targetPlayer)
                         if otherStrength and playerStrength and otherStrength >= playerStrength then
                             break
@@ -129,6 +127,10 @@ local function startKill()
                             punchTool = currentPunch
                         end
 
+                        if not targetRoot or not targetRoot.Parent then
+                            break
+                        end
+
                         local targetPos = targetRoot.Position
                         local attackPos = targetPos + Vector3.new(0, 0.5, 0)
                         myRoot.CFrame = CFrame.new(attackPos, targetPos)
@@ -136,7 +138,6 @@ local function startKill()
                         pcall(function()
                             punchTool:Activate()
                         end)
-                        punchCount = punchCount + 1
                         task.wait()
                     end
                 end
