@@ -167,22 +167,18 @@ local function EquipGun()
     if not localPlayer then return false end
     local gun = GetPlayerGun()
     if not gun then return false end
-
     local char = localPlayer.Character
     if not char then return false end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid then return false end
-
     if gun.Parent == char then
         return true
     end
-
     if gun.Parent == localPlayer:FindFirstChild("Backpack") then
         humanoid:EquipTool(gun)
         task.wait(0.1)
         return true
     end
-
     return false
 end
 
@@ -407,15 +403,28 @@ local function ShootMurdererOnce()
     local rayResult = workspace:Raycast(origin, direction, raycastParams)
 
     local visible = false
+    local blockedByInnocent = false
     if rayResult then
         local hitPart = rayResult.Instance
         if hitPart:IsDescendantOf(murdererChar) then
             visible = true
+        else
+            local playerHit = game.Players:GetPlayerFromCharacter(hitPart.Parent)
+            if playerHit and playerHit ~= localPlayer and playerHit ~= murderer then
+                local role = undeitedhub.GetPlayerRole and undeitedhub.GetPlayerRole(playerHit)
+                if role == "Innocent" or role == nil then
+                    blockedByInnocent = true
+                end
+            end
         end
     end
 
     if not visible then
-        SafeNotify({ Title = "Shoot Murderer", Content = "Murderer is behind a wall", Duration = 2 })
+        if blockedByInnocent then
+            SafeNotify({ Title = "Shoot Murderer", Content = "Shot blocked by an innocent player", Duration = 2 })
+        else
+            SafeNotify({ Title = "Shoot Murderer", Content = "Murderer is behind a wall", Duration = 2 })
+        end
         return false
     end
 
@@ -474,10 +483,19 @@ local function ShootAtMurderer()
     local rayResult = workspace:Raycast(origin, direction, raycastParams)
 
     local visible = false
+    local blockedByInnocent = false
     if rayResult then
         local hitPart = rayResult.Instance
         if hitPart:IsDescendantOf(murdererChar) then
             visible = true
+        else
+            local playerHit = game.Players:GetPlayerFromCharacter(hitPart.Parent)
+            if playerHit and playerHit ~= localPlayer and playerHit ~= murderer then
+                local role = undeitedhub.GetPlayerRole and undeitedhub.GetPlayerRole(playerHit)
+                if role == "Innocent" or role == nil then
+                    blockedByInnocent = true
+                end
+            end
         end
     end
 
