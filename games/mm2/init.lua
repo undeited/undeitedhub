@@ -183,13 +183,35 @@ if frame then
     end)
 end
 
-LoadScript("games/mm2/esp.lua")
-LoadScript("games/mm2/combat.lua")
-LoadScript("games/mm2/troll.lua")
-LoadScript("games/mm2/misc.lua")
-LoadScript("games/mm2/teleport.lua")
-LoadScript("games/mm2/autofarm.lua")
-LoadScript("shared/settings.lua")
+-- 🧪 CREATE A TEST TAB TO VERIFY WINDOW IS WORKING
+local TestTab = Window:Tab({ Title = "Test" })
+TestTab:Button({
+    Title = "Click me to test",
+    Callback = function()
+        WindUI:Notify({ Title = "Test", Content = "Window works!", Duration = 2 })
+    end
+})
+
+-- 🔹 LOAD MM2 MODULES WITH ERROR HANDLING
+local function SafeLoad(name)
+    local success, err = pcall(LoadScript, name)
+    if not success then
+        warn("Failed to load " .. name .. ": " .. tostring(err))
+        WindUI:Notify({
+            Title = "Error loading " .. name,
+            Content = "Check console for details",
+            Duration = 4,
+        })
+    end
+end
+
+SafeLoad("games/mm2/esp.lua")
+SafeLoad("games/mm2/combat.lua")
+SafeLoad("games/mm2/troll.lua")
+SafeLoad("games/mm2/misc.lua")
+SafeLoad("games/mm2/teleport.lua")
+SafeLoad("games/mm2/autofarm.lua")
+SafeLoad("shared/settings.lua")
 
 if _G.UNDELTEDHUB_STATES then
     for key, value in pairs(_G.UNDELTEDHUB_STATES) do
