@@ -474,7 +474,10 @@ local function setupToolListener(player)
         if not char then return end
         local function onDescendantAdded(desc)
             if desc:IsA("Tool") and string.lower(desc.Name):find("gun") then
-                pcall(UpdateESP)
+                pcall(function()
+                    UpdateESP()
+                    forceRoleScan()
+                end)
             end
         end
         char.DescendantAdded:Connect(onDescendantAdded)
@@ -482,13 +485,19 @@ local function setupToolListener(player)
         if backpack then
             backpack.DescendantAdded:Connect(function(desc)
                 if desc:IsA("Tool") and string.lower(desc.Name):find("gun") then
-                    pcall(UpdateESP)
+                    pcall(function()
+                        UpdateESP()
+                        forceRoleScan()
+                    end)
                 end
             end)
         end
         for _, child in ipairs(char:GetChildren()) do
             if child:IsA("Tool") and string.lower(child.Name):find("gun") then
-                pcall(UpdateESP)
+                pcall(function()
+                    UpdateESP()
+                    forceRoleScan()
+                end)
                 break
             end
         end
@@ -652,7 +661,8 @@ undeitedhub.GetCurrentSheriff = function()
         if not character then continue end
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if not humanoid or humanoid.Health <= 0 then continue end
-        if GetPlayerRole(player) == "Sheriff" then
+        local hasGun = character:FindFirstChild("Gun") or player.Backpack:FindFirstChild("Gun")
+        if hasGun then
             return player
         end
     end
