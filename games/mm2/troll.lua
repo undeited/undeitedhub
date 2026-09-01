@@ -238,6 +238,11 @@ local function FlingPlayer(target, silent)
         return false
     end
 
+    if not IsRoundActive() then
+        if not silent then SafeNotify({ Title = "Fling", Content = "Round is not active", Duration = 2 }) end
+        return false
+    end
+
     local targetChar = target.Character
     if not targetChar then
         if not silent then SafeNotify({ Title = "Fling", Content = "Target has no character", Duration = 2 }) end
@@ -249,21 +254,13 @@ local function FlingPlayer(target, silent)
         return false
     end
 
-    if undeitedhub.GetCurrentSheriff and undeitedhub.GetCurrentSheriff() == target then
-        local hasGun = targetChar:FindFirstChild("Gun") or target.Backpack:FindFirstChild("Gun")
-        if not hasGun then
-            if not silent then SafeNotify({ Title = "Fling", Content = "Sheriff has no gun, waiting for new sheriff", Duration = 2 }) end
-            return false
-        end
-    end
-
     if IsPlayerInLobby(target) then
         if not silent then SafeNotify({ Title = "Fling", Content = "Target is in lobby", Duration = 2 }) end
         return false
     end
 
-    if not IsRoundActive() then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Round not active", Duration = 2 }) end
+    if IsSeated(target) then
+        if not silent then SafeNotify({ Title = "Fling", Content = "Target is seated", Duration = 2 }) end
         return false
     end
 
@@ -274,11 +271,6 @@ local function FlingPlayer(target, silent)
 
     if not rootPart or not humanoid then
         if not silent then SafeNotify({ Title = "Fling", Content = "Local character invalid", Duration = 2 }) end
-        return false
-    end
-
-    if IsSeated(target) then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Target is seated", Duration = 2 }) end
         return false
     end
 
@@ -398,7 +390,7 @@ local function FlingPlayer(target, silent)
             or target.Parent ~= game.Players
             or tHum.Health <= 0
             or tick() > startTime + timeLimit
-        end
+    end
 
     local bv = Instance.new("BodyVelocity")
     bv.Parent = flingPart
@@ -493,6 +485,10 @@ end)
 TrollTab:Button({
     Title = "Fling Murderer",
     Callback = function()
+        if not IsRoundActive() then
+            SafeNotify({ Title = "Fling", Content = "Round is not active", Duration = 2 })
+            return
+        end
         local murderer = undeitedhub.GetCurrentMurderer()
         if murderer then
             FlingPlayer(murderer, false)
@@ -505,13 +501,17 @@ TrollTab:Button({
 TrollTab:Button({
     Title = "Fling Sheriff",
     Callback = function()
+        if not IsRoundActive() then
+            SafeNotify({ Title = "Fling", Content = "Round is not active", Duration = 2 })
+            return
+        end
         local sheriff = undeitedhub.GetCurrentSheriff()
         if sheriff then
             local char = sheriff.Character
             if char and (char:FindFirstChild("Gun") or sheriff.Backpack:FindFirstChild("Gun")) then
                 FlingPlayer(sheriff, false)
             else
-                SafeNotify({ Title = "Fling", Content = "Sheriff has no gun or is dead, waiting for new sheriff", Duration = 2 })
+                SafeNotify({ Title = "Fling", Content = "Sheriff has no gun or is dead", Duration = 2 })
             end
         else
             SafeNotify({ Title = "Fling", Content = "No sheriff found", Duration = 2 })
