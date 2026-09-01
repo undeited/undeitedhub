@@ -185,6 +185,7 @@ end
 
 LoadScript("games/ftap/esp.lua")
 LoadScript("games/ftap/combat.lua")
+LoadScript("games/ftap/antis.lua")
 LoadScript("games/ftap/misc.lua")
 LoadScript("games/ftap/troll.lua")
 LoadScript("games/ftap/blobman.lua")
