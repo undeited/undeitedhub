@@ -87,6 +87,23 @@ local function resetCharacter()
     resetAllVelocity(char)
 end
 
+local function getRandomTargetPart(character)
+    if not character then return nil end
+    local parts = {}
+    local root = character:FindFirstChild("HumanoidRootPart")
+    local head = character:FindFirstChild("Head")
+    local upperTorso = character:FindFirstChild("UpperTorso")
+    local lowerTorso = character:FindFirstChild("LowerTorso")
+    local torso = character:FindFirstChild("Torso")
+    if root then table.insert(parts, root) end
+    if head then table.insert(parts, head) end
+    if upperTorso then table.insert(parts, upperTorso) end
+    if lowerTorso then table.insert(parts, lowerTorso) end
+    if torso then table.insert(parts, torso) end
+    if #parts == 0 then return nil end
+    return parts[math.random(1, #parts)]
+end
+
 local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
 
@@ -145,7 +162,8 @@ local function startKill()
                                             root = targetRoot,
                                             hum = targetHum,
                                             ply = otherPlayer,
-                                            strength = otherStrength
+                                            strength = otherStrength,
+                                            char = targetChar
                                         })
                                     end
                                 end
@@ -159,6 +177,7 @@ local function startKill()
                     local targetRoot = target.root
                     local targetHum = target.hum
                     local targetPlayer = target.ply
+                    local targetChar = target.char
 
                     while killEnabled and targetHum and targetHum.Health > 0 and targetRoot and targetRoot.Parent do
                         local currentTargetStrength = getStrength(targetPlayer)
@@ -180,11 +199,16 @@ local function startKill()
                             break
                         end
 
+                        local targetPart = getRandomTargetPart(targetChar)
+                        if not targetPart then
+                            targetPart = targetRoot
+                        end
+                        local targetPos = targetPart.Position
+                        local attackPos = targetPos + Vector3.new(0, 1.5, 0)
+
                         freezeCharacter(localHum, true)
                         resetAllVelocity(localChar)
 
-                        local targetPos = targetRoot.Position
-                        local attackPos = targetPos + Vector3.new(0, 1.5, 0)
                         local newCFrame = CFrame.new(attackPos, targetPos)
                         localChar:PivotTo(newCFrame)
                         resetAllVelocity(localChar)
