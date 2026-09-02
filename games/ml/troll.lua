@@ -73,6 +73,20 @@ local function freezeCharacter(humanoid, freeze)
     end
 end
 
+local function resetCharacter()
+    local player = game.Players.LocalPlayer
+    if not player then return end
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        freezeCharacter(hum, false)
+        hum.WalkSpeed = 16
+        hum.JumpPower = 50
+    end
+    resetAllVelocity(char)
+end
+
 local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
 
@@ -190,6 +204,7 @@ local function startKill()
             end
             task.wait(0.1)
         end
+        resetCharacter()
         killTask = nil
     end)
 end
@@ -201,6 +216,7 @@ local function stopKill()
         task.cancel(killTask)
         killTask = nil
     end
+    resetCharacter()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
