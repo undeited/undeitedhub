@@ -48,6 +48,7 @@ end
 
 local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
+local isKilling = false
 
 local function startKill()
     if killTask then return end
@@ -57,46 +58,56 @@ local function startKill()
 
     killTask = task.spawn(function()
         local localPlayer = game:GetService("Players").LocalPlayer
-        local playerStrength = getStrength(localPlayer)
-
         while killEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local character = localPlayer.Character
-                local myRoot = character and character:FindFirstChild("HumanoidRootPart")
-                if not myRoot then
-                    task.wait()
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if not character or not humanoid or humanoid.Health <= 0 then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local myStrength = getStrength(localPlayer)
+                if not myStrength then
+                    task.wait(0.5)
                     continue
                 end
 
                 if not equipPunch(localPlayer) then
-                    task.wait()
+                    task.wait(0.2)
                     continue
                 end
 
                 local punchTool = getPunchTool(localPlayer)
                 if not punchTool then
-                    task.wait()
+                    task.wait(0.2)
+                    continue
+                end
+
+                local myRoot = character:FindFirstChild("HumanoidRootPart")
+                if not myRoot then
+                    task.wait(0.2)
                     continue
                 end
 
                 local targets = {}
-                for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
+                for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
                     if otherPlayer ~= localPlayer then
                         local otherStrength = getStrength(otherPlayer)
-                        if playerStrength and otherStrength and otherStrength >= playerStrength then
-                            continue
-                        end
-                        local targetChar = otherPlayer.Character
-                        if targetChar then
-                            local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
-                            if targetHum and targetHum.Health > 0 then
-                                local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-                                if targetRoot then
-                                    table.insert(targets, {
-                                        root = targetRoot,
-                                        hum = targetHum,
-                                        ply = otherPlayer
-                                    })
+                        if otherStrength and otherStrength < myStrength then
+                            local targetChar = otherPlayer.Character
+                            if targetChar then
+                                local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+                                if targetHum and targetHum.Health > 0 then
+                                    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                                    if targetRoot then
+                                        table.insert(targets, {
+                                            root = targetRoot,
+                                            hum = targetHum,
+                                            ply = otherPlayer,
+                                            strength = otherStrength
+                                        })
+                                    end
                                 end
                             end
                         end
@@ -108,26 +119,25 @@ local function startKill()
                     local targetRoot = target.root
                     local targetHum = target.hum
                     local targetPlayer = target.ply
+                    local targetStrength = target.strength
 
-                    while killEnabled and targetHum and targetHum.Health > 0 do
-                        local otherStrength = getStrength(targetPlayer)
-                        if otherStrength and playerStrength and otherStrength >= playerStrength then
+                    while killEnabled and targetHum and targetHum.Health > 0 and targetRoot and targetRoot.Parent do
+                        local currentTargetStrength = getStrength(targetPlayer)
+                        if not currentTargetStrength or currentTargetStrength >= myStrength then
                             break
                         end
 
-                        local currentPunch = getPunchTool(localPlayer)
-                        if not currentPunch then
-                            if not equipPunch(localPlayer) then
-                                break
-                            end
-                            currentPunch = getPunchTool(localPlayer)
-                            if not currentPunch then
-                                break
-                            end
-                            punchTool = currentPunch
+                        local localChar = localPlayer.Character
+                        local localHum = localChar and localChar:FindFirstChildOfClass("Humanoid")
+                        if not localChar or not localHum or localHum.Health <= 0 then
+                            break
                         end
 
-                        if not targetRoot or not targetRoot.Parent then
+                        if not equipPunch(localPlayer) then
+                            break
+                        end
+                        local currentPunch = getPunchTool(localPlayer)
+                        if not currentPunch then
                             break
                         end
 
@@ -136,13 +146,13 @@ local function startKill()
                         myRoot.CFrame = CFrame.new(attackPos, targetPos)
 
                         pcall(function()
-                            punchTool:Activate()
+                            currentPunch:Activate()
                         end)
-                        task.wait()
+                        task.wait(0.1)
                     end
                 end
             end
-            task.wait()
+            task.wait(0.1)
         end
         killTask = nil
     end)
