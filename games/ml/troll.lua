@@ -46,62 +46,14 @@ local function equipPunch(player)
     return false
 end
 
-local function resetAllVelocity(character)
-    if not character then return end
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            pcall(function()
-                part.Velocity = Vector3.new(0,0,0)
-                part.RotVelocity = Vector3.new(0,0,0)
-                part.AssemblyLinearVelocity = Vector3.new(0,0,0)
-                part.AssemblyAngularVelocity = Vector3.new(0,0,0)
-            end)
-        end
-    end
-end
-
-local function freezeCharacter(humanoid, freeze)
-    if not humanoid then return end
-    humanoid.PlatformStand = freeze
-    humanoid.AutoRotate = not freeze
-    if freeze then
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-    else
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-    end
-end
-
-local function resetCharacter()
-    local player = game.Players.LocalPlayer
-    if not player then return end
-    local char = player.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        freezeCharacter(hum, false)
-        hum.WalkSpeed = 16
-        hum.JumpPower = 50
-    end
-    resetAllVelocity(char)
-end
-
-local function getRandomTargetPart(character)
-    if not character then return nil end
-    local parts = {}
-    local root = character:FindFirstChild("HumanoidRootPart")
-    local head = character:FindFirstChild("Head")
-    local upperTorso = character:FindFirstChild("UpperTorso")
-    local lowerTorso = character:FindFirstChild("LowerTorso")
-    local torso = character:FindFirstChild("Torso")
-    if root then table.insert(parts, root) end
-    if head then table.insert(parts, head) end
-    if upperTorso then table.insert(parts, upperTorso) end
-    if lowerTorso then table.insert(parts, lowerTorso) end
-    if torso then table.insert(parts, torso) end
-    if #parts == 0 then return nil end
-    return parts[math.random(1, #parts)]
+local function resetVelocity(part)
+    if not part then return end
+    pcall(function()
+        part.Velocity = Vector3.new(0,0,0)
+        part.RotVelocity = Vector3.new(0,0,0)
+        part.AssemblyLinearVelocity = Vector3.new(0,0,0)
+        part.AssemblyAngularVelocity = Vector3.new(0,0,0)
+    end)
 end
 
 local killEnabled = undeitedhub.Toggles.AutoKill or false
@@ -147,6 +99,8 @@ local function startKill()
                     continue
                 end
 
+                resetVelocity(myRoot)
+
                 local targets = {}
                 for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
                     if otherPlayer ~= localPlayer then
@@ -162,8 +116,7 @@ local function startKill()
                                             root = targetRoot,
                                             hum = targetHum,
                                             ply = otherPlayer,
-                                            strength = otherStrength,
-                                            char = targetChar
+                                            strength = otherStrength
                                         })
                                     end
                                 end
@@ -177,7 +130,7 @@ local function startKill()
                     local targetRoot = target.root
                     local targetHum = target.hum
                     local targetPlayer = target.ply
-                    local targetChar = target.char
+                    local targetStrength = target.strength
 
                     while killEnabled and targetHum and targetHum.Health > 0 and targetRoot and targetRoot.Parent do
                         local currentTargetStrength = getStrength(targetPlayer)
@@ -199,36 +152,22 @@ local function startKill()
                             break
                         end
 
-                        local targetPart = getRandomTargetPart(targetChar)
-                        if not targetPart then
-                            targetPart = targetRoot
-                        end
-                        local targetPos = targetPart.Position
-                        local attackPos = targetPos + Vector3.new(0, 1.5, 0)
-
-                        freezeCharacter(localHum, true)
-                        resetAllVelocity(localChar)
-
-                        local newCFrame = CFrame.new(attackPos, targetPos)
-                        localChar:PivotTo(newCFrame)
-                        resetAllVelocity(localChar)
-
-                        task.wait(0.05)
-                        freezeCharacter(localHum, false)
-                        resetAllVelocity(localChar)
+                        resetVelocity(myRoot)
+                        local targetPos = targetRoot.Position
+                        local attackPos = targetPos + Vector3.new(0, 0.5, 0)
+                        myRoot.CFrame = CFrame.new(attackPos, targetPos)
+                        resetVelocity(myRoot)
 
                         pcall(function()
                             currentPunch:Activate()
                         end)
-
-                        resetAllVelocity(localChar)
                         task.wait(0.1)
+                        resetVelocity(myRoot)
                     end
                 end
             end
             task.wait(0.1)
         end
-        resetCharacter()
         killTask = nil
     end)
 end
@@ -240,7 +179,6 @@ local function stopKill()
         task.cancel(killTask)
         killTask = nil
     end
-    resetCharacter()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 

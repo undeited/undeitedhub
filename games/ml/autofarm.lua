@@ -42,7 +42,154 @@ local function isAlive(player)
     return hum and hum.Health > 0
 end
 
-local function startAutoActivity(toggleName, toolName, startFunc, stopFunc)
+local function resetVelocity(part)
+    if not part then return end
+    pcall(function()
+        part.Velocity = Vector3.new(0,0,0)
+        part.RotVelocity = Vector3.new(0,0,0)
+        part.AssemblyLinearVelocity = Vector3.new(0,0,0)
+        part.AssemblyAngularVelocity = Vector3.new(0,0,0)
+    end)
+end
+
+local function getNearestNPC(character)
+    if not character then return nil end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local pos = root.Position
+    local best = nil
+    local bestDist = math.huge
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
+            local hum = obj:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                local npcRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
+                if npcRoot then
+                    local dist = (npcRoot.Position - pos).Magnitude
+                    if dist < bestDist then
+                        local name = obj.Name:lower()
+                        if name:find("dummy") or name:find("training") or name:find("punch") or name:find("bag") or name:find("target") then
+                            best = obj
+                            bestDist = dist
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+local autoPunchEnabled = undeitedhub.Toggles.AutoPunch or false
+local autoPunchTask = nil
+
+local function startAutoPunch()
+    if autoPunchTask then return end
+    autoPunchEnabled = true
+    undeitedhub.Toggles.AutoPunch = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+
+    autoPunchTask = task.spawn(function()
+        local localPlayer = game:GetService("Players").LocalPlayer
+        while autoPunchEnabled do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                local character = localPlayer.Character
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                if not character or not humanoid or humanoid.Health <= 0 then
+                    task.wait(0.5)
+                    continue
+                end
+
+                if not equipTool(localPlayer, "Punch") then
+                    task.wait(0.2)
+                    continue
+                end
+
+                local punch = getTool(localPlayer, "Punch")
+                if not punch then
+                    task.wait(0.2)
+                    continue
+                end
+
+                local root = character:FindFirstChild("HumanoidRootPart")
+                if not root then
+                    task.wait(0.2)
+                    continue
+                end
+
+                local npc = getNearestNPC(character)
+                if not npc then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local npcRoot = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso")
+                if not npcRoot then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local npcHum = npc:FindFirstChildOfClass("Humanoid")
+                if not npcHum or npcHum.Health <= 0 then
+                    task.wait(0.2)
+                    continue
+                end
+
+                resetVelocity(root)
+                root.CFrame = CFrame.new(npcRoot.Position + Vector3.new(0, 0.5, 0), npcRoot.Position)
+                resetVelocity(root)
+
+                while autoPunchEnabled and npcHum and npcHum.Health > 0 do
+                    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then break end
+                    local localChar = localPlayer.Character
+                    local localHum = localChar and localChar:FindFirstChildOfClass("Humanoid")
+                    if not localChar or not localHum or localHum.Health <= 0 then
+                        break
+                    end
+                    if not equipTool(localPlayer, "Punch") then
+                        break
+                    end
+                    local currentPunch = getTool(localPlayer, "Punch")
+                    if not currentPunch then
+                        break
+                    end
+                    resetVelocity(root)
+                    root.CFrame = CFrame.new(npcRoot.Position + Vector3.new(0, 0.5, 0), npcRoot.Position)
+                    resetVelocity(root)
+                    pcall(function()
+                        currentPunch:Activate()
+                    end)
+                    task.wait(0.1)
+                    resetVelocity(root)
+                end
+            end
+            task.wait(0.1)
+        end
+        autoPunchTask = nil
+    end)
+end
+
+local function stopAutoPunch()
+    autoPunchEnabled = false
+    undeitedhub.Toggles.AutoPunch = false
+    if autoPunchTask then
+        task.cancel(autoPunchTask)
+        autoPunchTask = nil
+    end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+end
+
+AutoTab:Toggle({
+    Title = "Auto Punch",
+    Value = autoPunchEnabled,
+    Callback = function(state)
+        if state then startAutoPunch() else stopAutoPunch() end
+    end
+})
+
+if autoPunchEnabled then startAutoPunch() end
+
+local function startAutoActivity(toggleName, toolName)
     local enabled = undeitedhub.Toggles[toggleName] or false
     local taskRef = nil
     local running = false
@@ -157,6 +304,7 @@ if rebirthEnabled then startRebirth() end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
+    stopAutoPunch()
     handstand.stop()
     situps.stop()
     pushups.stop()
