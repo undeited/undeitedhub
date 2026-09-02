@@ -19,6 +19,7 @@ local VisualTab = undeitedhub.Window:Tab({ Title = "Visual" })
 
 local espEnabled = undeitedhub.Toggles.espEnabled or false
 local highlightMap = {}
+local ESP_COLOR = Color3.fromRGB(255, 0, 0)
 
 local function ClearESP()
     for _, highlight in pairs(highlightMap) do
@@ -46,15 +47,14 @@ local function UpdateESP()
                 if not highlight then
                     highlight = Instance.new("Highlight")
                     highlight.Name = "UndeitedSP"
-                    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                    highlight.FillColor = ESP_COLOR
                     highlight.FillTransparency = 0.5
-                    highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+                    highlight.OutlineColor = ESP_COLOR
                     highlight.OutlineTransparency = 0.2
                     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                     highlight.Parent = player.Character
                     highlightMap[player] = highlight
                 end
-
                 highlight.Adornee = player.Character
                 highlight.Enabled = true
                 seen[player] = true
@@ -75,7 +75,7 @@ local function RefreshESP()
 end
 
 VisualTab:Toggle({
-    Title = "ESP",
+    Title = "ESP Highlight",
     Value = espEnabled,
     Callback = function(state)
         pcall(function()
@@ -127,3 +127,12 @@ task.spawn(function()
         pcall(UpdateESP)
     end
 end)
+
+local oldDisable = undeitedhub.DisableAll or function() end
+undeitedhub.DisableAll = function()
+    espEnabled = false
+    undeitedhub.Toggles.espEnabled = false
+    ClearESP()
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+    oldDisable()
+end

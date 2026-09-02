@@ -151,8 +151,7 @@ MiscTab:Toggle({
     end
 })
 
-undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
-local oldDisable = undeitedhub.DisableAll
+local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if antiVoidEnabled then
         StopAntiVoid()
