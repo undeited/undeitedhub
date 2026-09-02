@@ -46,16 +46,6 @@ local function equipPunch(player)
     return false
 end
 
-local function resetVelocity(part)
-    if not part then return end
-    pcall(function()
-        part.Velocity = Vector3.new(0,0,0)
-        part.RotVelocity = Vector3.new(0,0,0)
-        part.AssemblyLinearVelocity = Vector3.new(0,0,0)
-        part.AssemblyAngularVelocity = Vector3.new(0,0,0)
-    end)
-end
-
 local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
 
@@ -98,8 +88,6 @@ local function startKill()
                     task.wait(0.2)
                     continue
                 end
-
-                resetVelocity(myRoot)
 
                 local targets = {}
                 for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
@@ -152,17 +140,14 @@ local function startKill()
                             break
                         end
 
-                        resetVelocity(myRoot)
                         local targetPos = targetRoot.Position
                         local attackPos = targetPos + Vector3.new(0, 0.5, 0)
                         myRoot.CFrame = CFrame.new(attackPos, targetPos)
-                        resetVelocity(myRoot)
 
                         pcall(function()
                             currentPunch:Activate()
                         end)
                         task.wait(0.1)
-                        resetVelocity(myRoot)
                     end
                 end
             end
