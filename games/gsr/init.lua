@@ -55,11 +55,13 @@ local GAME_FOLDER = "gsr"
 local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
 local config = LoadScript("shared/config.lua")
+local MathUtils = LoadScript("shared/math_utils.lua")
 
 undeitedhub = undeitedhub or {}
 undeitedhub.WindUI = WindUI
 undeitedhub.Utils = utils
 undeitedhub.Config = config
+undeitedhub.MathUtils = MathUtils
 undeitedhub.Toggles = undeitedhub.Toggles or {}
 undeitedhub.SettingsFile = "undeitedhub/" .. GAME_FOLDER .. "/settings.json"
 

@@ -48,7 +48,6 @@ end
 
 local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
-local isKilling = false
 
 local function startKill()
     if killTask then return end

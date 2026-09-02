@@ -54,41 +54,31 @@ local GAME_FOLDER = "ftap"
 
 local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
-
-local THEMES = {
-    "Default",
-    "Midnight",
-    "Ocean",
-    "Sunset",
-    "Emerald",
-    "Rose",
-    "Plasma",
-    "Snow",
-    "Neon",
-    "Crimson",
-    "Lavender",
-    "Gold",
-    "Mint",
-    "Cyber",
-}
+local config = LoadScript("shared/config.lua")
+local MathUtils = LoadScript("shared/math_utils.lua")
 
 undeitedhub = undeitedhub or {}
 undeitedhub.WindUI = WindUI
 undeitedhub.Utils = utils
+undeitedhub.Config = config
+undeitedhub.MathUtils = MathUtils
 undeitedhub.Toggles = undeitedhub.Toggles or {}
 undeitedhub.SettingsFile = "undeitedhub/" .. GAME_FOLDER .. "/settings.json"
-undeitedhub.ToggleKey = "K"
 
 local function ResolveThemeName(themeName)
+    local available = config and config.themes or { "Default" }
     if type(themeName) ~= "string" or themeName == "" then
+        return available[1] or "Default"
+    end
+    if themeName == "Undelted" then
         return "Default"
     end
-    for _, name in ipairs(THEMES) do
+    for _, name in ipairs(available) do
         if name == themeName then
             return name
         end
     end
-    return "Default"
+    return available[1] or "Default"
 end
 
 local function LoadSettings()
@@ -107,9 +97,12 @@ local function LoadSettings()
                 if data.toggleKey then
                     undeitedhub.ToggleKey = data.toggleKey
                 end
+                if data.walkSpeed then config.walkSpeed = data.walkSpeed end
+                if data.jumpPower then config.jumpPower = data.jumpPower end
                 return
             end
         end
+
         if _G.UNDEITEDHUB_STORAGE and _G.UNDEITEDHUB_STORAGE[game.PlaceId] then
             local stored = _G.UNDEITEDHUB_STORAGE[game.PlaceId]
             if stored.toggles then
@@ -123,6 +116,8 @@ local function LoadSettings()
             if stored.toggleKey then
                 undeitedhub.ToggleKey = stored.toggleKey
             end
+            if stored.walkSpeed then config.walkSpeed = stored.walkSpeed end
+            if stored.jumpPower then config.jumpPower = stored.jumpPower end
         end
     end)
 end
@@ -132,20 +127,24 @@ local function SaveSettings()
         local data = {
             toggles = undeitedhub.Toggles,
             theme = ResolveThemeName(undeitedhub.CurrentTheme or "Default"),
-            toggleKey = undeitedhub.ToggleKey or "K",
+            toggleKey = undeitedhub.ToggleKey or config.toggleKey or "K",
+            walkSpeed = config.walkSpeed,
+            jumpPower = config.jumpPower,
         }
+
         if writefile and makefolder then
             makefolder("undeitedhub")
             makefolder("undeitedhub/" .. GAME_FOLDER)
             writefile(undeitedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
         end
+
         _G.UNDEITEDHUB_STORAGE = _G.UNDEITEDHUB_STORAGE or {}
         _G.UNDEITEDHUB_STORAGE[game.PlaceId] = data
     end)
 end
 
 LoadSettings()
-undeitedhub.ToggleKey = undeitedhub.ToggleKey or "K"
+undeitedhub.ToggleKey = undeitedhub.ToggleKey or config.toggleKey or "K"
 
 local themeToApply = ResolveThemeName(undeitedhub.CurrentTheme or "Default")
 WindUI:SetTheme(themeToApply)
@@ -191,6 +190,7 @@ LoadScript("games/ftap/combat.lua")
 LoadScript("games/ftap/misc.lua")
 LoadScript("games/ftap/troll.lua")
 LoadScript("games/ftap/blobman.lua")
+LoadScript("shared/settings.lua")
 
 if _G.UNDEITEDHUB_STATES then
     for key, value in pairs(_G.UNDEITEDHUB_STATES) do
