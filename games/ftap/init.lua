@@ -185,12 +185,25 @@ if frame then
     end)
 end
 
-LoadScript("games/ftap/esp.lua")
-LoadScript("games/ftap/combat.lua")
-LoadScript("games/ftap/misc.lua")
-LoadScript("games/ftap/troll.lua")
-LoadScript("games/ftap/blobman.lua")
-LoadScript("shared/settings.lua")
+local function SafeLoad(name)
+    local success, err = pcall(LoadScript, name)
+    if not success then
+        pcall(function()
+            WindUI:Notify({
+                Title = "Error: " .. name,
+                Content = tostring(err):sub(1, 150),
+                Duration = 5,
+            })
+        end)
+    end
+end
+
+SafeLoad("games/ftap/esp.lua")
+SafeLoad("games/ftap/combat.lua")
+SafeLoad("games/ftap/misc.lua")
+SafeLoad("games/ftap/troll.lua")
+SafeLoad("games/ftap/blobman.lua")
+SafeLoad("shared/settings.lua")
 
 if _G.UNDEITEDHUB_STATES then
     for key, value in pairs(_G.UNDEITEDHUB_STATES) do
