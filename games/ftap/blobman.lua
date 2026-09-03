@@ -1,8 +1,5 @@
 local WindUI = undeitedhub.WindUI
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Workspace = game:GetService("Workspace")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local BlobmanTab = undeitedhub.Window:Tab({ Title = "Blobman" })
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -19,7 +16,10 @@ local function SafeNotify(data)
     end
 end
 
-local BlobmanTab = undeitedhub.Window:Tab({ Title = "Blobman" })
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local grabEnabled = undeitedhub.Toggles.autoGrabPlayers or false
 local grabTask = nil
@@ -199,7 +199,7 @@ local function stopGrabLoop()
     rightHeldTarget = nil
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Grab Nearest", Content = "Disabled", Duration = 2 })
-end
+}
 
 BlobmanTab:Toggle({
     Title = "Auto Grab Nearest",
