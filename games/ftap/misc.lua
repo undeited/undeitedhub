@@ -1,5 +1,5 @@
 local WindUI = undeitedhub.WindUI
-local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
+local TrollTab = undeitedhub.Window:Tab({ Title = "Troll" })
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -16,145 +16,142 @@ local function SafeNotify(data)
     end
 end
 
-MiscTab:Button({
-    Title = "Delete All Toys",
+TrollTab:Button({
+    Title = "Spawn Missile",
     Callback = function()
-        pcall(function()
+        if _G.bombInProgress then
+            SafeNotify({ Title = "Troll", Content = "A missile spawn is already in progress", Duration = 2 })
+            return
+        end
+
+        _G.bombInProgress = true
+
+        local oldError = error
+        error = function(msg, level)
+            if type(msg) == "string" and msg:find("attempt to index nil with 'Touched'") then
+                return
+            end
+            oldError(msg, level)
+        end
+
+        if seterrorhandler then
+            local oldHandler = errorhandler or function() end
+            seterrorhandler(function(err, level)
+                if type(err) == "string" and err:find("attempt to index nil with 'Touched'") then
+                    return
+                end
+                oldHandler(err, level)
+            end)
+        end
+
+        local function run()
             local Players = game:GetService("Players")
             local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local Workspace = game:GetService("Workspace")
             local player = Players.LocalPlayer
-            if not player then
-                SafeNotify({ Title = "Error", Content = "Local player not found", Duration = 2 })
-                return
-            end
+            if not player then return end
 
-            local destroyRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("DestroyToy")
+            local character = player.Character or player.CharacterAdded:Wait()
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if not rootPart then return end
 
-            local playerFolderName = player.Name .. "SpawnedInToys"
-            local playerFolder = Workspace:FindFirstChild(playerFolderName)
-            if not playerFolder then
-                SafeNotify({ Title = "Delete Toys", Content = "No toys found for you.", Duration = 2 })
-                return
-            end
+            local SpawnRemote = ReplicatedStorage.MenuToys.SpawnToyRemoteFunction
+            local ExplodeRemote = ReplicatedStorage.BombEvents.BombExplode
+            local BombReplicator = ReplicatedStorage.BombEvents.BombReplicator
+            local SetNetworkOwner = ReplicatedStorage.GrabEvents.SetNetworkOwner
 
-            local toys = {}
-            for _, child in ipairs(playerFolder:GetChildren()) do
-                if child:IsA("Model") or child:IsA("BasePart") then
-                    table.insert(toys, child)
-                end
-            end
-
-            if #toys == 0 then
-                SafeNotify({ Title = "Delete Toys", Content = "No toys found in your folder.", Duration = 2 })
-                return
-            end
-
-            if destroyRemote and destroyRemote:IsA("RemoteEvent") then
-                for _, toy in ipairs(toys) do
-                    pcall(function()
-                        destroyRemote:FireServer(toy)
-                    end)
-                end
-                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys via remote.", Duration = 2 })
-            else
-                for _, toy in ipairs(toys) do
-                    pcall(function()
-                        toy:Destroy()
-                    end)
-                end
-                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys locally.", Duration = 2 })
-            end
-        end)
-    end
-})
-
-local antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
-local antiVoidLoop = nil
-
-local function StartAntiVoid()
-    if antiVoidLoop then return end
-
-    local Workspace = game:GetService("Workspace")
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
-    if not player then return end
-
-    local spawnLocation = Workspace:FindFirstChild("SpawnLocation")
-    local deathBarrierHeight = Workspace.FallenPartsDestroyHeight
-    if not deathBarrierHeight then
-        deathBarrierHeight = -500
-    end
-
-    local threshold = 50
-    local teleportOffset = Vector3.new(0, 3, 0)
-    local safePos = Vector3.new(0, 50, 0)
-
-    antiVoidLoop = task.spawn(function()
-        while antiVoidEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local char = player.Character
-                if char then
-                    local root = char:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local pos = root.Position
-                        if pos.Y <= deathBarrierHeight + threshold then
-                            if spawnLocation then
-                                pcall(function()
-                                    root.CFrame = spawnLocation.CFrame + teleportOffset
-                                end)
-                            else
-                                pcall(function()
-                                    root.CFrame = CFrame.new(safePos)
-                                end)
-                            end
+            local function getBombsInPlayerFolder()
+                local folder = workspace:FindFirstChild(player.Name .. "SpawnedInToys")
+                if not folder then return {} end
+                local bombs = {}
+                for _, child in ipairs(folder:GetChildren()) do
+                    if child:IsA("Model") and string.match(child.Name, "^BombMissile") then
+                        if child:FindFirstChild("PartHitDetector", true) and child:FindFirstChild("Body", true) then
+                            table.insert(bombs, child)
                         end
                     end
                 end
+                return bombs
             end
-            task.wait(0.1)
+
+            local existingBombs = getBombsInPlayerFolder()
+
+            local spawnResult = SpawnRemote:InvokeServer(
+                "BombMissile",
+                rootPart.CFrame,
+                rootPart.Orientation or Vector3.new()
+            )
+            if spawnResult ~= "SpawnedToy" then return end
+
+            local bombModel = nil
+            local start = tick()
+            repeat
+                local currentBombs = getBombsInPlayerFolder()
+                for _, bomb in ipairs(currentBombs) do
+                    local isNew = true
+                    for _, existing in ipairs(existingBombs) do
+                        if bomb == existing then
+                            isNew = false
+                            break
+                        end
+                    end
+                    if isNew then
+                        bombModel = bomb
+                        break
+                    end
+                end
+                if bombModel then break end
+                task.wait(0.05)
+            until tick() - start > 4.0
+
+            if not bombModel then return end
+
+            local hitbox = bombModel:FindFirstChild("PartHitDetector", true)
+            local body = bombModel:FindFirstChild("Body", true)
+            if not hitbox or not body then return end
+
+            local settleStart = tick()
+            repeat
+                local vel = body.AssemblyLinearVelocity
+                if vel and vel.Magnitude < 1 then break end
+                task.wait(0.1)
+            until tick() - settleStart > 3.0
+
+            pcall(function()
+                SetNetworkOwner:FireServer(body, body.CFrame)
+            end)
+            task.wait(0.3)
+
+            pcall(function() BombReplicator:FireServer() end)
+            task.wait(0.2)
+            pcall(function() BombReplicator:FireServer() end)
+            task.wait(2.0)
+
+            local explosionData = {
+                Radius = 17.5,
+                TimeLength = 0.5,
+                Hitbox = hitbox,
+                ExplodesByFire = true,
+                MaxForcePerStudSquared = 225,
+                Model = bombModel,
+                ImpactSpeed = 100,
+                ExplodesByPointy = false,
+                DestroysModel = true,
+                PositionPart = body
+            }
+
+            for attempt = 1, 7 do
+                pcall(function()
+                    ExplodeRemote:FireServer(explosionData, body.Position)
+                end)
+                task.wait(1.0)
+                if not bombModel.Parent then break end
+                if attempt < 7 then task.wait(0.5) end
+            end
+
+            task.wait(0.3)
         end
-        antiVoidLoop = nil
-    end)
-end
 
-local function StopAntiVoid()
-    if antiVoidLoop then
-        task.cancel(antiVoidLoop)
-        antiVoidLoop = nil
-    end
-end
-
-local function ToggleAntiVoid(state)
-    antiVoidEnabled = state
-    undeitedhub.Toggles.antiVoidEnabled = state
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-
-    if state then
-        StartAntiVoid()
-        SafeNotify({ Title = "Anti Void", Content = "Enabled", Duration = 2 })
-    else
-        StopAntiVoid()
-        SafeNotify({ Title = "Anti Void", Content = "Disabled", Duration = 2 })
-    end
-end
-
-MiscTab:Toggle({
-    Title = "Anti Void",
-    Value = antiVoidEnabled,
-    Callback = function(state)
-        ToggleAntiVoid(state)
+        pcall(run)
+        _G.bombInProgress = false
     end
 })
-
-undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
-local oldDisable = undeitedhub.DisableAll
-undeitedhub.DisableAll = function()
-    if antiVoidEnabled then
-        StopAntiVoid()
-        antiVoidEnabled = false
-        undeitedhub.Toggles.antiVoidEnabled = false
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    end
-    oldDisable()
-end
