@@ -1,4 +1,5 @@
 local WindUI = undeitedhub.WindUI
+local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -15,12 +16,10 @@ local function SafeNotify(data)
     end
 end
 
-local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
-
 MiscTab:Button({
     Title = "Delete All Toys",
     Callback = function()
-        local success, err = pcall(function()
+        pcall(function()
             local Players = game:GetService("Players")
             local ReplicatedStorage = game:GetService("ReplicatedStorage")
             local Workspace = game:GetService("Workspace")
@@ -67,9 +66,6 @@ MiscTab:Button({
                 SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys locally.", Duration = 2 })
             end
         end)
-        if not success then
-            SafeNotify({ Title = "Error", Content = "Failed to delete toys: " .. tostring(err), Duration = 3 })
-        end
     end
 })
 
@@ -151,7 +147,8 @@ MiscTab:Toggle({
     end
 })
 
-local oldDisable = undeitedhub.DisableAll or function() end
+undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
+local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
     if antiVoidEnabled then
         StopAntiVoid()
