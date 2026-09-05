@@ -1,7 +1,3 @@
--- ============================================================
--- Combined script for Fling Things And People (FTAP)
--- ============================================================
-
 local BASE_URL = "https://raw.githubusercontent.com/undeited/undeitedhub/main/"
 
 local function HttpGet(url)
@@ -190,10 +186,37 @@ if frame then
 end
 
 -- ============================================================
+-- CREATE ALL TABS FIRST
+-- ============================================================
+local VisualTab = Window:Tab({ Title = "Visual" })
+local CombatTab = Window:Tab({ Title = "Combat" })
+local MiscTab = Window:Tab({ Title = "Misc" })
+local TrollTab = Window:Tab({ Title = "Troll" })
+local BlobmanTab = Window:Tab({ Title = "Blobman" })
+local SettingsTab = Window:Tab({ Title = "Settings" })
+
+-- ============================================================
+-- SafeNotify helper
+-- ============================================================
+local function SafeNotify(data)
+    if type(data) ~= "table" then return end
+    if WindUI and type(WindUI.Notify) == "function" then
+        pcall(WindUI.Notify, WindUI, data)
+    else
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = data.Title or "",
+                Text = data.Content or "",
+                Duration = data.Duration or 3,
+            })
+        end)
+    end
+end
+
+-- ============================================================
 -- VISUAL TAB (ESP)
 -- ============================================================
 do
-    local VisualTab = Window:Tab({ Title = "Visual" })
     local espEnabled = undeitedhub.Toggles.espEnabled or false
     local highlightMap = {}
     local ESP_COLOR = Color3.fromRGB(255, 0, 0)
@@ -258,7 +281,7 @@ do
             espEnabled = state
             undeitedhub.Toggles.espEnabled = state
             if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-            WindUI:Notify({ Title = "ESP", Content = state and "Enabled" or "Disabled", Duration = 2 })
+            SafeNotify({ Title = "ESP", Content = state and "Enabled" or "Disabled", Duration = 2 })
             if not espEnabled then ClearESP() else UpdateESP() end
         end
     })
@@ -303,26 +326,43 @@ do
 end
 
 -- ============================================================
--- COMBAT TAB (Auto Swing)
+-- COMBAT TAB (Auto Swing) – non‑blocking
 -- ============================================================
 do
-    local CombatTab = Window:Tab({ Title = "Combat" })
-
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local AeroServices = ReplicatedStorage:WaitForChild("Aero"):WaitForChild("AeroRemoteServices"):WaitForChild("GameService")
-    local AttackStart = AeroServices:WaitForChild("WeaponAttackStart")
-    local AnimComplete = AeroServices:WaitForChild("WeaponAnimComplete")
-
     local autoSwingEnabled = undeitedhub.Toggles.AutoSwing or false
     local lastSwingTime = 0
     local SWING_COOLDOWN = 0.1
+    local attackRemote, animRemote = nil, nil
+
+    -- Attempt to get remotes safely (no blocking)
+    local function SetupCombat()
+        pcall(function()
+            local rs = game:GetService("ReplicatedStorage")
+            local aero = rs:FindFirstChild("Aero")
+            if aero then
+                local aeroServices = aero:FindFirstChild("AeroRemoteServices")
+                if aeroServices then
+                    local gameService = aeroServices:FindFirstChild("GameService")
+                    if gameService then
+                        attackRemote = gameService:FindFirstChild("WeaponAttackStart")
+                        animRemote = gameService:FindFirstChild("WeaponAnimComplete")
+                    end
+                end
+            end
+        end)
+    end
+    SetupCombat()
 
     local function SwingWeapon()
-        AttackStart:FireServer()
-        AnimComplete:FireServer()
-        if typeof(getNil) == "function" then
+        if attackRemote and animRemote then
             pcall(function()
-                getNil("Event", "BindableEvent"):Fire()
+                attackRemote:FireServer()
+                animRemote:FireServer()
+                if typeof(getNil) == "function" then
+                    pcall(function()
+                        getNil("Event", "BindableEvent"):Fire()
+                    end)
+                end
             end)
         end
     end
@@ -344,7 +384,7 @@ do
             autoSwingEnabled = state
             undeitedhub.Toggles.AutoSwing = state
             if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-            WindUI:Notify({ Title = "Auto Swing", Content = state and "Enabled" or "Disabled", Duration = 2 })
+            SafeNotify({ Title = "Auto Swing", Content = state and "Enabled" or "Disabled", Duration = 2 })
             if state then lastSwingTime = tick() end
         end
     })
@@ -362,23 +402,6 @@ end
 -- MISC TAB (Delete Toys + Anti Void)
 -- ============================================================
 do
-    local MiscTab = Window:Tab({ Title = "Misc" })
-
-    local function SafeNotify(data)
-        if type(data) ~= "table" then return end
-        if WindUI and type(WindUI.Notify) == "function" then
-            pcall(WindUI.Notify, WindUI, data)
-        else
-            pcall(function()
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = data.Title or "",
-                    Text = data.Content or "",
-                    Duration = data.Duration or 3,
-                })
-            end)
-        end
-    end
-
     MiscTab:Button({
         Title = "Delete All Toys",
         Callback = function()
@@ -526,23 +549,6 @@ end
 -- TROLL TAB (Spawn Missile)
 -- ============================================================
 do
-    local TrollTab = Window:Tab({ Title = "Troll" })
-
-    local function SafeNotify(data)
-        if type(data) ~= "table" then return end
-        if WindUI and type(WindUI.Notify) == "function" then
-            pcall(WindUI.Notify, WindUI, data)
-        else
-            pcall(function()
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = data.Title or "",
-                    Text = data.Content or "",
-                    Duration = data.Duration or 3,
-                })
-            end)
-        end
-    end
-
     TrollTab:Button({
         Title = "Spawn Missile",
         Callback = function()
@@ -688,23 +694,6 @@ end
 -- BLOBMAN TAB (Auto Grab Nearest)
 -- ============================================================
 do
-    local BlobmanTab = Window:Tab({ Title = "Blobman" })
-
-    local function SafeNotify(data)
-        if type(data) ~= "table" then return end
-        if WindUI and type(WindUI.Notify) == "function" then
-            pcall(WindUI.Notify, WindUI, data)
-        else
-            pcall(function()
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = data.Title or "",
-                    Text = data.Content or "",
-                    Duration = data.Duration or 3,
-                })
-            end)
-        end
-    end
-
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
     local Workspace = game:GetService("Workspace")
@@ -909,7 +898,6 @@ end
 -- SETTINGS TAB (Theme)
 -- ============================================================
 do
-    local SettingsTab = Window:Tab({ Title = "Settings" })
     local themes = config.themes or { "Default", "Midnight", "Ocean", "Sunset", "Emerald", "Rose", "Plasma", "Snow", "Neon", "Crimson", "Lavender", "Gold", "Mint", "Cyber" }
     local currentTheme = undeitedhub.CurrentTheme or "Default"
 
