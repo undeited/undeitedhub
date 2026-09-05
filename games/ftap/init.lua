@@ -189,11 +189,20 @@ local function SafeLoad(name)
     local success, err = pcall(LoadScript, name)
     if not success then
         local errMsg = tostring(err):sub(1, 200)
-        WindUI:Notify({
-            Title = "Error: " .. name,
-            Content = errMsg,
-            Duration = 6,
-        })
+        pcall(function()
+            WindUI:Notify({
+                Title = "Error: " .. name,
+                Content = errMsg,
+                Duration = 6,
+            })
+        end)
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Error: " .. name,
+                Text = errMsg,
+                Duration = 6,
+            })
+        end)
     end
 end
 
