@@ -186,10 +186,9 @@ if frame then
 end
 
 -- ============================================================
--- CREATE ALL TABS FIRST
+-- CREATE ALL TABS FIRST (Visual, Misc, Troll, Blobman, Settings)
 -- ============================================================
 local VisualTab = Window:Tab({ Title = "Visual" })
-local CombatTab = Window:Tab({ Title = "Combat" })
 local MiscTab = Window:Tab({ Title = "Misc" })
 local TrollTab = Window:Tab({ Title = "Troll" })
 local BlobmanTab = Window:Tab({ Title = "Blobman" })
@@ -320,79 +319,6 @@ do
         espEnabled = false
         undeitedhub.Toggles.espEnabled = false
         ClearESP()
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        oldDisable()
-    end
-end
-
--- ============================================================
--- COMBAT TAB (Auto Swing) – non‑blocking
--- ============================================================
-do
-    local autoSwingEnabled = undeitedhub.Toggles.AutoSwing or false
-    local lastSwingTime = 0
-    local SWING_COOLDOWN = 0.1
-    local attackRemote, animRemote = nil, nil
-
-    -- Attempt to get remotes safely (no blocking)
-    local function SetupCombat()
-        pcall(function()
-            local rs = game:GetService("ReplicatedStorage")
-            local aero = rs:FindFirstChild("Aero")
-            if aero then
-                local aeroServices = aero:FindFirstChild("AeroRemoteServices")
-                if aeroServices then
-                    local gameService = aeroServices:FindFirstChild("GameService")
-                    if gameService then
-                        attackRemote = gameService:FindFirstChild("WeaponAttackStart")
-                        animRemote = gameService:FindFirstChild("WeaponAnimComplete")
-                    end
-                end
-            end
-        end)
-    end
-    SetupCombat()
-
-    local function SwingWeapon()
-        if attackRemote and animRemote then
-            pcall(function()
-                attackRemote:FireServer()
-                animRemote:FireServer()
-                if typeof(getNil) == "function" then
-                    pcall(function()
-                        getNil("Event", "BindableEvent"):Fire()
-                    end)
-                end
-            end)
-        end
-    end
-
-    game:GetService("RunService").Heartbeat:Connect(function()
-        if autoSwingEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
-            local now = tick()
-            if now - lastSwingTime >= SWING_COOLDOWN then
-                lastSwingTime = now
-                pcall(SwingWeapon)
-            end
-        end
-    end)
-
-    CombatTab:Toggle({
-        Title = "Auto Swing",
-        Value = autoSwingEnabled,
-        Callback = function(state)
-            autoSwingEnabled = state
-            undeitedhub.Toggles.AutoSwing = state
-            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-            SafeNotify({ Title = "Auto Swing", Content = state and "Enabled" or "Disabled", Duration = 2 })
-            if state then lastSwingTime = tick() end
-        end
-    })
-
-    local oldDisable = undeitedhub.DisableAll or function() end
-    undeitedhub.DisableAll = function()
-        autoSwingEnabled = false
-        undeitedhub.Toggles.AutoSwing = false
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         oldDisable()
     end
