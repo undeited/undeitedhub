@@ -185,10 +185,22 @@ if frame then
     end)
 end
 
-LoadScript("games/gsr/esp.lua")
-LoadScript("games/gsr/combat.lua")
-LoadScript("games/gsr/autofarm.lua")
-LoadScript("shared/settings.lua")
+local function SafeLoad(name)
+    local success, err = pcall(LoadScript, name)
+    if not success then
+        local errMsg = tostring(err):sub(1, 200)
+        WindUI:Notify({
+            Title = "Error: " .. name,
+            Content = errMsg,
+            Duration = 6,
+        })
+    end
+end
+
+SafeLoad("games/gsr/esp.lua")
+SafeLoad("games/gsr/combat.lua")
+SafeLoad("games/gsr/autofarm.lua")
+SafeLoad("shared/settings.lua")
 
 if _G.UNDEITEDHUB_STATES then
     for key, value in pairs(_G.UNDEITEDHUB_STATES) do

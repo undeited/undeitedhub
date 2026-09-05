@@ -1,4 +1,5 @@
 local WindUI = undeitedhub.WindUI
+local TrollTab = undeitedhub.Window:Tab({ Title = "Troll" })
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -14,8 +15,6 @@ local function SafeNotify(data)
         end)
     end
 end
-
-local TrollTab = undeitedhub.Window:Tab({ Title = "Troll" })
 
 TrollTab:Button({
     Title = "Spawn Missile",

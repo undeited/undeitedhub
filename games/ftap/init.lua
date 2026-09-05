@@ -188,13 +188,12 @@ end
 local function SafeLoad(name)
     local success, err = pcall(LoadScript, name)
     if not success then
-        pcall(function()
-            WindUI:Notify({
-                Title = "Error: " .. name,
-                Content = tostring(err):sub(1, 150),
-                Duration = 5,
-            })
-        end)
+        local errMsg = tostring(err):sub(1, 200)
+        WindUI:Notify({
+            Title = "Error: " .. name,
+            Content = errMsg,
+            Duration = 6,
+        })
     end
 end
 
