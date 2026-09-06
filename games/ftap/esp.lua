@@ -19,6 +19,7 @@ local VisualTab = undeitedhub.Window:Tab({ Title = "Visual" })
 
 local espEnabled = undeitedhub.Toggles.espEnabled or false
 local highlightMap = {}
+local nameMap = {}
 local ESP_COLOR = Color3.fromRGB(255, 0, 0)
 
 local function ClearESP()
@@ -28,6 +29,39 @@ local function ClearESP()
         end
     end
     highlightMap = {}
+    for _, gui in pairs(nameMap) do
+        if gui and gui.Parent then
+            pcall(gui.Destroy, gui)
+        end
+    end
+    nameMap = {}
+end
+
+local function CreateNameTag(player, character)
+    if nameMap[player] then
+        pcall(nameMap[player].Destroy, nameMap[player])
+        nameMap[player] = nil
+    end
+    local head = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+    if not head then return end
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.Adornee = head
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.MaxDistance = 1000
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = player.Name
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextScaled = true
+    label.Font = Enum.Font.SourceSansBold
+    label.TextStrokeTransparency = 0.5
+    label.TextStrokeColor3 = Color3.new(0, 0, 0)
+    label.Parent = billboard
+    billboard.Parent = character
+    nameMap[player] = billboard
 end
 
 local function UpdateESP()
@@ -54,6 +88,7 @@ local function UpdateESP()
                     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                     highlight.Parent = player.Character
                     highlightMap[player] = highlight
+                    CreateNameTag(player, player.Character)
                 end
                 highlight.Adornee = player.Character
                 highlight.Enabled = true
@@ -66,6 +101,10 @@ local function UpdateESP()
         if not seen[player] and highlight and highlight.Parent then
             pcall(highlight.Destroy, highlight)
             highlightMap[player] = nil
+            if nameMap[player] then
+                pcall(nameMap[player].Destroy, nameMap[player])
+                nameMap[player] = nil
+            end
         end
     end
 end
@@ -119,6 +158,10 @@ game.Players.PlayerRemoving:Connect(function(player)
         pcall(highlight.Destroy, highlight)
     end
     highlightMap[player] = nil
+    if nameMap[player] then
+        pcall(nameMap[player].Destroy, nameMap[player])
+        nameMap[player] = nil
+    end
 end)
 
 task.spawn(function()
@@ -128,7 +171,8 @@ task.spawn(function()
     end
 end)
 
-local oldDisable = undeitedhub.DisableAll or function() end
+undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
+local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
     espEnabled = false
     undeitedhub.Toggles.espEnabled = false

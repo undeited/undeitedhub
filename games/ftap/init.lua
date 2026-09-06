@@ -208,6 +208,7 @@ end
 
 SafeLoad("games/ftap/esp.lua")
 SafeLoad("games/ftap/combat.lua")
+SafeLoad("games/ftap/antis.lua")
 SafeLoad("games/ftap/misc.lua")
 SafeLoad("games/ftap/troll.lua")
 SafeLoad("games/ftap/blobman.lua")
