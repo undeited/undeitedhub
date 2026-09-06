@@ -29,9 +29,9 @@ local function ClearESP()
         end
     end
     highlightMap = {}
-    for _, gui in pairs(nameMap) do
-        if gui and gui.Parent then
-            pcall(gui.Destroy, gui)
+    for _, billboard in pairs(nameMap) do
+        if billboard and billboard.Parent then
+            pcall(billboard.Destroy, billboard)
         end
     end
     nameMap = {}
@@ -71,6 +71,8 @@ local function UpdateESP()
     end
 
     local localPlayer = game.Players.LocalPlayer
+    local localChar = localPlayer and localPlayer.Character
+    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
     local seen = {}
 
     for _, player in ipairs(game.Players:GetPlayers()) do
@@ -93,6 +95,15 @@ local function UpdateESP()
                 highlight.Adornee = player.Character
                 highlight.Enabled = true
                 seen[player] = true
+
+                local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
+                local billboard = nameMap[player]
+                if billboard and localRoot and targetRoot then
+                    local dist = (targetRoot.Position - localRoot.Position).Magnitude
+                    billboard.Enabled = dist >= 50
+                elseif billboard then
+                    billboard.Enabled = true
+                end
             end
         end
     end
