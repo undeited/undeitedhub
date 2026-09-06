@@ -193,14 +193,13 @@ local function SafeLoad(name)
         WindUI:Notify({
             Title = "Error: " .. name,
             Content = errMsg,
-            Duration = 6,
+            Duration = 6,   
         })
     end
 end
 
 SafeLoad("games/ml/esp.lua")
 SafeLoad("games/ml/autofarm.lua")
-SafeLoad("games/ml/boss.lua")
 SafeLoad("games/ml/troll.lua")
 SafeLoad("shared/settings.lua")
 
