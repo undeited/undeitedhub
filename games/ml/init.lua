@@ -200,6 +200,7 @@ end
 
 SafeLoad("games/ml/esp.lua")
 SafeLoad("games/ml/autofarm.lua")
+SafeLoad("games/ml/boss.lua")
 SafeLoad("games/ml/troll.lua")
 SafeLoad("shared/settings.lua")
 
