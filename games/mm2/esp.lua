@@ -44,21 +44,26 @@ local function CreateNameTag(player, character)
     end
     local head = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
     if not head then return end
+
+    local displayName = player.DisplayName or player.Name
+
     local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.Size = UDim2.new(0, 200, 0, 40)
     billboard.Adornee = head
     billboard.StudsOffset = Vector3.new(0, 2.5, 0)
     billboard.AlwaysOnTop = true
     billboard.MaxDistance = 1000
+
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
-    label.Text = player.Name
+    label.Text = displayName
     label.TextColor3 = Color3.new(1, 1, 1)
     label.TextScaled = true
-    label.Font = Enum.Font.SourceSansBold
+    label.Font = Enum.Font.GothamBold
     label.TextStrokeTransparency = 0.5
     label.TextStrokeColor3 = Color3.new(0, 0, 0)
+
     label.Parent = billboard
     billboard.Parent = character
     nameMap[player] = billboard
