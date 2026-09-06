@@ -193,7 +193,7 @@ local function SafeLoad(name)
         WindUI:Notify({
             Title = "Error: " .. name,
             Content = errMsg,
-            Duration = 6,   
+            Duration = 6,
         })
     end
 end
