@@ -29,7 +29,6 @@ local gunHighlightMap = {}
 local coinHighlightMap = {}
 
 local roundTimer = workspace:FindFirstChild("RoundTimerPart")
-local shouldShowESP = false
 
 local function IsInLobby()
     local localPlayer = game.Players.LocalPlayer
@@ -542,7 +541,7 @@ local gameplay = remotes and remotes:FindFirstChild("Gameplay")
 if gameplay then
     local roleSelect = gameplay:FindFirstChild("RoleSelect")
     if roleSelect and roleSelect:IsA("RemoteEvent") then
-        roleSelect.OnClientEvent:Connect(function(role, ...)
+        roleSelect.OnClientEvent:Connect(function(role)
             pcall(function()
                 local localPlayer = game.Players.LocalPlayer
                 if localPlayer then
