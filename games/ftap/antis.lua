@@ -76,7 +76,9 @@ local function spawnShuriken()
     local spawnRemote = menuToys:FindFirstChild("SpawnToyRemoteFunction")
     if not spawnRemote then return false, "SpawnToyRemoteFunction not found" end
 
-    local cframe = rootPart.CFrame * CFrame.new(0, -0.5, 0)
+    -- Use absolute position (world space) directly under the player
+    local pos = rootPart.Position - Vector3.new(0, 0.5, 0)
+    local cframe = CFrame.new(pos)
     local args = {
         [1] = "NinjaShuriken",
         [2] = cframe,
@@ -87,26 +89,26 @@ local function spawnShuriken()
         return spawnRemote:InvokeServer(unpack(args))
     end)
 
-    if success and result == "SpawnedToy" then
-        return true, nil
+    if success then
+        return true, "Spawned (result: " .. tostring(result) .. ")"
     else
-        return false, "Invoke failed or returned " .. tostring(result)
+        return false, "Invoke error: " .. tostring(result)
     end
 end
 
 local function attachShuriken(shuriken)
-    if not shuriken then return false end
+    if not shuriken then return false, "No shuriken" end
     local sticky = getStickyPart(shuriken)
-    if not sticky then return false end
+    if not sticky then return false, "No StickyPart" end
     local char = localPlayer.Character
-    if not char then return false end
+    if not char then return false, "No character" end
     local attachPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChildWhichIsA("BasePart")
-    if not attachPart then return false end
+    if not attachPart then return false, "No attach part" end
 
     local playerEvents = ReplicatedStorage:FindFirstChild("PlayerEvents")
-    if not playerEvents then return false end
+    if not playerEvents then return false, "PlayerEvents not found" end
     local stickyEvent = playerEvents:FindFirstChild("StickyPartEvent")
-    if not stickyEvent then return false end
+    if not stickyEvent then return false, "StickyPartEvent not found" end
 
     local relCFrame = CFrame.new(0, -0.5, 0)
     local args = {
@@ -117,7 +119,7 @@ local function attachShuriken(shuriken)
     pcall(function()
         stickyEvent:FireServer(unpack(args))
     end)
-    return true
+    return true, "Attach fired"
 end
 
 local function ensureShuriken()
@@ -130,20 +132,25 @@ local function ensureShuriken()
 
     local shuriken = getNinjaShuriken()
     if not shuriken then
-        local success, err = spawnShuriken()
+        local success, msg = spawnShuriken()
         if success then
             SafeNotify({ Title = "Anti Kick", Content = "Shuriken spawned", Duration = 2 })
             task.wait(0.5)
             shuriken = getNinjaShuriken()
             if shuriken then
                 attachShuriken(shuriken)
+            else
+                SafeNotify({ Title = "Anti Kick", Content = "Spawned but not found in folder", Duration = 3 })
             end
         else
-            SafeNotify({ Title = "Anti Kick", Content = "Spawn failed: " .. tostring(err), Duration = 4 })
+            SafeNotify({ Title = "Anti Kick", Content = "Spawn failed: " .. msg, Duration = 4 })
         end
     else
         if not isShurikenAttached(shuriken) then
-            attachShuriken(shuriken)
+            local ok, msg = attachShuriken(shuriken)
+            if not ok then
+                SafeNotify({ Title = "Anti Kick", Content = "Attach failed: " .. msg, Duration = 3 })
+            end
         end
     end
 end
