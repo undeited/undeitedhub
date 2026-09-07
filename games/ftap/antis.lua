@@ -27,43 +27,37 @@ local antiGrabEnabled = undeitedhub.Toggles.antiGrab or false
 local antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
 
 local antiTask = nil
-local toysFolder = nil
 
 local function getToysFolder()
-    if not toysFolder then
-        toysFolder = Workspace:FindFirstChild(localPlayer.Name .. "SpawnedInToys")
-    end
-    return toysFolder
+    return Workspace:FindFirstChild(localPlayer.Name .. "SpawnedInToys")
 end
 
 local function getNinjaKunai()
     local folder = getToysFolder()
-    if folder then
-        for _, child in ipairs(folder:GetChildren()) do
-            if child.Name == "NinjaKunai" and child:IsA("Model") then
-                return child
-            end
+    if not folder then return nil end
+    for _, child in ipairs(folder:GetChildren()) do
+        if child.Name == "NinjaKunai" and child:IsA("Model") then
+            return child
         end
     end
     return nil
 end
 
 local function getStickyPart(kunai)
-    if kunai then
-        for _, part in ipairs(kunai:GetDescendants()) do
-            if part.Name == "StickyPart" and part:IsA("BasePart") then
-                return part
-            end
+    if not kunai then return nil end
+    for _, part in ipairs(kunai:GetDescendants()) do
+        if part.Name == "StickyPart" and part:IsA("BasePart") then
+            return part
         end
     end
     return nil
 end
 
 local function getPlayerCharacter()
-    if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") and localPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        return localPlayer.Character
-    end
-    return nil
+    if not localPlayer.Character then return nil end
+    if not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
+    if not localPlayer.Character:FindFirstChildOfClass("Humanoid") then return nil end
+    return localPlayer.Character
 end
 
 local function getPlayerCFrame()
@@ -74,7 +68,7 @@ local function getPlayerCFrame()
     return nil
 end
 
-local function distanceFromCharacter(pos)
+local function distanceTo(pos)
     return localPlayer:DistanceFromCharacter(pos)
 end
 
@@ -85,31 +79,35 @@ local function lookAt(from, to)
     return CFrame.fromMatrix(from, right, up)
 end
 
-local function checkOwnership(part)
-    if part and part:FindFirstChild("PartOwner") and part.PartOwner.Value == localPlayer.Name then
+local function hasOwnership(part)
+    if not part then return false end
+    local owner = part:FindFirstChild("PartOwner")
+    if owner and owner.Value == localPlayer.Name then
         return true
     end
     return false
 end
 
 local function setNetworkOwner(part)
-    local setNetworkOwner = ReplicatedStorage:FindFirstChild("GrabEvents") and ReplicatedStorage.GrabEvents:FindFirstChild("SetNetworkOwner")
-    if setNetworkOwner then
-        local char = getPlayerCharacter()
-        if char and part then
-            pcall(function()
-                setNetworkOwner:FireServer(part, lookAt(char.HumanoidRootPart.Position, part.Position))
-            end)
-        end
+    if not part then return end
+    local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
+    if remote then
+        remote = remote:FindFirstChild("SetNetworkOwner")
     end
+    if not remote then return end
+    local char = getPlayerCharacter()
+    if not char then return end
+    pcall(function()
+        remote:FireServer(part, lookAt(char.HumanoidRootPart.Position, part.Position))
+    end)
 end
 
 local function snowshipOnce(part)
     if not part then return false end
-    if checkOwnership(part) then
+    if hasOwnership(part) then
         return true
     end
-    if distanceFromCharacter(part.Position) <= 30 then
+    if distanceTo(part.Position) <= 30 then
         setNetworkOwner(part)
     end
     return false
@@ -117,39 +115,51 @@ end
 
 local function snowship(part)
     if not part then return end
-    if distanceFromCharacter(part.Position) <= 30 then
+    if distanceTo(part.Position) <= 30 then
         setNetworkOwner(part)
     end
 end
 
 local function deleteToy(toy)
-    local deleteRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("DestroyToy")
-    if deleteRemote then
+    if not toy then return end
+    local remote = ReplicatedStorage:FindFirstChild("MenuToys")
+    if remote then
+        remote = remote:FindFirstChild("DestroyToy")
+    end
+    if remote then
         pcall(function()
-            deleteRemote:FireServer(toy)
+            remote:FireServer(toy)
         end)
     end
 end
 
 local function spawnToy(args)
-    local spawnRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("SpawnToyRemoteFunction")
-    if spawnRemote then
+    if not args then return end
+    local remote = ReplicatedStorage:FindFirstChild("MenuToys")
+    if remote then
+        remote = remote:FindFirstChild("SpawnToyRemoteFunction")
+    end
+    if remote then
         pcall(function()
-            spawnRemote:InvokeServer(unpack(args))
+            remote:InvokeServer(unpack(args))
         end)
     end
 end
 
 local function buyToy(toyName)
-    local buyRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("BuyToyRemoteFunction")
-    if buyRemote then
+    if not toyName then return end
+    local remote = ReplicatedStorage:FindFirstChild("MenuToys")
+    if remote then
+        remote = remote:FindFirstChild("BuyToyRemoteFunction")
+    end
+    if remote then
         pcall(function()
-            buyRemote:InvokeServer(toyName)
+            remote:InvokeServer(toyName)
         end)
     end
 end
 
-local function checkKunaiStatus(kunai)
+local function getKunaiStatus(kunai)
     if not kunai then return "Useless" end
     local sticky = getStickyPart(kunai)
     if not sticky then return "Useless" end
@@ -173,10 +183,13 @@ local function attachKunai(kunai)
     local attachPart = char:FindFirstChild("Left Leg") or char:FindFirstChild("HumanoidRootPart")
     if not attachPart then return end
     local relCFrame = CFrame.new(0, -0.5, 0) * CFrame.Angles(math.rad(0), math.rad(0), math.rad(90))
-    local stickyEvent = ReplicatedStorage:FindFirstChild("PlayerEvents") and ReplicatedStorage.PlayerEvents:FindFirstChild("StickyPartEvent")
-    if stickyEvent then
+    local remote = ReplicatedStorage:FindFirstChild("PlayerEvents")
+    if remote then
+        remote = remote:FindFirstChild("StickyPartEvent")
+    end
+    if remote then
         pcall(function()
-            stickyEvent:FireServer(sticky, attachPart, relCFrame)
+            remote:FireServer(sticky, attachPart, relCFrame)
         end)
     end
 end
@@ -203,32 +216,30 @@ local function ensureKunai()
         end
     end
 
-    if kunai then
-        local sticky = getStickyPart(kunai)
-        if sticky then
-            local status = checkKunaiStatus(kunai)
-            if status == "Useless" then
-                deleteToy(kunai)
-                return
+    if not kunai then return end
+    local sticky = getStickyPart(kunai)
+    if not sticky then return end
+    local status = getKunaiStatus(kunai)
+    if status == "Useless" then
+        deleteToy(kunai)
+        return
+    end
+    if status == "No use!" then
+        if distanceTo(sticky.Position) < 30 then
+            if snowshipOnce(sticky) then
+                attachKunai(kunai)
             end
-            if status == "No use!" then
-                if distanceFromCharacter(sticky.Position) < 30 then
-                    if snowshipOnce(sticky) then
-                        attachKunai(kunai)
-                    end
-                else
-                    deleteToy(kunai)
-                end
-            elseif status == "Used" then
-                if distanceFromCharacter(sticky.Position) >= 30 then
-                    deleteToy(kunai)
-                else
-                    snowship(sticky)
-                end
-            elseif status == "Using" then
-                snowship(sticky)
-            end
+        else
+            deleteToy(kunai)
         end
+    elseif status == "Used" then
+        if distanceTo(sticky.Position) >= 30 then
+            deleteToy(kunai)
+        else
+            snowship(sticky)
+        end
+    elseif status == "Using" then
+        snowship(sticky)
     end
 end
 
@@ -242,21 +253,30 @@ local function handleBurn()
     if not firePart then return end
     local canBurn = firePart:FindFirstChild("CanBurn")
     if not canBurn or not canBurn.Value then return end
-    local extinguishPart = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Hole") and Workspace.Map.Hole:FindFirstChild("PoisonBigHole") and Workspace.Map.Hole.PoisonBigHole:FindFirstChild("ExtinguishPart")
-    if not extinguishPart then return end
+    local extinguish = Workspace:FindFirstChild("Map")
+    if extinguish then
+        extinguish = extinguish:FindFirstChild("Hole")
+    end
+    if extinguish then
+        extinguish = extinguish:FindFirstChild("PoisonBigHole")
+    end
+    if extinguish then
+        extinguish = extinguish:FindFirstChild("ExtinguishPart")
+    end
+    if not extinguish then return end
 
     if firetouchinterest and type(firetouchinterest) == "function" then
         pcall(function()
-            firetouchinterest(firePart, extinguishPart, 0)
+            firetouchinterest(firePart, extinguish, 0)
             task.wait()
-            firetouchinterest(firePart, extinguishPart, 1)
+            firetouchinterest(firePart, extinguish, 1)
         end)
     else
         pcall(function()
-            local origPos = extinguishPart.Position
-            extinguishPart.CFrame = firePart.CFrame * CFrame.new(math.random(-1,1), math.random(-1,1), math.random(-1,1))
+            local oldPos = extinguish.Position
+            extinguish.CFrame = firePart.CFrame * CFrame.new(math.random(-1,1), math.random(-1,1), math.random(-1,1))
             task.wait(0.05)
-            extinguishPart.Position = origPos
+            extinguish.Position = oldPos
         end)
     end
 end
@@ -273,7 +293,10 @@ local function handleGrab()
     pcall(function()
         root.Anchored = true
         root.Velocity = Vector3.new(0,0,0)
-        local struggle = ReplicatedStorage:FindFirstChild("CharacterEvents") and ReplicatedStorage.CharacterEvents:FindFirstChild("Struggle")
+        local struggle = ReplicatedStorage:FindFirstChild("CharacterEvents")
+        if struggle then
+            struggle = struggle:FindFirstChild("Struggle")
+        end
         if struggle then
             struggle:FireServer(localPlayer)
         end
@@ -289,13 +312,13 @@ local function handleVoid()
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     local pos = root.Position
-    local deathBarrierHeight = Workspace.FallenPartsDestroyHeight
-    if not deathBarrierHeight then deathBarrierHeight = -500
-    if pos.Y <= deathBarrierHeight + 50 then
-        local spawnLocation = Workspace:FindFirstChild("SpawnLocation")
-        if spawnLocation then
+    local deathHeight = Workspace.FallenPartsDestroyHeight
+    if not deathHeight then deathHeight = -500
+    if pos.Y <= deathHeight + 50 then
+        local spawn = Workspace:FindFirstChild("SpawnLocation")
+        if spawn then
             pcall(function()
-                root.CFrame = spawnLocation.CFrame + Vector3.new(0, 3, 0)
+                root.CFrame = spawn.CFrame + Vector3.new(0, 3, 0)
             end)
         else
             pcall(function()
