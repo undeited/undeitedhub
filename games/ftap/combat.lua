@@ -35,10 +35,8 @@ local function checkGamepass()
     end)
     if success and owns then
         AIM_DISTANCE = 30
-        SafeNotify({ Title = "Silent Aim", Content = "Farther Reach gamepass detected: Distance set to 30.", Duration = 3 })
     else
         AIM_DISTANCE = 28
-        SafeNotify({ Title = "Silent Aim", Content = "Farther Reach gamepass not owned: Distance set to 28.", Duration = 3 })
     end
 end
 
@@ -53,28 +51,39 @@ local function updateTarget()
     local referencePos = UserInputService:GetMouseLocation()
     if not referencePos then return end
 
+    local cameraPos = camera.CFrame.Position
+    local cameraLook = camera.CFrame.LookVector
+
     local closestPart = nil
     local minScreenDist = math.huge
 
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= localPlayer then
-            local char = player.Character
-            if char then
-                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    local targetPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-                    if targetPart then
-                        local worldDist = (targetPart.Position - camera.CFrame.Position).Magnitude
-                        if worldDist <= AIM_DISTANCE then
-                            local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-                            if onScreen then
-                                local screenVec = Vector2.new(screenPos.X, screenPos.Y)
-                                local screenDist = (screenVec - referencePos).Magnitude
-                                if screenDist < minScreenDist then
-                                    minScreenDist = screenDist
-                                    closestPart = targetPart
-                                end
-                            end
+        if player == localPlayer then continue end
+        local char = player.Character
+        if not char then continue end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then continue end
+
+        local targetParts = {}
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                table.insert(targetParts, part)
+            end
+        end
+
+        for _, part in ipairs(targetParts) do
+            local partPos = part.Position
+            local worldDist = (partPos - cameraPos).Magnitude
+            if worldDist <= AIM_DISTANCE then
+                local dirToPart = (partPos - cameraPos).Unit
+                if dirToPart:Dot(cameraLook) > 0 then
+                    local screenPos, onScreen = camera:WorldToViewportPoint(partPos)
+                    if onScreen then
+                        local screenVec = Vector2.new(screenPos.X, screenPos.Y)
+                        local screenDist = (screenVec - referencePos).Magnitude
+                        if screenDist < minScreenDist then
+                            minScreenDist = screenDist
+                            closestPart = part
                         end
                     end
                 end
