@@ -1,5 +1,5 @@
 local WindUI = undeitedhub.WindUI
-local TrollTab = undeitedhub.Window:Tab({ Title = "Troll" })
+local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
 
 local function getStrength(player)
     local leaderstats = player:FindFirstChild("leaderstats")
@@ -74,6 +74,18 @@ local function isInBossArena(player)
     return false
 end
 
+local function hasSpawnProtection(player)
+    if not player or not player.Character then return false end
+    local protectedUntil = player.Character:GetAttribute("SpawnProtectedUntil")
+    if protectedUntil and type(protectedUntil) == "number" then
+        local now = workspace:GetServerTimeNow()
+        if protectedUntil > now then
+            return true
+        end
+    end
+    return false
+end
+
 local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
 
@@ -125,6 +137,9 @@ local function startKill()
                         if isInBossArena(otherPlayer) then
                             continue
                         end
+                        if hasSpawnProtection(otherPlayer) then
+                            continue
+                        end
                         local otherStrength = getStrength(otherPlayer)
                         if otherStrength and otherStrength < myStrength then
                             local targetChar = otherPlayer.Character
@@ -155,6 +170,9 @@ local function startKill()
 
                     while killEnabled and targetHum and targetHum.Health > 0 and targetRoot and targetRoot.Parent do
                         if isInBossArena(targetPlayer) then
+                            break
+                        end
+                        if hasSpawnProtection(targetPlayer) then
                             break
                         end
                         local currentTargetStrength = getStrength(targetPlayer)
@@ -206,7 +224,7 @@ local function stopKill()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
-TrollTab:Toggle({
+CombatTab:Toggle({
     Title = "Auto Kill",
     Value = killEnabled,
     Callback = function(state)
