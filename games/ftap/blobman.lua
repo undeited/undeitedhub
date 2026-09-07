@@ -69,6 +69,18 @@ local function getNearestUnheldPlayer(blobmanModel, excludeLeft, excludeRight)
     return best
 end
 
+local function playGrabAnimation(blobman, side)
+    if not blobman then return end
+    local anims = blobman:FindFirstChild("BlobmanAnimations")
+    if not anims then return end
+    local relay = anims:FindFirstChild("RelayClientAnimation")
+    if not relay or not relay:IsA("RemoteEvent") then return end
+    local animName = side == "left" and "LeftGrabAnimation" or "RightGrabAnimation"
+    pcall(function()
+        relay:FireServer(animName, true)
+    end)
+end
+
 local function manageBlobmanSeating()
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -149,6 +161,7 @@ local function startGrabLoop()
                                     task.wait(0.08)
                                     if victimHum.Health > 0 and victim.Parent then
                                         creatureGrab:FireServer(victim, victimRoot, leftWeld)
+                                        playGrabAnimation(blobman, "left")
                                     else
                                         leftHeldTarget = nil
                                     end
@@ -169,6 +182,7 @@ local function startGrabLoop()
                                     task.wait(0.08)
                                     if victimHum.Health > 0 and victim.Parent then
                                         creatureGrab:FireServer(victim, victimRoot, rightWeld)
+                                        playGrabAnimation(blobman, "right")
                                     else
                                         rightHeldTarget = nil
                                     end
@@ -199,7 +213,7 @@ local function stopGrabLoop()
     rightHeldTarget = nil
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Grab Nearest", Content = "Disabled", Duration = 2 })
-end
+}
 
 BlobmanTab:Toggle({
     Title = "Auto Grab Nearest",
