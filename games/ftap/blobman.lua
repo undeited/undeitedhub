@@ -213,7 +213,7 @@ local function stopGrabLoop()
     rightHeldTarget = nil
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     SafeNotify({ Title = "Auto Grab Nearest", Content = "Disabled", Duration = 2 })
-}
+end
 
 BlobmanTab:Toggle({
     Title = "Auto Grab Nearest",
