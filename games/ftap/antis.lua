@@ -19,7 +19,6 @@ end
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
 
 local antiKickEnabled = undeitedhub.Toggles.antiKick or false
@@ -27,11 +26,7 @@ local antiBurnEnabled = undeitedhub.Toggles.antiBurn or false
 local antiGrabEnabled = undeitedhub.Toggles.antiGrab or false
 local antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
 
-local checkTask = nil
-local burnConnections = {}
-local grabConnection = nil
-local antiVoidLoop = nil
-
+local antiTask = nil
 local KunaiFound = nil
 local u17 = nil
 
@@ -193,12 +188,11 @@ local function attachKunai(kunai)
 end
 
 local function ensureKunai()
-    if not antiKickEnabled then return end
-    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+    if not antiKickEnabled then return
     local char = GetPlayerCharacter()
-    if not char then return end
+    if not char then return
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return end
+    if not hum or hum.Health <= 0 then return
 
     local kunai = getNinjaKunai()
     if not kunai then
@@ -247,162 +241,102 @@ end
 
 local extinguishPart = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Hole") and Workspace.Map.Hole:FindFirstChild("PoisonBigHole") and Workspace.Map.Hole.PoisonBigHole:FindFirstChild("ExtinguishPart")
 
-local function setupAntiBurn(player)
-    if not player or player ~= localPlayer then return end
-    local character = player.Character
-    if not character then return end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-    local firePart = rootPart:FindFirstChild("FirePlayerPart")
-    if not firePart then return end
+local function handleBurn()
+    if not antiBurnEnabled then return
+    local char = GetPlayerCharacter()
+    if not char then return
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return
+    local firePart = root:FindFirstChild("FirePlayerPart")
+    if not firePart then return
     local canBurn = firePart:FindFirstChild("CanBurn")
-    if not canBurn then return end
+    if not canBurn then return
+    if not canBurn.Value then return
+    if not extinguishPart then return
 
-    if burnConnections[player] then
-        burnConnections[player]:Disconnect()
-        burnConnections[player] = nil
+    if firetouchinterest and type(firetouchinterest) == "function" then
+        pcall(function()
+            firetouchinterest(firePart, extinguishPart, 0)
+            task.wait()
+            firetouchinterest(firePart, extinguishPart, 1)
+        end)
+    else
+        pcall(function()
+            local origPos = extinguishPart.Position
+            extinguishPart.CFrame = firePart.CFrame * CFrame.new(math.random(-1,1), math.random(-1,1), math.random(-1,1))
+            task.wait(0.05)
+            extinguishPart.Position = origPos
+        end)
     end
+end
 
-    local connection = canBurn.Changed:Connect(function()
-        if antiBurnEnabled and canBurn.Value and extinguishPart then
-            task.spawn(function()
-                while antiBurnEnabled and canBurn.Value do
-                    if firetouchinterest and type(firetouchinterest) == "function" then
-                        pcall(function()
-                            firetouchinterest(firePart, extinguishPart, 0)
-                            task.wait()
-                            firetouchinterest(firePart, extinguishPart, 1)
-                        end)
-                    else
-                        pcall(function()
-                            local origPos = extinguishPart.Position
-                            extinguishPart.CFrame = firePart.CFrame * CFrame.new(math.random(-1,1), math.random(-1,1), math.random(-1,1))
-                            task.wait(0.05)
-                            extinguishPart.Position = origPos
-                        end)
-                    end
-                    task.wait(0.1)
-                end
+local function handleGrab()
+    if not antiGrabEnabled then return
+    local isHeld = localPlayer:FindFirstChild("IsHeld")
+    if not isHeld then return
+    if not isHeld.Value then return
+    local char = GetPlayerCharacter()
+    if not char then return
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return
+    pcall(function()
+        root.Anchored = true
+        root.Velocity = Vector3.new(0,0,0)
+        local struggle = ReplicatedStorage:FindFirstChild("CharacterEvents") and ReplicatedStorage.CharacterEvents:FindFirstChild("Struggle")
+        if struggle then
+            struggle:FireServer(localPlayer)
+        end
+        task.wait(0.1)
+        root.Anchored = false
+    end)
+end
+
+local function handleVoid()
+    if not antiVoidEnabled then return
+    local char = GetPlayerCharacter()
+    if not char then return
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return
+    local pos = root.Position
+    local deathBarrierHeight = Workspace.FallenPartsDestroyHeight
+    if not deathBarrierHeight then deathBarrierHeight = -500
+    local threshold = 50
+    if pos.Y <= deathBarrierHeight + threshold then
+        local spawnLocation = Workspace:FindFirstChild("SpawnLocation")
+        if spawnLocation then
+            pcall(function()
+                root.CFrame = spawnLocation.CFrame + Vector3.new(0, 3, 0)
+            end)
+        else
+            pcall(function()
+                root.CFrame = CFrame.new(0, 50, 0)
             end)
         end
-    end)
-
-    burnConnections[player] = connection
+    end
 end
 
-local function setupAntiGrab(player)
-    if not player or player ~= localPlayer then return end
-    local isHeld = player:FindFirstChild("IsHeld")
-    if not isHeld then return end
-
-    if grabConnection then
-        grabConnection:Disconnect()
-        grabConnection = nil
-    end
-
-    grabConnection = isHeld.Changed:Connect(function()
-        if antiGrabEnabled and isHeld.Value then
-            local char = player.Character
-            if char then
-                local root = char:FindFirstChild("HumanoidRootPart")
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if root and hum then
-                    pcall(function()
-                        root.Anchored = true
-                        root.Velocity = Vector3.new(0,0,0)
-                        local struggle = ReplicatedStorage:FindFirstChild("CharacterEvents") and ReplicatedStorage.CharacterEvents:FindFirstChild("Struggle")
-                        if struggle then
-                            struggle:FireServer(player)
-                        end
-                        task.wait(0.1)
-                        root.Anchored = false
-                    end)
-                end
-            end
+local function antiLoop()
+    while antiKickEnabled or antiBurnEnabled or antiGrabEnabled or antiVoidEnabled do
+        if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+            pcall(ensureKunai)
+            pcall(handleBurn)
+            pcall(handleGrab)
+            pcall(handleVoid)
         end
-    end)
-end
-
-local function StartAntiVoid()
-    if antiVoidLoop then return end
-    antiVoidLoop = task.spawn(function()
-        local spawnLocation = Workspace:FindFirstChild("SpawnLocation")
-        local deathBarrierHeight = Workspace.FallenPartsDestroyHeight
-        if not deathBarrierHeight then
-            deathBarrierHeight = -500
-        end
-        local threshold = 50
-        local teleportOffset = Vector3.new(0, 3, 0)
-        local safePos = Vector3.new(0, 50, 0)
-        while antiVoidEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local char = localPlayer.Character
-                if char then
-                    local root = char:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local pos = root.Position
-                        if pos.Y <= deathBarrierHeight + threshold then
-                            if spawnLocation then
-                                pcall(function()
-                                    root.CFrame = spawnLocation.CFrame + teleportOffset
-                                end)
-                            else
-                                pcall(function()
-                                    root.CFrame = CFrame.new(safePos)
-                                end)
-                            end
-                        end
-                    end
-                end
-            end
-            task.wait(0.1)
-        end
-        antiVoidLoop = nil
-    end)
-end
-
-local function StopAntiVoid()
-    if antiVoidLoop then
-        task.cancel(antiVoidLoop)
-        antiVoidLoop = nil
-    end
-end
-
-local function ensureAnti()
-    if antiKickEnabled then
-        pcall(ensureKunai)
-    end
-    if antiBurnEnabled then
-        pcall(setupAntiBurn, localPlayer)
-    end
-    if antiGrabEnabled then
-        pcall(setupAntiGrab, localPlayer)
+        task.wait(0.5)
     end
 end
 
 local function startAnti()
-    if checkTask then return end
+    if antiTask then return end
     antiKickEnabled = undeitedhub.Toggles.antiKick or false
     antiBurnEnabled = undeitedhub.Toggles.antiBurn or false
     antiGrabEnabled = undeitedhub.Toggles.antiGrab or false
     antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
-    if antiVoidEnabled then
-        StartAntiVoid()
-    end
-
-    checkTask = task.spawn(function()
-        while antiKickEnabled or antiBurnEnabled or antiGrabEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                pcall(ensureAnti)
-            end
-            task.wait(1)
-        end
-        checkTask = nil
-    end)
+    antiTask = task.spawn(antiLoop)
 end
 
 local function stopAnti()
@@ -414,19 +348,10 @@ local function stopAnti()
     undeitedhub.Toggles.antiBurn = false
     undeitedhub.Toggles.antiGrab = false
     undeitedhub.Toggles.antiVoidEnabled = false
-    if checkTask then
-        task.cancel(checkTask)
-        checkTask = nil
+    if antiTask then
+        task.cancel(antiTask)
+        antiTask = nil
     end
-    for _, conn in pairs(burnConnections) do
-        pcall(conn.Disconnect, conn)
-    end
-    burnConnections = {}
-    if grabConnection then
-        pcall(grabConnection.Disconnect, grabConnection)
-        grabConnection = nil
-    end
-    StopAntiVoid()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
@@ -472,14 +397,9 @@ AntiTab:Toggle({
     Callback = function(state)
         antiVoidEnabled = state
         undeitedhub.Toggles.antiVoidEnabled = state
-        if state then
-            StartAntiVoid()
-            SafeNotify({ Title = "Anti Void", Content = "Enabled", Duration = 2 })
-        else
-            StopAntiVoid()
-            SafeNotify({ Title = "Anti Void", Content = "Disabled", Duration = 2 })
-        end
+        if state then startAnti() else stopAnti() end
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        SafeNotify({ Title = "Anti Void", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
