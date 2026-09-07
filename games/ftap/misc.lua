@@ -1,5 +1,18 @@
 local WindUI = undeitedhub.WindUI
-local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
+local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local localPlayer = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+local targetPosition = nil
+
+local silentAimEnabled = undeitedhub.Toggles.SilentAim or false
+local AIM_DISTANCE = 30
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -16,145 +29,126 @@ local function SafeNotify(data)
     end
 end
 
-MiscTab:Button({
-    Title = "Delete All Toys",
-    Callback = function()
-        pcall(function()
-            local Players = game:GetService("Players")
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local Workspace = game:GetService("Workspace")
-            local player = Players.LocalPlayer
-            if not player then
-                SafeNotify({ Title = "Error", Content = "Local player not found", Duration = 2 })
-                return
-            end
-
-            local destroyRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("DestroyToy")
-
-            local playerFolderName = player.Name .. "SpawnedInToys"
-            local playerFolder = Workspace:FindFirstChild(playerFolderName)
-            if not playerFolder then
-                SafeNotify({ Title = "Delete Toys", Content = "No toys found for you.", Duration = 2 })
-                return
-            end
-
-            local toys = {}
-            for _, child in ipairs(playerFolder:GetChildren()) do
-                if child:IsA("Model") or child:IsA("BasePart") then
-                    table.insert(toys, child)
-                end
-            end
-
-            if #toys == 0 then
-                SafeNotify({ Title = "Delete Toys", Content = "No toys found in your folder.", Duration = 2 })
-                return
-            end
-
-            if destroyRemote and destroyRemote:IsA("RemoteEvent") then
-                for _, toy in ipairs(toys) do
-                    pcall(function()
-                        destroyRemote:FireServer(toy)
-                    end)
-                end
-                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys via remote.", Duration = 2 })
-            else
-                for _, toy in ipairs(toys) do
-                    pcall(function()
-                        toy:Destroy()
-                    end)
-                end
-                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys locally.", Duration = 2 })
-            end
-        end)
+local function checkGamepass()
+    local success, owns = pcall(function()
+        return MarketplaceService:UserOwnsGamePassAsync(localPlayer.UserId, 20837132)
+    end)
+    if success and owns then
+        AIM_DISTANCE = 30
+        SafeNotify({ Title = "Silent Aim", Content = "Farther Reach gamepass detected: Distance set to 30.", Duration = 3 })
+    else
+        AIM_DISTANCE = 28
+        SafeNotify({ Title = "Silent Aim", Content = "Farther Reach gamepass not owned: Distance set to 28.", Duration = 3 })
     end
-})
+end
 
-local antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
-local antiVoidLoop = nil
+checkGamepass()
 
-local function StartAntiVoid()
-    if antiVoidLoop then return end
-
-    local Workspace = game:GetService("Workspace")
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
-    if not player then return end
-
-    local spawnLocation = Workspace:FindFirstChild("SpawnLocation")
-    local deathBarrierHeight = Workspace.FallenPartsDestroyHeight
-    if not deathBarrierHeight then
-        deathBarrierHeight = -500
+local function updateTarget()
+    if not silentAimEnabled then
+        targetPosition = nil
+        return
     end
 
-    local threshold = 50
-    local teleportOffset = Vector3.new(0, 3, 0)
-    local safePos = Vector3.new(0, 50, 0)
+    local referencePos = UserInputService:GetMouseLocation()
+    if not referencePos then return end
 
-    antiVoidLoop = task.spawn(function()
-        while antiVoidEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local char = player.Character
-                if char then
-                    local root = char:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local pos = root.Position
-                        if pos.Y <= deathBarrierHeight + threshold then
-                            if spawnLocation then
-                                pcall(function()
-                                    root.CFrame = spawnLocation.CFrame + teleportOffset
-                                end)
-                            else
-                                pcall(function()
-                                    root.CFrame = CFrame.new(safePos)
-                                end)
-                            end
+    local cameraPos = camera.CFrame.Position
+    local cameraLook = camera.CFrame.LookVector
+
+    local closestPart = nil
+    local minScreenDist = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == localPlayer then continue end
+        local char = player.Character
+        if not char then continue end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then continue end
+
+        local targetParts = {}
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                table.insert(targetParts, part)
+            end
+        end
+
+        for _, part in ipairs(targetParts) do
+            local partPos = part.Position
+            local worldDist = (partPos - cameraPos).Magnitude
+            if worldDist <= AIM_DISTANCE then
+                local dirToPart = (partPos - cameraPos).Unit
+                if dirToPart:Dot(cameraLook) > 0 then
+                    local screenPos, onScreen = camera:WorldToViewportPoint(partPos)
+                    if onScreen then
+                        local screenVec = Vector2.new(screenPos.X, screenPos.Y)
+                        local screenDist = (screenVec - referencePos).Magnitude
+                        if screenDist < minScreenDist then
+                            minScreenDist = screenDist
+                            closestPart = part
                         end
                     end
                 end
             end
-            task.wait(0.1)
         end
-        antiVoidLoop = nil
-    end)
-end
-
-local function StopAntiVoid()
-    if antiVoidLoop then
-        task.cancel(antiVoidLoop)
-        antiVoidLoop = nil
     end
+
+    targetPosition = closestPart and closestPart.Position or nil
 end
 
-local function ToggleAntiVoid(state)
-    antiVoidEnabled = state
-    undeitedhub.Toggles.antiVoidEnabled = state
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+local oldNamecall
+local hookActive = false
 
-    if state then
-        StartAntiVoid()
-        SafeNotify({ Title = "Anti Void", Content = "Enabled", Duration = 2 })
-    else
-        StopAntiVoid()
-        SafeNotify({ Title = "Anti Void", Content = "Disabled", Duration = 2 })
+local function setupHook()
+    if hookActive then return end
+    if not pcall(function() return hookmetamethod end) then
+        SafeNotify({ Title = "Silent Aim", Content = "Your executor does not support hookmetamethod.", Duration = 4 })
+        return
     end
+
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if silentAimEnabled and targetPosition and self == Workspace and method == "Raycast" then
+            local args = { ... }
+            if typeof(args[1]) == "Vector3" then
+                local origin = args[1]
+                local newDir = (targetPosition - origin).Unit * AIM_DISTANCE
+                args[2] = newDir
+                return oldNamecall(self, unpack(args))
+            end
+        end
+        return oldNamecall(self, ...)
+    end))
+    hookActive = true
 end
 
-MiscTab:Toggle({
-    Title = "Anti Void",
-    Value = antiVoidEnabled,
+local renderConnection = RunService.RenderStepped:Connect(updateTarget)
+
+CombatTab:Toggle({
+    Title = "Silent Aim",
+    Value = silentAimEnabled,
     Callback = function(state)
-        ToggleAntiVoid(state)
+        silentAimEnabled = state
+        undeitedhub.Toggles.SilentAim = state
+        if state and not hookActive then
+            setupHook()
+        end
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        SafeNotify({ Title = "Silent Aim", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
-undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
-local oldDisable = undeitedhub.DisableAll
+local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
-    if antiVoidEnabled then
-        StopAntiVoid()
-        antiVoidEnabled = false
-        undeitedhub.Toggles.antiVoidEnabled = false
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    end
+    silentAimEnabled = false
+    undeitedhub.Toggles.SilentAim = false
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
+end
+
+if silentAimEnabled then
+    task.spawn(function()
+        task.wait(0.5)
+        setupHook()
+    end)
 end
