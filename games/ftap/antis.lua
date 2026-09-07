@@ -211,6 +211,7 @@ local function ensureKunai()
         deleteToy(kunai)
         return
     end
+
     if status == "No use!" then
         if distanceTo(sticky.Position) < 30 then
             if snowshipOnce(sticky) then
