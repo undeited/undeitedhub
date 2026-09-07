@@ -188,11 +188,11 @@ local function attachKunai(kunai)
 end
 
 local function ensureKunai()
-    if not antiKickEnabled then return
+    if not antiKickEnabled then return end
     local char = GetPlayerCharacter()
-    if not char then return
+    if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return
+    if not hum or hum.Health <= 0 then return end
 
     local kunai = getNinjaKunai()
     if not kunai then
@@ -242,17 +242,17 @@ end
 local extinguishPart = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Hole") and Workspace.Map.Hole:FindFirstChild("PoisonBigHole") and Workspace.Map.Hole.PoisonBigHole:FindFirstChild("ExtinguishPart")
 
 local function handleBurn()
-    if not antiBurnEnabled then return
+    if not antiBurnEnabled then return end
     local char = GetPlayerCharacter()
-    if not char then return
+    if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return
+    if not root then return end
     local firePart = root:FindFirstChild("FirePlayerPart")
-    if not firePart then return
+    if not firePart then return end
     local canBurn = firePart:FindFirstChild("CanBurn")
-    if not canBurn then return
-    if not canBurn.Value then return
-    if not extinguishPart then return
+    if not canBurn then return end
+    if not canBurn.Value then return end
+    if not extinguishPart then return end
 
     if firetouchinterest and type(firetouchinterest) == "function" then
         pcall(function()
@@ -271,15 +271,15 @@ local function handleBurn()
 end
 
 local function handleGrab()
-    if not antiGrabEnabled then return
+    if not antiGrabEnabled then return end
     local isHeld = localPlayer:FindFirstChild("IsHeld")
-    if not isHeld then return
-    if not isHeld.Value then return
+    if not isHeld then return end
+    if not isHeld.Value then return end
     local char = GetPlayerCharacter()
-    if not char then return
+    if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not root or not hum then return
+    if not root or not hum then return end
     pcall(function()
         root.Anchored = true
         root.Velocity = Vector3.new(0,0,0)
@@ -293,11 +293,11 @@ local function handleGrab()
 end
 
 local function handleVoid()
-    if not antiVoidEnabled then return
+    if not antiVoidEnabled then return end
     local char = GetPlayerCharacter()
-    if not char then return
+    if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return
+    if not root then return end
     local pos = root.Position
     local deathBarrierHeight = Workspace.FallenPartsDestroyHeight
     if not deathBarrierHeight then deathBarrierHeight = -500
