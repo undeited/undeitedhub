@@ -19,6 +19,7 @@ end
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local grabEnabled = undeitedhub.Toggles.autoGrabPlayers or false
@@ -43,6 +44,103 @@ Workspace.DescendantAdded:Connect(function(child)
         toyFolder = child
     end
 end)
+
+local function getPlayerCharacter()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        return LocalPlayer.Character
+    end
+    return nil
+end
+
+local function getPlayerCFrame()
+    local char = getPlayerCharacter()
+    if char then
+        return char.HumanoidRootPart.CFrame
+    end
+    return nil
+end
+
+local function getToysFolder()
+    return Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+end
+
+local function countBlobmen()
+    local folder = getToysFolder()
+    if not folder then return 0 end
+    local count = 0
+    for _, child in ipairs(folder:GetChildren()) do
+        if child.Name == "CreatureBlobman" and child:IsA("Model") then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function getBlobmen()
+    local folder = getToysFolder()
+    if not folder then return {} end
+    local blobmen = {}
+    for _, child in ipairs(folder:GetChildren()) do
+        if child.Name == "CreatureBlobman" and child:IsA("Model") then
+            table.insert(blobmen, child)
+        end
+    end
+    return blobmen
+end
+
+local function deleteToy(toy)
+    if not toy then return end
+    local remote = ReplicatedStorage:FindFirstChild("MenuToys")
+    if remote then
+        remote = remote:FindFirstChild("DestroyToy")
+    end
+    if remote then
+        pcall(function()
+            remote:FireServer(toy)
+        end)
+    end
+end
+
+local function spawnBlobman()
+    local cframe = getPlayerCFrame()
+    if not cframe then return end
+    local spawnRemote = ReplicatedStorage:FindFirstChild("MenuToys")
+    if spawnRemote then
+        spawnRemote = spawnRemote:FindFirstChild("SpawnToyRemoteFunction")
+    end
+    if spawnRemote then
+        pcall(function()
+            spawnRemote:InvokeServer("CreatureBlobman", cframe, Vector3.new(0, 97.69000244140625, 0))
+        end)
+    end
+    local buyRemote = ReplicatedStorage:FindFirstChild("MenuToys")
+    if buyRemote then
+        buyRemote = buyRemote:FindFirstChild("BuyToyRemoteFunction")
+    end
+    if buyRemote then
+        pcall(function()
+            buyRemote:InvokeServer("CreatureBlobman")
+        end)
+    end
+end
+
+local function ensureSingleBlobman()
+    local blobmen = getBlobmen()
+    local count = #blobmen
+    if count == 0 then
+        spawnBlobman()
+        task.wait(0.5)
+        blobmen = getBlobmen()
+        count = #blobmen
+    end
+    if count > 1 then
+        for i = 2, count do
+            deleteToy(blobmen[i])
+        end
+        task.wait(0.2)
+    end
+    return getBlobmen()[1]
+end
 
 local function getNearestUnheldPlayer(blobmanModel, excludeLeft, excludeRight)
     local rootPart = blobmanModel:FindFirstChild("HumanoidRootPart")
@@ -94,25 +192,22 @@ local function manageBlobmanSeating()
         return hum.SeatPart.Parent
     end
 
-    if not toyFolder then return nil end
+    local blobman = ensureSingleBlobman()
+    if not blobman then return nil end
 
-    for _, blobman in ipairs(toyFolder:GetChildren()) do
-        if blobman.Name == "CreatureBlobman" then
-            local seat = blobman:FindFirstChild("VehicleSeat")
-            if seat and (not seat.Occupant or seat.Occupant == hum) then
-                local camera = Workspace.CurrentCamera
-                hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
-                task.wait(0.05)
-                camera.CFrame = CFrame.new(camera.CFrame.Position, seat.Position)
-                task.wait(0.05)
-                VirtualInputManager:SendKeyEvent(true, INTERACT_KEY, false, game)
-                task.wait(0.05)
-                VirtualInputManager:SendKeyEvent(false, INTERACT_KEY, false, game)
-                task.wait(0.3)
-                if hum.SeatPart and hum.SeatPart.Parent == blobman then
-                    return blobman
-                end
-            end
+    local seat = blobman:FindFirstChild("VehicleSeat")
+    if seat and (not seat.Occupant or seat.Occupant == hum) then
+        local camera = Workspace.CurrentCamera
+        hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
+        task.wait(0.05)
+        camera.CFrame = CFrame.new(camera.CFrame.Position, seat.Position)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(true, INTERACT_KEY, false, game)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(false, INTERACT_KEY, false, game)
+        task.wait(0.3)
+        if hum.SeatPart and hum.SeatPart.Parent == blobman then
+            return blobman
         end
     end
     return nil
