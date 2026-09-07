@@ -1,5 +1,5 @@
 local WindUI = undeitedhub.WindUI
-local AntiTab = undeitedhub.Window:Tab({ Title = "Anti Kick" })
+local AntiTab = undeitedhub.Window:Tab({ Title = "Antis" })
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
