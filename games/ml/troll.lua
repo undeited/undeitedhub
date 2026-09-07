@@ -56,6 +56,24 @@ local function resetVelocity(part)
     end)
 end
 
+local function isInBossArena(player)
+    if not player or not player.Character then return false end
+    local root = player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    local arena = workspace:FindFirstChild("Events")
+    if arena then
+        arena = arena:FindFirstChild("BossArena")
+        if arena then
+            local arenaPart = arena:FindFirstChild("Arena1")
+            if arenaPart and arenaPart:IsA("BasePart") then
+                local dist = (root.Position - arenaPart.Position).Magnitude
+                return dist <= 80
+            end
+        end
+    end
+    return false
+end
+
 local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
 
@@ -104,6 +122,9 @@ local function startKill()
                 local targets = {}
                 for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
                     if otherPlayer ~= localPlayer then
+                        if isInBossArena(otherPlayer) then
+                            continue
+                        end
                         local otherStrength = getStrength(otherPlayer)
                         if otherStrength and otherStrength < myStrength then
                             local targetChar = otherPlayer.Character
@@ -133,6 +154,9 @@ local function startKill()
                     local targetStrength = target.strength
 
                     while killEnabled and targetHum and targetHum.Health > 0 and targetRoot and targetRoot.Parent do
+                        if isInBossArena(targetPlayer) then
+                            break
+                        end
                         local currentTargetStrength = getStrength(targetPlayer)
                         if not currentTargetStrength or currentTargetStrength >= myStrength then
                             break
