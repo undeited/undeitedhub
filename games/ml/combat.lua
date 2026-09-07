@@ -12,6 +12,17 @@ local function getStrength(player)
     return nil
 end
 
+local function getRebirths(player)
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if leaderstats then
+        local rebirths = leaderstats:FindFirstChild("Rebirths")
+        if rebirths then
+            return rebirths.Value
+        end
+    end
+    return nil
+end
+
 local function getPunchTool(player)
     local char = player.Character
     if char then
@@ -58,18 +69,9 @@ end
 
 local function isInBossArena(player)
     if not player or not player.Character then return false end
-    local root = player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-    local arena = workspace:FindFirstChild("Events")
-    if arena then
-        arena = arena:FindFirstChild("BossArena")
-        if arena then
-            local arenaPart = arena:FindFirstChild("Arena1")
-            if arenaPart and arenaPart:IsA("BasePart") then
-                local dist = (root.Position - arenaPart.Position).Magnitude
-                return dist <= 80
-            end
-        end
+    local bossArena = workspace:FindFirstChild("Events") and workspace.Events:FindFirstChild("BossArena")
+    if bossArena then
+        return player.Character:IsDescendantOf(bossArena)
     end
     return false
 end
@@ -88,6 +90,7 @@ end
 
 local killEnabled = undeitedhub.Toggles.AutoKill or false
 local killTask = nil
+local lastRebirths = {}
 
 local function startKill()
     if killTask then return end
@@ -152,7 +155,8 @@ local function startKill()
                                             root = targetRoot,
                                             hum = targetHum,
                                             ply = otherPlayer,
-                                            strength = otherStrength
+                                            strength = otherStrength,
+                                            rebirths = getRebirths(otherPlayer)
                                         })
                                     end
                                 end
@@ -167,12 +171,20 @@ local function startKill()
                     local targetHum = target.hum
                     local targetPlayer = target.ply
                     local targetStrength = target.strength
+                    local targetRebirths = target.rebirths
+
+                    lastRebirths[targetPlayer] = targetRebirths
 
                     while killEnabled and targetHum and targetHum.Health > 0 and targetRoot and targetRoot.Parent do
                         if isInBossArena(targetPlayer) then
                             break
                         end
                         if hasSpawnProtection(targetPlayer) then
+                            break
+                        end
+                        local currentRebirths = getRebirths(targetPlayer)
+                        if currentRebirths and currentRebirths > lastRebirths[targetPlayer] then
+                            lastRebirths[targetPlayer] = currentRebirths
                             break
                         end
                         local currentTargetStrength = getStrength(targetPlayer)
@@ -221,6 +233,7 @@ local function stopKill()
         task.cancel(killTask)
         killTask = nil
     end
+    lastRebirths = {}
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
