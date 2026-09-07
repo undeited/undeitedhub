@@ -18,23 +18,32 @@ end
 local VisualTab = undeitedhub.Window:Tab({ Title = "Visual" })
 
 local espEnabled = undeitedhub.Toggles.espEnabled or false
+local espNamesEnabled = undeitedhub.Toggles.espNamesEnabled or false
 local highlightMap = {}
 local nameMap = {}
 local ESP_COLOR = Color3.fromRGB(255, 0, 0)
 
-local function ClearESP()
+local function ClearHighlights()
     for _, highlight in pairs(highlightMap) do
         if highlight and highlight.Parent then
             pcall(highlight.Destroy, highlight)
         end
     end
     highlightMap = {}
+end
+
+local function ClearNames()
     for _, billboard in pairs(nameMap) do
         if billboard and billboard.Parent then
             pcall(billboard.Destroy, billboard)
         end
     end
     nameMap = {}
+end
+
+local function ClearESP()
+    ClearHighlights()
+    ClearNames()
 end
 
 local function CreateNameTag(player, character)
@@ -48,7 +57,7 @@ local function CreateNameTag(player, character)
     local displayName = player.DisplayName or player.Name
 
     local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 200, 0, 40)
+    billboard.Size = UDim2.new(0, 150, 0, 25)
     billboard.Adornee = head
     billboard.StudsOffset = Vector3.new(0, 2.5, 0)
     billboard.AlwaysOnTop = true
@@ -59,8 +68,9 @@ local function CreateNameTag(player, character)
     label.BackgroundTransparency = 1
     label.Text = displayName
     label.TextColor3 = Color3.new(1, 1, 1)
-    label.TextScaled = true
-    label.Font = Enum.Font.GothamBold
+    label.TextScaled = false
+    label.TextSize = 16
+    label.Font = Enum.Font.GothamSemibold
     label.TextStrokeTransparency = 0.5
     label.TextStrokeColor3 = Color3.new(0, 0, 0)
 
@@ -70,7 +80,7 @@ local function CreateNameTag(player, character)
 end
 
 local function UpdateESP()
-    if not espEnabled or not _G.UNDEITEDHUB_WINDOW_VISIBLE then
+    if not espEnabled and not espNamesEnabled then
         ClearESP()
         return
     end
@@ -84,44 +94,62 @@ local function UpdateESP()
         if player ~= localPlayer and player.Character and player.Character.Parent then
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                local highlight = highlightMap[player]
-                if not highlight then
-                    highlight = Instance.new("Highlight")
-                    highlight.Name = "UndeitedSP"
-                    highlight.FillColor = ESP_COLOR
-                    highlight.FillTransparency = 0.5
-                    highlight.OutlineColor = ESP_COLOR
-                    highlight.OutlineTransparency = 0.2
-                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    highlight.Parent = player.Character
-                    highlightMap[player] = highlight
-                    CreateNameTag(player, player.Character)
+                if espEnabled then
+                    local highlight = highlightMap[player]
+                    if not highlight then
+                        highlight = Instance.new("Highlight")
+                        highlight.Name = "UndeitedSP"
+                        highlight.FillColor = ESP_COLOR
+                        highlight.FillTransparency = 0.5
+                        highlight.OutlineColor = ESP_COLOR
+                        highlight.OutlineTransparency = 0.2
+                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        highlight.Parent = player.Character
+                        highlightMap[player] = highlight
+                    end
+                    highlight.Adornee = player.Character
+                    highlight.Enabled = true
                 end
-                highlight.Adornee = player.Character
-                highlight.Enabled = true
-                seen[player] = true
 
-                local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
-                local billboard = nameMap[player]
-                if billboard and localRoot and targetRoot then
-                    local dist = (targetRoot.Position - localRoot.Position).Magnitude
-                    billboard.Enabled = dist >= 50
-                elseif billboard then
-                    billboard.Enabled = true
+                if espNamesEnabled then
+                    if not nameMap[player] then
+                        CreateNameTag(player, player.Character)
+                    end
+                    local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
+                    local billboard = nameMap[player]
+                    if billboard and localRoot and targetRoot then
+                        local dist = (targetRoot.Position - localRoot.Position).Magnitude
+                        billboard.Enabled = dist >= 50
+                    elseif billboard then
+                        billboard.Enabled = true
+                    end
                 end
+
+                seen[player] = true
             end
         end
     end
 
-    for player, highlight in pairs(highlightMap) do
-        if not seen[player] and highlight and highlight.Parent then
-            pcall(highlight.Destroy, highlight)
-            highlightMap[player] = nil
-            if nameMap[player] then
-                pcall(nameMap[player].Destroy, nameMap[player])
+    if espEnabled then
+        for player, highlight in pairs(highlightMap) do
+            if not seen[player] and highlight and highlight.Parent then
+                pcall(highlight.Destroy, highlight)
+                highlightMap[player] = nil
+            end
+        end
+    else
+        ClearHighlights()
+    end
+
+    if espNamesEnabled then
+        for player, billboard in pairs(nameMap) do
+            if not seen[player] and billboard and billboard.Parent then
+                pcall(billboard.Destroy, billboard)
                 nameMap[player] = nil
             end
         end
+    else
+        ClearNames()
     end
 end
 
@@ -138,15 +166,35 @@ VisualTab:Toggle({
             undeitedhub.Toggles.espEnabled = state
             if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             SafeNotify({
-                Title = "ESP",
+                Title = "ESP Highlight",
                 Content = espEnabled and "Enabled" or "Disabled",
                 Duration = 2,
             })
             if not espEnabled then
-                ClearESP()
-            else
-                UpdateESP()
+                ClearHighlights()
             end
+            RefreshESP()
+        end)
+    end
+})
+
+VisualTab:Toggle({
+    Title = "ESP Names",
+    Value = espNamesEnabled,
+    Callback = function(state)
+        pcall(function()
+            espNamesEnabled = state
+            undeitedhub.Toggles.espNamesEnabled = state
+            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+            SafeNotify({
+                Title = "ESP Names",
+                Content = espNamesEnabled and "Enabled" or "Disabled",
+                Duration = 2,
+            })
+            if not espNamesEnabled then
+                ClearNames()
+            end
+            RefreshESP()
         end)
     end
 })
@@ -169,11 +217,10 @@ end
 game.Players.PlayerAdded:Connect(ConnectPlayer)
 
 game.Players.PlayerRemoving:Connect(function(player)
-    local highlight = highlightMap[player]
-    if highlight and highlight.Parent then
-        pcall(highlight.Destroy, highlight)
+    if highlightMap[player] then
+        pcall(highlightMap[player].Destroy, highlightMap[player])
+        highlightMap[player] = nil
     end
-    highlightMap[player] = nil
     if nameMap[player] then
         pcall(nameMap[player].Destroy, nameMap[player])
         nameMap[player] = nil
@@ -191,7 +238,9 @@ undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
 local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
     espEnabled = false
+    espNamesEnabled = false
     undeitedhub.Toggles.espEnabled = false
+    undeitedhub.Toggles.espNamesEnabled = false
     ClearESP()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
