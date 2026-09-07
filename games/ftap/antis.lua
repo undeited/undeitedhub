@@ -24,11 +24,13 @@ local localPlayer = Players.LocalPlayer
 
 local antiKickEnabled = undeitedhub.Toggles.antiKick or false
 local antiBurnEnabled = undeitedhub.Toggles.antiBurn or false
-local antiExplosionEnabled = undeitedhub.Toggles.antiExplosion or false
+local antiGrabEnabled = undeitedhub.Toggles.antiGrab or false
+local antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
 
 local checkTask = nil
 local burnConnections = {}
-local explosionConnections = {}
+local grabConnection = nil
+local antiVoidLoop = nil
 
 local function getPlayerToysFolder()
     return Workspace:FindFirstChild(localPlayer.Name .. "SpawnedInToys")
@@ -199,34 +201,82 @@ local function setupAntiBurn(player)
     burnConnections[player] = connection
 end
 
-local function setupAntiExplosion(player)
+local function setupAntiGrab(player)
     if not player or player ~= localPlayer then return end
-    local character = player.Character
-    if not character then return end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-    local ragdolled = humanoid:FindFirstChild("Ragdolled")
-    if not ragdolled then return end
+    local isHeld = player:FindFirstChild("IsHeld")
+    if not isHeld then return end
 
-    if explosionConnections[player] then
-        explosionConnections[player]:Disconnect()
-        explosionConnections[player] = nil
+    if grabConnection then
+        grabConnection:Disconnect()
+        grabConnection = nil
     end
 
-    local connection = ragdolled.Changed:Connect(function()
-        if antiExplosionEnabled and ragdolled.Value then
-            pcall(function()
-                rootPart.Anchored = true
-                rootPart.Velocity = Vector3.new(0,0,0)
-                task.wait(0.1)
-                rootPart.Anchored = false
-            end)
+    grabConnection = isHeld.Changed:Connect(function()
+        if antiGrabEnabled and isHeld.Value then
+            local char = player.Character
+            if char then
+                local root = char:FindFirstChild("HumanoidRootPart")
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if root and hum then
+                    pcall(function()
+                        root.Anchored = true
+                        root.Velocity = Vector3.new(0,0,0)
+                        local struggle = ReplicatedStorage:FindFirstChild("CharacterEvents") and ReplicatedStorage.CharacterEvents:FindFirstChild("Struggle")
+                        if struggle then
+                            struggle:FireServer(player)
+                        end
+                        task.wait(0.1)
+                        root.Anchored = false
+                    end)
+                end
+            end
         end
     end)
+end
 
-    explosionConnections[player] = connection
+local function StartAntiVoid()
+    if antiVoidLoop then return end
+    antiVoidLoop = task.spawn(function()
+        local spawnLocation = Workspace:FindFirstChild("SpawnLocation")
+        local deathBarrierHeight = Workspace.FallenPartsDestroyHeight
+        if not deathBarrierHeight then
+            deathBarrierHeight = -500
+        end
+        local threshold = 50
+        local teleportOffset = Vector3.new(0, 3, 0)
+        local safePos = Vector3.new(0, 50, 0)
+        while antiVoidEnabled do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                local char = localPlayer.Character
+                if char then
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        local pos = root.Position
+                        if pos.Y <= deathBarrierHeight + threshold then
+                            if spawnLocation then
+                                pcall(function()
+                                    root.CFrame = spawnLocation.CFrame + teleportOffset
+                                end)
+                            else
+                                pcall(function()
+                                    root.CFrame = CFrame.new(safePos)
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+        antiVoidLoop = nil
+    end)
+end
+
+local function StopAntiVoid()
+    if antiVoidLoop then
+        task.cancel(antiVoidLoop)
+        antiVoidLoop = nil
+    end
 end
 
 local function ensureAnti()
@@ -236,8 +286,8 @@ local function ensureAnti()
     if antiBurnEnabled then
         pcall(setupAntiBurn, localPlayer)
     end
-    if antiExplosionEnabled then
-        pcall(setupAntiExplosion, localPlayer)
+    if antiGrabEnabled then
+        pcall(setupAntiGrab, localPlayer)
     end
 end
 
@@ -245,11 +295,16 @@ local function startAnti()
     if checkTask then return end
     antiKickEnabled = undeitedhub.Toggles.antiKick or false
     antiBurnEnabled = undeitedhub.Toggles.antiBurn or false
-    antiExplosionEnabled = undeitedhub.Toggles.antiExplosion or false
+    antiGrabEnabled = undeitedhub.Toggles.antiGrab or false
+    antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
+    if antiVoidEnabled then
+        StartAntiVoid()
+    end
+
     checkTask = task.spawn(function()
-        while antiKickEnabled or antiBurnEnabled or antiExplosionEnabled do
+        while antiKickEnabled or antiBurnEnabled or antiGrabEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 pcall(ensureAnti)
             end
@@ -262,10 +317,12 @@ end
 local function stopAnti()
     antiKickEnabled = false
     antiBurnEnabled = false
-    antiExplosionEnabled = false
+    antiGrabEnabled = false
+    antiVoidEnabled = false
     undeitedhub.Toggles.antiKick = false
     undeitedhub.Toggles.antiBurn = false
-    undeitedhub.Toggles.antiExplosion = false
+    undeitedhub.Toggles.antiGrab = false
+    undeitedhub.Toggles.antiVoidEnabled = false
     if checkTask then
         task.cancel(checkTask)
         checkTask = nil
@@ -274,12 +331,12 @@ local function stopAnti()
         pcall(conn.Disconnect, conn)
     end
     burnConnections = {}
-    for _, conn in pairs(explosionConnections) do
-        pcall(conn.Disconnect, conn)
+    if grabConnection then
+        pcall(grabConnection.Disconnect, grabConnection)
+        grabConnection = nil
     end
-    explosionConnections = {}
+    StopAntiVoid()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    SafeNotify({ Title = "Anti", Content = "All disabled", Duration = 2 })
 end
 
 AntiTab:Toggle({
@@ -307,18 +364,35 @@ AntiTab:Toggle({
 })
 
 AntiTab:Toggle({
-    Title = "Anti Explosion",
-    Value = antiExplosionEnabled,
+    Title = "Anti Grab",
+    Value = antiGrabEnabled,
     Callback = function(state)
-        antiExplosionEnabled = state
-        undeitedhub.Toggles.antiExplosion = state
+        antiGrabEnabled = state
+        undeitedhub.Toggles.antiGrab = state
         if state then startAnti() else stopAnti() end
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Anti Explosion", Content = state and "Enabled" or "Disabled", Duration = 2 })
+        SafeNotify({ Title = "Anti Grab", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
-if antiKickEnabled or antiBurnEnabled or antiExplosionEnabled then
+AntiTab:Toggle({
+    Title = "Anti Void",
+    Value = antiVoidEnabled,
+    Callback = function(state)
+        antiVoidEnabled = state
+        undeitedhub.Toggles.antiVoidEnabled = state
+        if state then
+            StartAntiVoid()
+            SafeNotify({ Title = "Anti Void", Content = "Enabled", Duration = 2 })
+        else
+            StopAntiVoid()
+            SafeNotify({ Title = "Anti Void", Content = "Disabled", Duration = 2 })
+        end
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+    end
+})
+
+if antiKickEnabled or antiBurnEnabled or antiGrabEnabled or antiVoidEnabled then
     startAnti()
 end
 
