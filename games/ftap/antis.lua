@@ -19,10 +19,16 @@ end
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
 
 local antiKickEnabled = undeitedhub.Toggles.antiKick or false
+local antiBurnEnabled = undeitedhub.Toggles.antiBurn or false
+local antiExplosionEnabled = undeitedhub.Toggles.antiExplosion or false
+
 local checkTask = nil
+local burnConnections = {}
+local explosionConnections = {}
 
 local function getPlayerToysFolder()
     return Workspace:FindFirstChild(localPlayer.Name .. "SpawnedInToys")
@@ -76,7 +82,6 @@ local function spawnShuriken()
     local spawnRemote = menuToys:FindFirstChild("SpawnToyRemoteFunction")
     if not spawnRemote then return false, "SpawnToyRemoteFunction not found" end
 
-    -- Use absolute position (world space) directly under the player
     local pos = rootPart.Position - Vector3.new(0, 0.5, 0)
     local cframe = CFrame.new(pos)
     local args = {
@@ -134,66 +139,191 @@ local function ensureShuriken()
     if not shuriken then
         local success, msg = spawnShuriken()
         if success then
-            SafeNotify({ Title = "Anti Kick", Content = "Shuriken spawned", Duration = 2 })
             task.wait(0.5)
             shuriken = getNinjaShuriken()
             if shuriken then
                 attachShuriken(shuriken)
-            else
-                SafeNotify({ Title = "Anti Kick", Content = "Spawned but not found in folder", Duration = 3 })
             end
-        else
-            SafeNotify({ Title = "Anti Kick", Content = "Spawn failed: " .. msg, Duration = 4 })
         end
     else
         if not isShurikenAttached(shuriken) then
-            local ok, msg = attachShuriken(shuriken)
-            if not ok then
-                SafeNotify({ Title = "Anti Kick", Content = "Attach failed: " .. msg, Duration = 3 })
-            end
+            attachShuriken(shuriken)
         end
     end
 end
 
-local function startAntiKick()
+local extinguishPart = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Hole") and Workspace.Map.Hole:FindFirstChild("PoisonBigHole") and Workspace.Map.Hole.PoisonBigHole:FindFirstChild("ExtinguishPart")
+
+local function setupAntiBurn(player)
+    if not player or player ~= localPlayer then return end
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    local firePart = rootPart:FindFirstChild("FirePlayerPart")
+    if not firePart then return end
+    local canBurn = firePart:FindFirstChild("CanBurn")
+    if not canBurn then return end
+
+    if burnConnections[player] then
+        burnConnections[player]:Disconnect()
+        burnConnections[player] = nil
+    end
+
+    local connection = canBurn.Changed:Connect(function()
+        if antiBurnEnabled and canBurn.Value and extinguishPart then
+            task.spawn(function()
+                while antiBurnEnabled and canBurn.Value do
+                    if firetouchinterest and type(firetouchinterest) == "function" then
+                        pcall(function()
+                            firetouchinterest(firePart, extinguishPart, 0)
+                            task.wait()
+                            firetouchinterest(firePart, extinguishPart, 1)
+                        end)
+                    else
+                        pcall(function()
+                            local origPos = extinguishPart.Position
+                            extinguishPart.CFrame = firePart.CFrame * CFrame.new(math.random(-1,1), math.random(-1,1), math.random(-1,1))
+                            task.wait(0.05)
+                            extinguishPart.Position = origPos
+                        end)
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end)
+
+    burnConnections[player] = connection
+end
+
+local function setupAntiExplosion(player)
+    if not player or player ~= localPlayer then return end
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    local ragdolled = humanoid:FindFirstChild("Ragdolled")
+    if not ragdolled then return end
+
+    if explosionConnections[player] then
+        explosionConnections[player]:Disconnect()
+        explosionConnections[player] = nil
+    end
+
+    local connection = ragdolled.Changed:Connect(function()
+        if antiExplosionEnabled and ragdolled.Value then
+            pcall(function()
+                rootPart.Anchored = true
+                rootPart.Velocity = Vector3.new(0,0,0)
+                task.wait(0.1)
+                rootPart.Anchored = false
+            end)
+        end
+    end)
+
+    explosionConnections[player] = connection
+end
+
+local function ensureAnti()
+    if antiKickEnabled then
+        pcall(ensureShuriken)
+    end
+    if antiBurnEnabled then
+        pcall(setupAntiBurn, localPlayer)
+    end
+    if antiExplosionEnabled then
+        pcall(setupAntiExplosion, localPlayer)
+    end
+end
+
+local function startAnti()
     if checkTask then return end
-    antiKickEnabled = true
-    undeitedhub.Toggles.antiKick = true
+    antiKickEnabled = undeitedhub.Toggles.antiKick or false
+    antiBurnEnabled = undeitedhub.Toggles.antiBurn or false
+    antiExplosionEnabled = undeitedhub.Toggles.antiExplosion or false
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    SafeNotify({ Title = "Anti Kick", Content = "Enabled", Duration = 2 })
 
     checkTask = task.spawn(function()
-        while antiKickEnabled do
-            pcall(ensureShuriken)
+        while antiKickEnabled or antiBurnEnabled or antiExplosionEnabled do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                pcall(ensureAnti)
+            end
             task.wait(1)
         end
         checkTask = nil
     end)
 end
 
-local function stopAntiKick()
+local function stopAnti()
     antiKickEnabled = false
+    antiBurnEnabled = false
+    antiExplosionEnabled = false
     undeitedhub.Toggles.antiKick = false
+    undeitedhub.Toggles.antiBurn = false
+    undeitedhub.Toggles.antiExplosion = false
     if checkTask then
         task.cancel(checkTask)
         checkTask = nil
     end
+    for _, conn in pairs(burnConnections) do
+        pcall(conn.Disconnect, conn)
+    end
+    burnConnections = {}
+    for _, conn in pairs(explosionConnections) do
+        pcall(conn.Disconnect, conn)
+    end
+    explosionConnections = {}
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    SafeNotify({ Title = "Anti Kick", Content = "Disabled", Duration = 2 })
+    SafeNotify({ Title = "Anti", Content = "All disabled", Duration = 2 })
 end
 
 AntiTab:Toggle({
     Title = "Anti Kick",
     Value = antiKickEnabled,
     Callback = function(state)
-        if state then startAntiKick() else stopAntiKick() end
+        antiKickEnabled = state
+        undeitedhub.Toggles.antiKick = state
+        if state then startAnti() else stopAnti() end
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        SafeNotify({ Title = "Anti Kick", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
-if antiKickEnabled then startAntiKick() end
+AntiTab:Toggle({
+    Title = "Anti Burn",
+    Value = antiBurnEnabled,
+    Callback = function(state)
+        antiBurnEnabled = state
+        undeitedhub.Toggles.antiBurn = state
+        if state then startAnti() else stopAnti() end
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        SafeNotify({ Title = "Anti Burn", Content = state and "Enabled" or "Disabled", Duration = 2 })
+    end
+})
+
+AntiTab:Toggle({
+    Title = "Anti Explosion",
+    Value = antiExplosionEnabled,
+    Callback = function(state)
+        antiExplosionEnabled = state
+        undeitedhub.Toggles.antiExplosion = state
+        if state then startAnti() else stopAnti() end
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        SafeNotify({ Title = "Anti Explosion", Content = state and "Enabled" or "Disabled", Duration = 2 })
+    end
+})
+
+if antiKickEnabled or antiBurnEnabled or antiExplosionEnabled then
+    startAnti()
+end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
-    if antiKickEnabled then stopAntiKick() end
+    stopAnti()
     oldDisable()
 end
