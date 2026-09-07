@@ -62,9 +62,7 @@ end
 
 local function getPlayerCFrame()
     local char = getPlayerCharacter()
-    if char then
-        return char.HumanoidRootPart.CFrame
-    end
+    if char then return char.HumanoidRootPart.CFrame end
     return nil
 end
 
@@ -91,9 +89,7 @@ end
 local function setNetworkOwner(part)
     if not part then return end
     local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
-    if remote then
-        remote = remote:FindFirstChild("SetNetworkOwner")
-    end
+    if remote then remote = remote:FindFirstChild("SetNetworkOwner") end
     if not remote then return end
     local char = getPlayerCharacter()
     if not char then return end
@@ -104,9 +100,7 @@ end
 
 local function snowshipOnce(part)
     if not part then return false end
-    if hasOwnership(part) then
-        return true
-    end
+    if hasOwnership(part) then return true end
     if distanceTo(part.Position) <= 30 then
         setNetworkOwner(part)
     end
@@ -123,9 +117,7 @@ end
 local function deleteToy(toy)
     if not toy then return end
     local remote = ReplicatedStorage:FindFirstChild("MenuToys")
-    if remote then
-        remote = remote:FindFirstChild("DestroyToy")
-    end
+    if remote then remote = remote:FindFirstChild("DestroyToy") end
     if remote then
         pcall(function()
             remote:FireServer(toy)
@@ -136,9 +128,7 @@ end
 local function spawnToy(args)
     if not args then return end
     local remote = ReplicatedStorage:FindFirstChild("MenuToys")
-    if remote then
-        remote = remote:FindFirstChild("SpawnToyRemoteFunction")
-    end
+    if remote then remote = remote:FindFirstChild("SpawnToyRemoteFunction") end
     if remote then
         pcall(function()
             remote:InvokeServer(unpack(args))
@@ -149,9 +139,7 @@ end
 local function buyToy(toyName)
     if not toyName then return end
     local remote = ReplicatedStorage:FindFirstChild("MenuToys")
-    if remote then
-        remote = remote:FindFirstChild("BuyToyRemoteFunction")
-    end
+    if remote then remote = remote:FindFirstChild("BuyToyRemoteFunction") end
     if remote then
         pcall(function()
             remote:InvokeServer(toyName)
@@ -164,7 +152,7 @@ local function getKunaiStatus(kunai)
     local sticky = getStickyPart(kunai)
     if not sticky then return "Useless" end
     local weld = sticky:FindFirstChild("StickyWeld")
-    if weld and weld:IsA("Weld") then
+    if weld and weld:IsA("WeldConstraint") then
         local part1 = weld.Part1
         if part1 and part1:IsDescendantOf(getPlayerCharacter()) then
             return "Using"
@@ -184,9 +172,7 @@ local function attachKunai(kunai)
     if not attachPart then return end
     local relCFrame = CFrame.new(0, -0.5, 0) * CFrame.Angles(math.rad(0), math.rad(0), math.rad(90))
     local remote = ReplicatedStorage:FindFirstChild("PlayerEvents")
-    if remote then
-        remote = remote:FindFirstChild("StickyPartEvent")
-    end
+    if remote then remote = remote:FindFirstChild("StickyPartEvent") end
     if remote then
         pcall(function()
             remote:FireServer(sticky, attachPart, relCFrame)
@@ -225,7 +211,6 @@ local function ensureKunai()
         deleteToy(kunai)
         return
     end
-
     if status == "No use!" then
         if distanceTo(sticky.Position) < 30 then
             if snowshipOnce(sticky) then
