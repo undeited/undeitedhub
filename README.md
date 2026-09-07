@@ -10,7 +10,6 @@ Just a basic script hub with a bunch of upcoming supported games. I made this sc
 - [Free Boombox/Radio 2](https://www.roblox.com/games/102230725/Free-Boombox-Radio-2)
 - [Fling Things And People](https://www.roblox.com/games/6961824067/Fling-Things-and-People)
 - [Muscle Legends](https://www.roblox.com/games/3623096087/Muscle-Legends)
-- [Death Penalty](https://www.roblox.com/games/15654981113/Death-Penalty)
 
 ### Loadstring
 
