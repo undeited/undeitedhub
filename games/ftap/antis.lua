@@ -219,11 +219,13 @@ local function ensureKunai()
     if not kunai then return end
     local sticky = getStickyPart(kunai)
     if not sticky then return end
+
     local status = getKunaiStatus(kunai)
     if status == "Useless" then
         deleteToy(kunai)
         return
     end
+
     if status == "No use!" then
         if distanceTo(sticky.Position) < 30 then
             if snowshipOnce(sticky) then
@@ -253,16 +255,11 @@ local function handleBurn()
     if not firePart then return end
     local canBurn = firePart:FindFirstChild("CanBurn")
     if not canBurn or not canBurn.Value then return end
+
     local extinguish = Workspace:FindFirstChild("Map")
-    if extinguish then
-        extinguish = extinguish:FindFirstChild("Hole")
-    end
-    if extinguish then
-        extinguish = extinguish:FindFirstChild("PoisonBigHole")
-    end
-    if extinguish then
-        extinguish = extinguish:FindFirstChild("ExtinguishPart")
-    end
+    if extinguish then extinguish = extinguish:FindFirstChild("Hole") end
+    if extinguish then extinguish = extinguish:FindFirstChild("PoisonBigHole") end
+    if extinguish then extinguish = extinguish:FindFirstChild("ExtinguishPart") end
     if not extinguish then return end
 
     if firetouchinterest and type(firetouchinterest) == "function" then
@@ -290,16 +287,13 @@ local function handleGrab()
     local root = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
+
     pcall(function()
         root.Anchored = true
         root.Velocity = Vector3.new(0,0,0)
         local struggle = ReplicatedStorage:FindFirstChild("CharacterEvents")
-        if struggle then
-            struggle = struggle:FindFirstChild("Struggle")
-        end
-        if struggle then
-            struggle:FireServer(localPlayer)
-        end
+        if struggle then struggle = struggle:FindFirstChild("Struggle") end
+        if struggle then struggle:FireServer(localPlayer) end
         task.wait(0.1)
         root.Anchored = false
     end)
