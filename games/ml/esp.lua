@@ -57,9 +57,9 @@ local function CreateNameTag(player, character)
     local displayName = player.DisplayName or player.Name
 
     local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 150, 0, 25)
+    billboard.Size = UDim2.new(0, 100, 0, 18)
     billboard.Adornee = head
-    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
     billboard.AlwaysOnTop = true
     billboard.MaxDistance = 1000
 
@@ -69,9 +69,9 @@ local function CreateNameTag(player, character)
     label.Text = displayName
     label.TextColor3 = Color3.new(1, 1, 1)
     label.TextScaled = false
-    label.TextSize = 16
+    label.TextSize = 13
     label.Font = Enum.Font.GothamSemibold
-    label.TextStrokeTransparency = 0.5
+    label.TextStrokeTransparency = 0.4
     label.TextStrokeColor3 = Color3.new(0, 0, 0)
 
     label.Parent = billboard
