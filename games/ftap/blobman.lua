@@ -22,7 +22,9 @@ local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local grabEnabled = undeitedhub.Toggles.autoGrabPlayers or false
+local autoSitEnabled = undeitedhub.Toggles.autoSit or false
 local grabTask = nil
+local autoSitTask = nil
 
 local INTERACT_KEY = Enum.KeyCode.F
 local PROXIMITY_RANGE = 20
@@ -215,6 +217,44 @@ local function stopGrabLoop()
     SafeNotify({ Title = "Auto Grab Nearest", Content = "Disabled", Duration = 2 })
 end
 
+local function startAutoSit()
+    if autoSitTask then return end
+    autoSitEnabled = true
+    undeitedhub.Toggles.autoSit = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+    SafeNotify({ Title = "Auto Sit", Content = "Enabled", Duration = 2 })
+
+    autoSitTask = task.spawn(function()
+        while autoSitEnabled do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                local char = LocalPlayer.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local seated = hum.SeatPart and hum.SeatPart.Parent and hum.SeatPart.Parent.Name == "CreatureBlobman"
+                        if not seated then
+                            pcall(manageBlobmanSeating)
+                        end
+                    end
+                end
+            end
+            task.wait(1)
+        end
+        autoSitTask = nil
+    end)
+end
+
+local function stopAutoSit()
+    autoSitEnabled = false
+    undeitedhub.Toggles.autoSit = false
+    if autoSitTask then
+        task.cancel(autoSitTask)
+        autoSitTask = nil
+    end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+    SafeNotify({ Title = "Auto Sit", Content = "Disabled", Duration = 2 })
+end
+
 BlobmanTab:Toggle({
     Title = "Auto Grab Nearest",
     Value = grabEnabled,
@@ -223,8 +263,20 @@ BlobmanTab:Toggle({
     end
 })
 
+BlobmanTab:Toggle({
+    Title = "Auto Sit",
+    Value = autoSitEnabled,
+    Callback = function(state)
+        if state then startAutoSit() else stopAutoSit() end
+    end
+})
+
+if grabEnabled then startGrabLoop() end
+if autoSitEnabled then startAutoSit() end
+
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if grabEnabled then stopGrabLoop() end
+    if autoSitEnabled then stopAutoSit() end
     oldDisable()
 end
