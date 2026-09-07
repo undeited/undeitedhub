@@ -94,6 +94,15 @@ local function getBossSpawnTimer()
     local desc = content:FindFirstChild("Description")
     if not desc or not desc:IsA("TextLabel") then return nil end
     local text = desc.Text or ""
+    local minutes = 0
+    local seconds = 0
+    local m = text:match("(%d+)%s*m")
+    if m then minutes = tonumber(m) or 0 end
+    local s = text:match("(%d+)%s*s")
+    if s then seconds = tonumber(s) or 0 end
+    if minutes > 0 or seconds > 0 then
+        return minutes * 60 + seconds
+    end
     local num = text:match("%d+")
     if num then
         return tonumber(num)
@@ -155,7 +164,7 @@ local function startBossFarm()
                     local timer = getBossSpawnTimer()
                     if timer and timer > 0 then
                         SafeNotify({ Title = "Boss", Content = "Waiting " .. timer .. "s for boss spawn", Duration = 2 })
-                        task.wait(math.min(timer, 60))
+                        task.wait(math.min(timer, 120))
                     else
                         task.wait(0.5)
                     end
