@@ -181,15 +181,26 @@ local function playGrabAnimation(blobman, side)
     end)
 end
 
-local function manageBlobmanSeating()
+local function getSeatedBlobman()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return nil end
+    if hum.SeatPart and hum.SeatPart.Name == "VehicleSeat" and hum.SeatPart.Parent and hum.SeatPart.Parent.Name == "CreatureBlobman" then
+        return hum.SeatPart.Parent
+    end
+    return nil
+end
+
+local function sitOnBlobman()
     local char = LocalPlayer.Character
     if not char then return nil end
     local hum = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hum or not hrp or hum.Health <= 0 then return nil end
 
-    if hum.SeatPart and hum.SeatPart.Name == "VehicleSeat" and hum.SeatPart.Parent and hum.SeatPart.Parent.Name == "CreatureBlobman" then
-        return hum.SeatPart.Parent
+    if getSeatedBlobman() then
+        return getSeatedBlobman()
     end
 
     local blobman = ensureSingleBlobman()
@@ -223,7 +234,7 @@ local function startGrabLoop()
     grabTask = task.spawn(function()
         while grabEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local blobman = manageBlobmanSeating()
+                local blobman = getSeatedBlobman()
                 if blobman then
                     local leftDetector = blobman:FindFirstChild("LeftDetector")
                     local rightDetector = blobman:FindFirstChild("RightDetector")
@@ -328,7 +339,7 @@ local function startAutoSit()
                     if hum and hum.Health > 0 then
                         local seated = hum.SeatPart and hum.SeatPart.Parent and hum.SeatPart.Parent.Name == "CreatureBlobman"
                         if not seated then
-                            pcall(manageBlobmanSeating)
+                            pcall(sitOnBlobman)
                         end
                     end
                 end
