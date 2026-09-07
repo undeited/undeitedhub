@@ -71,8 +71,7 @@ local function spawnShuriken()
     local rootPart = char:FindFirstChild("HumanoidRootPart")
     if not rootPart then return false end
 
-    local pos = rootPart.Position - Vector3.new(0, 0.5, 0)
-    local cframe = CFrame.new(pos)
+    local cframe = rootPart.CFrame * CFrame.new(0, -0.5, 0)
     local args = {
         [1] = "NinjaShuriken",
         [2] = cframe,
@@ -125,7 +124,7 @@ local function ensureShuriken()
     local shuriken = getNinjaShuriken()
     if not shuriken then
         spawnShuriken()
-        task.wait(0.2)
+        task.wait(0.3)
         shuriken = getNinjaShuriken()
     end
     if shuriken then
