@@ -32,15 +32,111 @@ local burnConnections = {}
 local grabConnection = nil
 local antiVoidLoop = nil
 
-local function getPlayerToysFolder()
-    return Workspace:FindFirstChild(localPlayer.Name .. "SpawnedInToys")
+local KunaiFound = nil
+local u17 = nil
+
+local function GetPlayerCharacter()
+    if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") and localPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        return localPlayer.Character
+    end
+    return nil
 end
 
-local function getNinjaShuriken()
+local function GetPlayerCFrame()
+    local char = GetPlayerCharacter()
+    if char then
+        return char.HumanoidRootPart.CFrame
+    end
+    return nil
+end
+
+local function Getdistancefromcharacter(pos)
+    return localPlayer:DistanceFromCharacter(pos)
+end
+
+local function lookAt(from, to)
+    local unit = (to - from).Unit
+    local right = unit:Cross(Vector3.new(0, 1, 0))
+    local up = right:Cross(unit)
+    return CFrame.fromMatrix(from, right, up)
+end
+
+local function CheckNetworkOwnerShipOnPart(part)
+    if part and part:FindFirstChild("PartOwner") and part.PartOwner.Value == localPlayer.Name then
+        return true
+    end
+    return false
+end
+
+local function SNOWshipOnce(part)
+    if not part then return false end
+    if CheckNetworkOwnerShipOnPart(part) then
+        return true
+    end
+    local dist = Getdistancefromcharacter(part.Position)
+    if dist <= 30 then
+        local setNetworkOwner = ReplicatedStorage:FindFirstChild("GrabEvents") and ReplicatedStorage.GrabEvents:FindFirstChild("SetNetworkOwner")
+        if setNetworkOwner then
+            pcall(function()
+                setNetworkOwner:FireServer(part, lookAt(GetPlayerCharacter().HumanoidRootPart.Position, part.Position))
+            end)
+        end
+    end
+    return false
+end
+
+local function SNOWship(part)
+    if not part then return end
+    local dist = Getdistancefromcharacter(part.Position)
+    if dist <= 30 then
+        local setNetworkOwner = ReplicatedStorage:FindFirstChild("GrabEvents") and ReplicatedStorage.GrabEvents:FindFirstChild("SetNetworkOwner")
+        if setNetworkOwner then
+            pcall(function()
+                setNetworkOwner:FireServer(part, lookAt(GetPlayerCharacter().HumanoidRootPart.Position, part.Position))
+            end)
+        end
+    end
+end
+
+local function getPlayerToysFolder()
+    if not u17 then
+        u17 = Workspace:FindFirstChild(localPlayer.Name .. "SpawnedInToys")
+    end
+    return u17
+end
+
+local function DeleteToyRE(toy)
+    local deleteRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("DestroyToy")
+    if deleteRemote then
+        pcall(function()
+            deleteRemote:FireServer(toy)
+        end)
+    end
+end
+
+local function SpawnToy(args)
+    local spawnRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("SpawnToyRemoteFunction")
+    if spawnRemote then
+        pcall(function()
+            spawnRemote:InvokeServer(unpack(args))
+        end)
+    end
+end
+
+local function BuyToy(toyName)
+    local buyRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("BuyToyRemoteFunction")
+    if buyRemote then
+        pcall(function()
+            buyRemote:InvokeServer(toyName)
+        end)
+    end
+end
+
+local function getNinjaKunai()
     local folder = getPlayerToysFolder()
     if folder then
         for _, child in ipairs(folder:GetChildren()) do
-            if child.Name == "NinjaShuriken" and child:IsA("Model") then
+            if child.Name == "NinjaKunai" and child:IsA("Model") then
                 return child
             end
         end
@@ -48,9 +144,9 @@ local function getNinjaShuriken()
     return nil
 end
 
-local function getStickyPart(shuriken)
-    if shuriken then
-        for _, part in ipairs(shuriken:GetDescendants()) do
+local function getStickyPart(kunai)
+    if kunai then
+        for _, part in ipairs(kunai:GetDescendants()) do
             if part.Name == "StickyPart" and part:IsA("BasePart") then
                 return part
             end
@@ -59,97 +155,92 @@ local function getStickyPart(shuriken)
     return nil
 end
 
-local function isShurikenAttached(shuriken)
-    if not shuriken then return false end
-    local sticky = getStickyPart(shuriken)
-    if not sticky then return false end
-    for _, weld in ipairs(sticky:GetChildren()) do
-        if weld:IsA("Weld") or weld:IsA("WeldConstraint") then
-            if weld.Part1 and weld.Part1:IsDescendantOf(localPlayer.Character) then
-                return true
-            end
+local function CheckIfKunaiIsOnPlayer(kunai)
+    if not kunai then return "Useless" end
+    local sticky = getStickyPart(kunai)
+    if not sticky then return "Useless" end
+    local weld = sticky:FindFirstChild("StickyWeld")
+    if weld and weld:IsA("Weld") then
+        local part1 = weld.Part1
+        if part1 and part1:IsDescendantOf(GetPlayerCharacter()) then
+            return "Using"
         end
+        return "Used"
     end
-    return false
+    return "No use!"
 end
 
-local function spawnShuriken()
-    local char = localPlayer.Character
-    if not char then return false, "No character" end
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return false, "No root part" end
-
-    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-    if not menuToys then return false, "MenuToys not found" end
-    local spawnRemote = menuToys:FindFirstChild("SpawnToyRemoteFunction")
-    if not spawnRemote then return false, "SpawnToyRemoteFunction not found" end
-
-    local pos = rootPart.Position - Vector3.new(0, 0.5, 0)
-    local cframe = CFrame.new(pos)
-    local args = {
-        [1] = "NinjaShuriken",
-        [2] = cframe,
-        [3] = Vector3.new(0, 0, 0)
-    }
-
-    local success, result = pcall(function()
-        return spawnRemote:InvokeServer(unpack(args))
-    end)
-
-    if success then
-        return true, "Spawned (result: " .. tostring(result) .. ")"
-    else
-        return false, "Invoke error: " .. tostring(result)
-    end
-end
-
-local function attachShuriken(shuriken)
-    if not shuriken then return false, "No shuriken" end
-    local sticky = getStickyPart(shuriken)
-    if not sticky then return false, "No StickyPart" end
-    local char = localPlayer.Character
-    if not char then return false, "No character" end
-    local attachPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChildWhichIsA("BasePart")
-    if not attachPart then return false, "No attach part" end
-
-    local playerEvents = ReplicatedStorage:FindFirstChild("PlayerEvents")
-    if not playerEvents then return false, "PlayerEvents not found" end
-    local stickyEvent = playerEvents:FindFirstChild("StickyPartEvent")
-    if not stickyEvent then return false, "StickyPartEvent not found" end
-
-    local relCFrame = CFrame.new(0, -0.5, 0)
+local function attachKunai(kunai)
+    if not kunai then return end
+    local sticky = getStickyPart(kunai)
+    if not sticky then return end
+    local char = GetPlayerCharacter()
+    if not char then return end
+    local attachPart = char:FindFirstChild("Left Leg") or char:FindFirstChild("HumanoidRootPart")
+    if not attachPart then return end
+    local relCFrame = CFrame.new(0, -0.5, 0) * CFrame.Angles(math.rad(0), math.rad(0), math.rad(90))
     local args = {
         [1] = sticky,
         [2] = attachPart,
         [3] = relCFrame
     }
-    pcall(function()
-        stickyEvent:FireServer(unpack(args))
-    end)
-    return true, "Attach fired"
+    local stickyEvent = ReplicatedStorage:FindFirstChild("PlayerEvents") and ReplicatedStorage.PlayerEvents:FindFirstChild("StickyPartEvent")
+    if stickyEvent then
+        pcall(function()
+            stickyEvent:FireServer(unpack(args))
+        end)
+    end
 end
 
-local function ensureShuriken()
+local function ensureKunai()
     if not antiKickEnabled then return end
     if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
-    local char = localPlayer.Character
+    local char = GetPlayerCharacter()
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return end
 
-    local shuriken = getNinjaShuriken()
-    if not shuriken then
-        local success, msg = spawnShuriken()
-        if success then
+    local kunai = getNinjaKunai()
+    if not kunai then
+        local cframe = GetPlayerCFrame()
+        if cframe then
+            local args = {
+                "NinjaKunai",
+                CFrame.new(cframe.Position.X, cframe.Position.Y, cframe.Position.Z, -0.133750245, -0.471861839, 0.871468484, -3.7252903e-9, 0.879369617, 0.476139903, -0.991015136, 0.0636838302, -0.117615893),
+                Vector3.new(0, 97.69000244140625, 0)
+            }
+            SpawnToy(args)
+            BuyToy("NinjaKunai")
             task.wait(0.5)
-            shuriken = getNinjaShuriken()
-            if shuriken then
-                attachShuriken(shuriken)
-            end
+            kunai = getNinjaKunai()
         end
-    else
-        if not isShurikenAttached(shuriken) then
-            attachShuriken(shuriken)
+    end
+
+    if kunai then
+        local sticky = getStickyPart(kunai)
+        if sticky then
+            local status = CheckIfKunaiIsOnPlayer(kunai)
+            if status == "Useless" then
+                DeleteToyRE(kunai)
+                return
+            end
+            if status == "No use!" then
+                if Getdistancefromcharacter(sticky.Position) < 30 then
+                    if SNOWshipOnce(sticky) then
+                        attachKunai(kunai)
+                    end
+                else
+                    DeleteToyRE(kunai)
+                end
+            elseif status == "Used" then
+                if Getdistancefromcharacter(sticky.Position) >= 30 then
+                    DeleteToyRE(kunai)
+                else
+                    SNOWship(sticky)
+                end
+            elseif status == "Using" then
+                SNOWship(sticky)
+            end
         end
     end
 end
@@ -281,7 +372,7 @@ end
 
 local function ensureAnti()
     if antiKickEnabled then
-        pcall(ensureShuriken)
+        pcall(ensureKunai)
     end
     if antiBurnEnabled then
         pcall(setupAntiBurn, localPlayer)
