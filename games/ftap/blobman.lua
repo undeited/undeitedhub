@@ -569,14 +569,18 @@ local function refreshDropdowns()
         bringDropdown:Refresh(names, true)
         if not table.find(names, selectedBringPlayer) then
             selectedBringPlayer = names[1] or ""
-            bringDropdown:Set(selectedBringPlayer)
+            pcall(function()
+                bringDropdown:Set(selectedBringPlayer)
+            end)
         end
     end
     if kickDropdown then
         kickDropdown:Refresh(names, true)
         if not table.find(names, selectedKickPlayer) then
             selectedKickPlayer = names[1] or ""
-            kickDropdown:Set(selectedKickPlayer)
+            pcall(function()
+                kickDropdown:Set(selectedKickPlayer)
+            end)
         end
     end
 end
