@@ -34,7 +34,7 @@ local PROXIMITY_RANGE = 20
 local CHECK_DELAY = 0.5
 local KICK_INTERVAL = 0.3
 local KICK_STRENGTH = 1000
-local OWNERSHIP_TIMEOUT = 1.0
+local OWNERSHIP_TIMEOUT = 0.5
 
 local leftHeldTarget = nil
 local rightHeldTarget = nil
@@ -52,17 +52,8 @@ local function isPlayerValid(player)
     return hum and hum.Health > 0
 end
 
+-- TEMPORARILY DISABLED PLOT CHECK
 local function isPlayerInPlot(player)
-    if not player or not player.Character then return false end
-    local root = player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-    local plots = Workspace:FindFirstChild("Plots")
-    if not plots then return false end
-    for _, plot in ipairs(plots:GetChildren()) do
-        if plot:IsA("Model") and root:IsDescendantOf(plot) then
-            return true
-        end
-    end
     return false
 end
 
@@ -172,8 +163,6 @@ local function setNetworkOwner(part)
                 remote:FireServer(part, CFrame.lookAt(root.Position, part.Position))
             end)
         end
-    else
-        SafeNotify({ Title = "Error", Content = "SetNetworkOwner remote missing", Duration = 2 })
     end
 end
 
@@ -322,10 +311,7 @@ end
 
 local function grabPlayer(blobman, target, hand)
     if not blobman or not target then return false end
-    if isPlayerInPlot(target) then
-        SafeNotify({ Title = "Grab", Content = "Target is in a plot", Duration = 2 })
-        return false
-    end
+    if isPlayerInPlot(target) then return false end
 
     local leftDetector = blobman:FindFirstChild("LeftDetector")
     local rightDetector = blobman:FindFirstChild("RightDetector")
@@ -333,11 +319,6 @@ local function grabPlayer(blobman, target, hand)
     local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
     local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
     local creatureGrab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
-
-    if not ownerScript or not creatureGrab then
-        SafeNotify({ Title = "Grab", Content = "CreatureGrab remote missing", Duration = 2 })
-        return false
-    end
 
     local detector, weld
     if hand == "left" then
@@ -348,8 +329,8 @@ local function grabPlayer(blobman, target, hand)
         weld = rightWeld
     end
 
-    if not detector or not weld then
-        SafeNotify({ Title = "Grab", Content = "Weld or detector missing for " .. hand, Duration = 2 })
+    if not detector or not weld or not creatureGrab then
+        SafeNotify({ Title = "Grab", Content = "Missing blobman components", Duration = 2 })
         return false
     end
 
@@ -357,9 +338,11 @@ local function grabPlayer(blobman, target, hand)
     local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
     local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
     if not targetRoot or not targetHum or targetHum.Health <= 0 then
+        SafeNotify({ Title = "Grab", Content = "Target invalid or dead", Duration = 2 })
         return false
     end
 
+    -- Attempt ownership
     local owned = false
     for _ = 1, 3 do
         if snowshipOnce(targetRoot) then
@@ -369,16 +352,14 @@ local function grabPlayer(blobman, target, hand)
         task.wait(0.1)
     end
     if not owned then
-        SafeNotify({ Title = "Grab", Content = "Failed to steal ownership of target", Duration = 2 })
+        SafeNotify({ Title = "Grab", Content = "Ownership failed (timeout)", Duration = 2 })
         return false
     end
 
     targetRoot.CFrame = detector.CFrame
     targetRoot.Velocity = Vector3.new(0,0,0)
     task.wait(0.08)
-    pcall(function()
-        creatureGrab:FireServer(target, targetRoot, weld)
-    end)
+    creatureGrab:FireServer(target, targetRoot, weld)
     task.wait(0.15)
 
     if hand == "left" then
@@ -507,6 +488,7 @@ local function bringSelectedPlayer()
 
     local blobman = getSeatedBlobman()
     if not blobman then
+        SafeNotify({ Title = "Bring", Content = "Not on blobman, trying to sit..." })
         blobman = sitOnBlobman()
         if not blobman then
             SafeNotify({ Title = "Bring", Content = "Failed to sit on blobman", Duration = 2 })
@@ -520,6 +502,7 @@ local function bringSelectedPlayer()
     clearInvalidHeldTargets()
 
     if leftHeldTarget and rightHeldTarget then
+        SafeNotify({ Title = "Bring", Content = "Both hands full, dropping left..." })
         dropHeldTarget(blobman, "left")
         clearInvalidHeldTargets()
     end
@@ -530,13 +513,14 @@ local function bringSelectedPlayer()
     elseif not rightHeldTarget then
         hand = "right"
     else
-        SafeNotify({ Title = "Bring", Content = "Both hands are full and couldn't free one", Duration = 2 })
+        SafeNotify({ Title = "Bring", Content = "Both hands are still full", Duration = 2 })
         if grabState then startGrabLoop() end
         return
     end
 
-    local ok, result = pcall(grabPlayer, blobman, target, hand)
-    if ok and result then
+    SafeNotify({ Title = "Bring", Content = "Grabbing " .. target.Name .. " with " .. hand .. " hand..." })
+    local success = pcall(grabPlayer, blobman, target, hand)
+    if success then
         SafeNotify({ Title = "Bring", Content = "Brought " .. target.Name, Duration = 2 })
     else
         SafeNotify({ Title = "Bring", Content = "Failed to bring " .. target.Name, Duration = 2 })
@@ -584,8 +568,7 @@ local function performKick(target)
     local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
     if not targetRoot or not targetHum or targetHum.Health <= 0 then return false end
 
-    local ok, grabbed = pcall(grabPlayer, blobman, target, hand)
-    if not ok or not grabbed then
+    if not pcall(grabPlayer, blobman, target, hand) then
         return false
     end
 
