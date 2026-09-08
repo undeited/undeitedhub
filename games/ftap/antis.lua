@@ -25,10 +25,8 @@ local antiKickEnabled = undeitedhub.Toggles.antiKick or false
 local antiBurnEnabled = undeitedhub.Toggles.antiBurn or false
 local antiGrabEnabled = undeitedhub.Toggles.antiGrab or false
 local antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
-
 local antiTask = nil
 
--- Helper functions
 local function getToysFolder()
     return Workspace:FindFirstChild(localPlayer.Name .. "SpawnedInToys")
 end
@@ -204,6 +202,7 @@ local function ensureKunai()
     end
 
     if not kunai then return end
+
     local sticky = getStickyPart(kunai)
     if not sticky then return end
 
