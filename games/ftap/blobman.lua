@@ -38,18 +38,17 @@ local KICK_STRENGTH = 1000
 local leftHeldTarget = nil
 local rightHeldTarget = nil
 local toyFolder = nil
-
 local selectedBringPlayer = nil
 local selectedKickPlayer = nil
 local bringDropdown = nil
 local kickDropdown = nil
 
+-- ===== Helpers from reference script =====
 local function isPlayerValid(player)
     if not player then return false end
     if not player.Character then return false end
     local hum = player.Character:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    return true
+    return hum and hum.Health > 0
 end
 
 local function clearInvalidHeldTargets()
@@ -61,33 +60,6 @@ local function clearInvalidHeldTargets()
     end
 end
 
-local function setNetworkOwner(part)
-    if not part then return end
-    local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
-    if remote then
-        remote = remote:FindFirstChild("SetNetworkOwner")
-    end
-    if remote then
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if root then
-            pcall(function()
-                remote:FireServer(part, CFrame.lookAt(root.Position, part.Position))
-            end)
-        end
-    end
-end
-
-local function updateToyFolder()
-    toyFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-end
-updateToyFolder()
-Workspace.DescendantAdded:Connect(function(child)
-    if child.Name == LocalPlayer.Name .. "SpawnedInToys" then
-        toyFolder = child
-    end
-end)
-
 local function getPlayerCharacter()
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
         return LocalPlayer.Character
@@ -97,9 +69,7 @@ end
 
 local function getPlayerCFrame()
     local char = getPlayerCharacter()
-    if char then
-        return char.HumanoidRootPart.CFrame
-    end
+    if char then return char.HumanoidRootPart.CFrame end
     return nil
 end
 
@@ -173,43 +143,41 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
-local function getNearestUnheldPlayer(blobmanModel, excludeLeft, excludeRight)
-    local rootPart = blobmanModel:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return nil end
-
-    local pivotPoint = rootPart.Position
-    local best = nil
-    local bestDist = math.huge
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        if not isPlayerValid(player) then continue end
-        local char = player.Character
-        local targetRoot = char:FindFirstChild("HumanoidRootPart")
-        if char == excludeLeft or char == excludeRight then continue end
-        local dist = (pivotPoint - targetRoot.Position).Magnitude
-        if dist < PROXIMITY_RANGE and dist < bestDist then
-            best = char
-            bestDist = dist
+-- ===== Network ownership (FE) =====
+local function setNetworkOwner(part)
+    if not part then return end
+    local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
+    if remote then
+        remote = remote:FindFirstChild("SetNetworkOwner")
+    end
+    if remote then
+        local char = getPlayerCharacter()
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            pcall(function()
+                remote:FireServer(part, CFrame.lookAt(root.Position, part.Position))
+            end)
         end
     end
-    return best
 end
 
-local function playGrabAnimation(blobman, side)
-    if not blobman then return end
-    local anims = blobman:FindFirstChild("BlobmanAnimations")
-    if not anims then return end
-    local relay = anims:FindFirstChild("RelayClientAnimation")
-    if not relay or not relay:IsA("RemoteEvent") then return end
-    local animName = side == "left" and "LeftGrabAnimation" or "RightGrabAnimation"
-    pcall(function()
-        relay:FireServer(animName, true)
-    end)
+-- Steal ownership like the reference script
+local function snowshipOnce(part)
+    if not part then return false end
+    -- Check if we already own it
+    local owner = part:FindFirstChild("PartOwner")
+    if owner and owner.Value == LocalPlayer.Name then
+        return true
+    end
+    if LocalPlayer:DistanceFromCharacter(part.Position) <= 30 then
+        setNetworkOwner(part)
+    end
+    return false
 end
 
+-- ===== Blobman functions =====
 local function getSeatedBlobman()
-    local char = LocalPlayer.Character
+    local char = getPlayerCharacter()
     if not char then return nil end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return nil end
@@ -220,7 +188,7 @@ local function getSeatedBlobman()
 end
 
 local function sitOnBlobman()
-    local char = LocalPlayer.Character
+    local char = getPlayerCharacter()
     if not char then return nil end
     local hum = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -251,6 +219,43 @@ local function sitOnBlobman()
     return nil
 end
 
+local function getNearestUnheldPlayer(blobmanModel, excludeLeft, excludeRight)
+    local rootPart = blobmanModel:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return nil end
+    local pivot = rootPart.Position
+    local best = nil
+    local bestDist = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if not isPlayerValid(player) then continue end
+        local char = player.Character
+        if char == excludeLeft or char == excludeRight then continue end
+        local targetRoot = char:FindFirstChild("HumanoidRootPart")
+        if targetRoot then
+            local dist = (pivot - targetRoot.Position).Magnitude
+            if dist < PROXIMITY_RANGE and dist < bestDist then
+                best = char
+                bestDist = dist
+            end
+        end
+    end
+    return best
+end
+
+local function playGrabAnimation(blobman, side)
+    if not blobman then return end
+    local anims = blobman:FindFirstChild("BlobmanAnimations")
+    if not anims then return end
+    local relay = anims:FindFirstChild("RelayClientAnimation")
+    if not relay or not relay:IsA("RemoteEvent") then return end
+    local animName = side == "left" and "LeftGrabAnimation" or "RightGrabAnimation"
+    pcall(function()
+        relay:FireServer(animName, true)
+    end)
+end
+
+-- ===== Auto Grab Loop =====
 local function startGrabLoop()
     if grabTask then return end
     grabEnabled = true
@@ -272,36 +277,20 @@ local function startGrabLoop()
                     local creatureGrab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
 
                     if leftWeld and rightWeld and creatureGrab then
-                        if leftHeldTarget then
-                            local leftHum = leftHeldTarget:FindFirstChildOfClass("Humanoid")
-                            if not leftWeld.Attachment0 or not leftWeld.Attachment0:IsDescendantOf(leftHeldTarget) or (leftHum and leftHum.Health <= 0) or not leftHeldTarget.Parent then
-                                leftHeldTarget = nil
-                            end
-                        end
-                        if rightHeldTarget then
-                            local rightHum = rightHeldTarget:FindFirstChildOfClass("Humanoid")
-                            if not rightWeld.Attachment0 or not rightWeld.Attachment0:IsDescendantOf(rightHeldTarget) or (rightHum and rightHum.Health <= 0) or not rightHeldTarget.Parent then
-                                rightHeldTarget = nil
-                            end
-                        end
-
                         if not leftHeldTarget then
                             local victim = getNearestUnheldPlayer(blobman, nil, rightHeldTarget)
                             if victim then
                                 local victimRoot = victim:FindFirstChild("HumanoidRootPart")
                                 local victimHum = victim:FindFirstChildOfClass("Humanoid")
-                                if victimRoot and victimHum and victimHum.Health > 0 and victim.Parent then
-                                    leftHeldTarget = victim.Parent
-                                    victimRoot.CFrame = leftDetector.CFrame
-                                    victimRoot.Velocity = Vector3.new(0,0,0)
-                                    task.wait(0.08)
-                                    if victimHum.Health > 0 and victim.Parent then
+                                if victimRoot and victimHum and victimHum.Health > 0 then
+                                    if snowshipOnce(victimRoot) then
+                                        victimRoot.CFrame = leftDetector.CFrame
+                                        victimRoot.Velocity = Vector3.new(0,0,0)
+                                        task.wait(0.08)
                                         creatureGrab:FireServer(victim.Parent, victimRoot, leftWeld)
                                         playGrabAnimation(blobman, "left")
-                                    else
-                                        leftHeldTarget = nil
+                                        leftHeldTarget = victim.Parent
                                     end
-                                    task.wait(0.12)
                                 end
                             end
                         end
@@ -311,18 +300,15 @@ local function startGrabLoop()
                             if victim then
                                 local victimRoot = victim:FindFirstChild("HumanoidRootPart")
                                 local victimHum = victim:FindFirstChildOfClass("Humanoid")
-                                if victimRoot and victimHum and victimHum.Health > 0 and victim.Parent then
-                                    rightHeldTarget = victim.Parent
-                                    victimRoot.CFrame = rightDetector.CFrame
-                                    victimRoot.Velocity = Vector3.new(0,0,0)
-                                    task.wait(0.08)
-                                    if victimHum.Health > 0 and victim.Parent then
+                                if victimRoot and victimHum and victimHum.Health > 0 then
+                                    if snowshipOnce(victimRoot) then
+                                        victimRoot.CFrame = rightDetector.CFrame
+                                        victimRoot.Velocity = Vector3.new(0,0,0)
+                                        task.wait(0.08)
                                         creatureGrab:FireServer(victim.Parent, victimRoot, rightWeld)
                                         playGrabAnimation(blobman, "right")
-                                    else
-                                        rightHeldTarget = nil
+                                        rightHeldTarget = victim.Parent
                                     end
-                                    task.wait(0.12)
                                 end
                             end
                         end
@@ -351,6 +337,7 @@ local function stopGrabLoop()
     SafeNotify({ Title = "Auto Grab Nearest", Content = "Disabled", Duration = 2 })
 end
 
+-- ===== Auto Sit =====
 local function startAutoSit()
     if autoSitTask then return end
     autoSitEnabled = true
@@ -361,12 +348,11 @@ local function startAutoSit()
     autoSitTask = task.spawn(function()
         while autoSitEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local char = LocalPlayer.Character
+                local char = getPlayerCharacter()
                 if char then
                     local hum = char:FindFirstChildOfClass("Humanoid")
                     if hum and hum.Health > 0 then
-                        local seated = hum.SeatPart and hum.SeatPart.Parent and hum.SeatPart.Parent.Name == "CreatureBlobman"
-                        if not seated then
+                        if not getSeatedBlobman() then
                             pcall(sitOnBlobman)
                         end
                     end
@@ -389,6 +375,7 @@ local function stopAutoSit()
     SafeNotify({ Title = "Auto Sit", Content = "Disabled", Duration = 2 })
 end
 
+-- ===== Bring Selected Player =====
 local function bringSelectedPlayer()
     if not selectedBringPlayer or selectedBringPlayer == "" then
         SafeNotify({ Title = "Bring", Content = "No player selected", Duration = 2 })
@@ -413,7 +400,6 @@ local function bringSelectedPlayer()
 
     local blobman = getSeatedBlobman()
     if not blobman then
-        SafeNotify({ Title = "Bring", Content = "Sitting on blobman...", Duration = 2 })
         blobman = sitOnBlobman()
         if not blobman then
             SafeNotify({ Title = "Bring", Content = "Failed to sit on blobman", Duration = 2 })
@@ -460,7 +446,7 @@ local function bringSelectedPlayer()
         return
     end
 
-    local localChar = LocalPlayer.Character
+    local localChar = getPlayerCharacter()
     local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
     if not localRoot then
         SafeNotify({ Title = "Bring", Content = "Your character is invalid", Duration = 2 })
@@ -468,7 +454,11 @@ local function bringSelectedPlayer()
         return
     end
 
-    setNetworkOwner(targetRoot)
+    -- Steal ownership
+    for _ = 1, 3 do
+        if snowshipOnce(targetRoot) then break end
+        task.wait(0.1)
+    end
 
     local originalPos = localRoot.CFrame
     local targetPos = targetRoot.CFrame + Vector3.new(0, 0, 3)
@@ -494,6 +484,7 @@ local function bringSelectedPlayer()
     if grabState then startGrabLoop() end
 end
 
+-- ===== Auto Kick =====
 local function performKick(target)
     if not target then return false end
     if not isPlayerValid(target) then return false end
@@ -534,11 +525,15 @@ local function performKick(target)
         return false
     end
 
-    local localChar = LocalPlayer.Character
+    local localChar = getPlayerCharacter()
     local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
     if not localRoot then return false end
 
-    setNetworkOwner(targetRoot)
+    -- Steal ownership
+    for _ = 1, 3 do
+        if snowshipOnce(targetRoot) then break end
+        task.wait(0.1)
+    end
 
     local originalPos = localRoot.CFrame
     local targetPos = targetRoot.CFrame + Vector3.new(0, 0, 3)
@@ -611,6 +606,7 @@ local function stopAutoKick()
     SafeNotify({ Title = "Auto Kick Player", Content = "Disabled", Duration = 2 })
 end
 
+-- ===== Dropdowns =====
 local function refreshDropdowns()
     local names = {}
     for _, player in ipairs(Players:GetPlayers()) do
@@ -660,6 +656,7 @@ Players.PlayerAdded:Connect(refreshDropdowns)
 Players.PlayerRemoving:Connect(refreshDropdowns)
 refreshDropdowns()
 
+-- ===== UI elements =====
 BlobmanTab:Button({
     Title = "Bring Selected Player",
     Callback = function()
