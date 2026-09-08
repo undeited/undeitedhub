@@ -24,24 +24,18 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local grabEnabled = undeitedhub.Toggles.autoGrabPlayers or false
 local autoSitEnabled = undeitedhub.Toggles.autoSit or false
-local autoKickEnabled = undeitedhub.Toggles.autoKickPlayer or false
 local grabTask = nil
 local autoSitTask = nil
-local autoKickTask = nil
 
 local INTERACT_KEY = Enum.KeyCode.F
 local PROXIMITY_RANGE = 20
 local CHECK_DELAY = 0.5
-local KICK_INTERVAL = 0.3
-local KICK_STRENGTH = 1000
-local OWNERSHIP_TIMEOUT = 0.5
+local OWNERSHIP_TIMEOUT = 1.0
 
 local leftHeldTarget = nil
 local rightHeldTarget = nil
 local selectedBringPlayer = nil
-local selectedKickPlayer = nil
 local bringDropdown = nil
-local kickDropdown = nil
 
 local grabbedCooldown = {}
 
@@ -52,7 +46,7 @@ local function isPlayerValid(player)
     return hum and hum.Health > 0
 end
 
--- TEMPORARILY DISABLED PLOT CHECK
+-- Temporarily disabled plot check
 local function isPlayerInPlot(player)
     return false
 end
@@ -342,7 +336,6 @@ local function grabPlayer(blobman, target, hand)
         return false
     end
 
-    -- Attempt ownership
     local owned = false
     for _ = 1, 3 do
         if snowshipOnce(targetRoot) then
@@ -519,131 +512,14 @@ local function bringSelectedPlayer()
     end
 
     SafeNotify({ Title = "Bring", Content = "Grabbing " .. target.Name .. " with " .. hand .. " hand..." })
-    local success = pcall(grabPlayer, blobman, target, hand)
-    if success then
+    local ok, result = pcall(grabPlayer, blobman, target, hand)
+    if ok and result then
         SafeNotify({ Title = "Bring", Content = "Brought " .. target.Name, Duration = 2 })
     else
         SafeNotify({ Title = "Bring", Content = "Failed to bring " .. target.Name, Duration = 2 })
     end
 
     if grabState then startGrabLoop() end
-end
-
-local function performKick(target)
-    if not target then return false end
-    if not isPlayerValid(target) then return false end
-    if isPlayerInPlot(target) then return false end
-
-    local blobman = getSeatedBlobman()
-    if not blobman then
-        blobman = sitOnBlobman()
-        if not blobman then return false end
-    end
-
-    local leftDetector = blobman:FindFirstChild("LeftDetector")
-    local rightDetector = blobman:FindFirstChild("RightDetector")
-    local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
-    local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
-    local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
-    local creatureGrab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
-    local creatureDrop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
-
-    if not leftWeld or not rightWeld or not creatureGrab or not creatureDrop then
-        return false
-    end
-
-    clearInvalidHeldTargets()
-
-    local hand
-    if not leftHeldTarget then
-        hand = "left"
-    elseif not rightHeldTarget then
-        hand = "right"
-    else
-        return false
-    end
-
-    local targetChar = target.Character
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
-    if not targetRoot or not targetHum or targetHum.Health <= 0 then return false end
-
-    if not pcall(grabPlayer, blobman, target, hand) then
-        return false
-    end
-
-    local weld = hand == "left" and leftWeld or rightWeld
-    task.wait(0.15)
-
-    targetRoot.AssemblyLinearVelocity = Vector3.new(0, KICK_STRENGTH, 0)
-    task.wait(0.05)
-    pcall(function()
-        creatureDrop:FireServer(weld, targetRoot)
-    end)
-
-    if hand == "left" then
-        leftHeldTarget = nil
-    else
-        rightHeldTarget = nil
-    end
-
-    return true
-end
-
-local function startAutoKick()
-    if autoKickTask then return end
-    autoKickEnabled = true
-    undeitedhub.Toggles.autoKickPlayer = true
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Kick Player", Content = "Enabled", Duration = 2 })
-
-    autoKickTask = task.spawn(function()
-        while autoKickEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                if not selectedKickPlayer or selectedKickPlayer == "" then
-                    task.wait(0.5)
-                    continue
-                end
-                local target = Players:FindFirstChild(selectedKickPlayer)
-                if not target then
-                    task.wait(0.5)
-                    continue
-                end
-                if target == LocalPlayer then
-                    task.wait(0.5)
-                    continue
-                end
-                if isPlayerInPlot(target) then
-                    task.wait(0.5)
-                    continue
-                end
-                if grabbedCooldown[target] and tick() - grabbedCooldown[target] < 2 then
-                    task.wait(0.5)
-                    continue
-                end
-
-                local grabState = grabEnabled
-                if grabState then stopGrabLoop() end
-
-                pcall(performKick, target)
-
-                if grabState then startGrabLoop() end
-            end
-            task.wait(KICK_INTERVAL)
-        end
-        autoKickTask = nil
-    end)
-end
-
-local function stopAutoKick()
-    autoKickEnabled = false
-    undeitedhub.Toggles.autoKickPlayer = false
-    if autoKickTask then
-        task.cancel(autoKickTask)
-        autoKickTask = nil
-    end
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Kick Player", Content = "Disabled", Duration = 2 })
 end
 
 local function refreshDropdowns()
@@ -662,15 +538,6 @@ local function refreshDropdowns()
             end)
         end
     end
-    if kickDropdown then
-        kickDropdown:Refresh(names, true)
-        if not table.find(names, selectedKickPlayer) then
-            selectedKickPlayer = names[1] or ""
-            pcall(function()
-                kickDropdown:Set(selectedKickPlayer)
-            end)
-        end
-    end
 end
 
 bringDropdown = BlobmanTab:Dropdown({
@@ -682,15 +549,6 @@ bringDropdown = BlobmanTab:Dropdown({
     end
 })
 
-kickDropdown = BlobmanTab:Dropdown({
-    Title = "Select Player to Auto Kick",
-    Values = {},
-    Value = "",
-    Callback = function(value)
-        selectedKickPlayer = value
-    end
-})
-
 Players.PlayerAdded:Connect(refreshDropdowns)
 Players.PlayerRemoving:Connect(refreshDropdowns)
 refreshDropdowns()
@@ -699,14 +557,6 @@ BlobmanTab:Button({
     Title = "Bring Selected Player",
     Callback = function()
         pcall(bringSelectedPlayer)
-    end
-})
-
-BlobmanTab:Toggle({
-    Title = "Auto Kick Player",
-    Value = autoKickEnabled,
-    Callback = function(state)
-        if state then startAutoKick() else stopAutoKick() end
     end
 })
 
@@ -728,12 +578,10 @@ BlobmanTab:Toggle({
 
 if grabEnabled then startGrabLoop() end
 if autoSitEnabled then startAutoSit() end
-if autoKickEnabled then startAutoKick() end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if grabEnabled then stopGrabLoop() end
     if autoSitEnabled then stopAutoSit() end
-    if autoKickEnabled then stopAutoKick() end
     oldDisable()
 end
