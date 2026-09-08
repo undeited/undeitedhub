@@ -24,16 +24,25 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local grabEnabled = undeitedhub.Toggles.autoGrabPlayers or false
 local autoSitEnabled = undeitedhub.Toggles.autoSit or false
+local autoKickEnabled = undeitedhub.Toggles.autoKickPlayer or false
 local grabTask = nil
 local autoSitTask = nil
+local autoKickTask = nil
 
 local INTERACT_KEY = Enum.KeyCode.F
 local PROXIMITY_RANGE = 20
 local CHECK_DELAY = 0.5
+local KICK_INTERVAL = 0.3
+local KICK_STRENGTH = 250
 
 local leftHeldTarget = nil
 local rightHeldTarget = nil
 local toyFolder = nil
+
+local selectedBringPlayer = nil
+local selectedKickPlayer = nil
+local bringDropdown = nil
+local kickDropdown = nil
 
 local function updateToyFolder()
     toyFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
@@ -62,18 +71,6 @@ end
 
 local function getToysFolder()
     return Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-end
-
-local function countBlobmen()
-    local folder = getToysFolder()
-    if not folder then return 0 end
-    local count = 0
-    for _, child in ipairs(folder:GetChildren()) do
-        if child.Name == "CreatureBlobman" and child:IsA("Model") then
-            count = count + 1
-        end
-    end
-    return count
 end
 
 local function getBlobmen()
@@ -361,79 +358,31 @@ local function stopAutoSit()
     SafeNotify({ Title = "Auto Sit", Content = "Disabled", Duration = 2 })
 end
 
--- Kick function
-local function kickNearestPlayer()
+local function bringSelectedPlayer()
+    if not selectedBringPlayer or selectedBringPlayer == "" then
+        SafeNotify({ Title = "Bring", Content = "No player selected", Duration = 2 })
+        return
+    end
+
+    local target = Players:FindFirstChild(selectedBringPlayer)
+    if not target then
+        SafeNotify({ Title = "Bring", Content = "Player not found", Duration = 2 })
+        return
+    end
+
+    if target == LocalPlayer then
+        SafeNotify({ Title = "Bring", Content = "You cannot bring yourself", Duration = 2 })
+        return
+    end
+
     local blobman = getSeatedBlobman()
     if not blobman then
-        SafeNotify({ Title = "Kick", Content = "You are not seated on a blobman", Duration = 2 })
-        return
-    end
-
-    local leftDetector = blobman:FindFirstChild("LeftDetector")
-    local rightDetector = blobman:FindFirstChild("RightDetector")
-    local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
-    local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
-    local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
-    local creatureGrab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
-    local creatureDrop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
-
-    if not leftWeld or not rightWeld or not creatureGrab or not creatureDrop then
-        SafeNotify({ Title = "Kick", Content = "Missing blobman components", Duration = 2 })
-        return
-    end
-
-    local victim = getNearestUnheldPlayer(blobman, leftHeldTarget, rightHeldTarget)
-    if not victim then
-        SafeNotify({ Title = "Kick", Content = "No nearby unheld player found", Duration = 2 })
-        return
-    end
-
-    local victimRoot = victim:FindFirstChild("HumanoidRootPart")
-    local victimHum = victim:FindFirstChildOfClass("Humanoid")
-    if not victimRoot or not victimHum or victimHum.Health <= 0 then
-        SafeNotify({ Title = "Kick", Content = "Invalid target", Duration = 2 })
-        return
-    end
-
-    local grabState = grabEnabled
-    if grabState then stopGrabLoop() end
-
-    local targetWeld, detector
-    if not leftHeldTarget then
-        targetWeld = leftWeld
-        detector = leftDetector
-    elseif not rightHeldTarget then
-        targetWeld = rightWeld
-        detector = rightDetector
-    else
-        SafeNotify({ Title = "Kick", Content = "Both hands are full", Duration = 2 })
-        if grabState then startGrabLoop() end
-        return
-    end
-
-    victimRoot.CFrame = detector.CFrame
-    victimRoot.Velocity = Vector3.new(0,0,0)
-    task.wait(0.08)
-    creatureGrab:FireServer(victim, victimRoot, targetWeld)
-    task.wait(0.2)
-
-    local vel = Vector3.new(0, 150, 0)
-    victimRoot.Velocity = vel
-    creatureDrop:FireServer(targetWeld, victimRoot)
-    task.wait(0.1)
-
-    if targetWeld == leftWeld then leftHeldTarget = nil else rightHeldTarget = nil end
-
-    SafeNotify({ Title = "Kick", Content = "Kicked " .. victim.Parent.Name, Duration = 2 })
-    if grabState then startGrabLoop() end
-end
-
--- Bring function
-local function bringNearestPlayer()
-    local blobman = getSeatedBlobman()
-    if not blobman then
-        SafeNotify({ Title = "Bring", Content = "You are not seated on a blobman", Duration = 2 })
-        return
+        SafeNotify({ Title = "Bring", Content = "Sitting on blobman...", Duration = 2 })
+        blobman = sitOnBlobman()
+        if not blobman then
+            SafeNotify({ Title = "Bring", Content = "Failed to sit on blobman", Duration = 2 })
+            return
+        end
     end
 
     local leftDetector = blobman:FindFirstChild("LeftDetector")
@@ -449,16 +398,16 @@ local function bringNearestPlayer()
         return
     end
 
-    local victim = getNearestUnheldPlayer(blobman, leftHeldTarget, rightHeldTarget)
-    if not victim then
-        SafeNotify({ Title = "Bring", Content = "No nearby unheld player found", Duration = 2 })
+    local targetChar = target.Character
+    if not targetChar then
+        SafeNotify({ Title = "Bring", Content = "Target has no character", Duration = 2 })
         return
     end
 
-    local victimRoot = victim:FindFirstChild("HumanoidRootPart")
-    local victimHum = victim:FindFirstChildOfClass("Humanoid")
-    if not victimRoot or not victimHum or victimHum.Health <= 0 then
-        SafeNotify({ Title = "Bring", Content = "Invalid target", Duration = 2 })
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+    if not targetRoot or not targetHum or targetHum.Health <= 0 then
+        SafeNotify({ Title = "Bring", Content = "Target is dead or invalid", Duration = 2 })
         return
     end
 
@@ -478,26 +427,196 @@ local function bringNearestPlayer()
         return
     end
 
-    victimRoot.CFrame = detector.CFrame
-    victimRoot.Velocity = Vector3.new(0,0,0)
-    task.wait(0.08)
-    creatureGrab:FireServer(victim, victimRoot, targetWeld)
-    task.wait(0.2)
-
     local localChar = LocalPlayer.Character
     local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
-    if localRoot then
-        victimRoot.CFrame = localRoot.CFrame + Vector3.new(0, 2, 0) -- teleport to your position
+    if not localRoot then
+        SafeNotify({ Title = "Bring", Content = "Your character is invalid", Duration = 2 })
+        if grabState then startGrabLoop() end
+        return
     end
 
-    creatureDrop:FireServer(targetWeld, victimRoot)
+    local originalPos = localRoot.CFrame
+    local targetPos = targetRoot.CFrame + Vector3.new(0, 0, 3)
+    localRoot.CFrame = targetPos
+    task.wait(0.2)
+
+    targetRoot.CFrame = detector.CFrame
+    targetRoot.Velocity = Vector3.new(0,0,0)
+    task.wait(0.08)
+    creatureGrab:FireServer(target, targetRoot, targetWeld)
+    task.wait(0.2)
+
+    localRoot.CFrame = originalPos
+    task.wait(0.1)
+
+    creatureDrop:FireServer(targetWeld, targetRoot)
     task.wait(0.1)
 
     if targetWeld == leftWeld then leftHeldTarget = nil else rightHeldTarget = nil end
 
-    SafeNotify({ Title = "Bring", Content = "Brought " .. victim.Parent.Name .. " to you", Duration = 2 })
+    SafeNotify({ Title = "Bring", Content = "Brought " .. target.Name .. " to you", Duration = 2 })
     if grabState then startGrabLoop() end
 end
+
+local function performKick(target)
+    if not target then return false end
+    local blobman = getSeatedBlobman()
+    if not blobman then
+        blobman = sitOnBlobman()
+        if not blobman then return false end
+    end
+
+    local leftDetector = blobman:FindFirstChild("LeftDetector")
+    local rightDetector = blobman:FindFirstChild("RightDetector")
+    local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
+    local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
+    local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+    local creatureGrab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
+    local creatureDrop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
+
+    if not leftWeld or not rightWeld or not creatureGrab or not creatureDrop then
+        return false
+    end
+
+    local targetChar = target.Character
+    if not targetChar then return false end
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+    if not targetRoot or not targetHum or targetHum.Health <= 0 then return false end
+
+    local targetWeld, detector
+    if not leftHeldTarget then
+        targetWeld = leftWeld
+        detector = leftDetector
+    elseif not rightHeldTarget then
+        targetWeld = rightWeld
+        detector = rightDetector
+    else
+        return false
+    end
+
+    targetRoot.CFrame = detector.CFrame
+    targetRoot.Velocity = Vector3.new(0,0,0)
+    task.wait(0.08)
+    creatureGrab:FireServer(target, targetRoot, targetWeld)
+    task.wait(0.15)
+
+    local vel = Vector3.new(0, KICK_STRENGTH, 0)
+    targetRoot.Velocity = vel
+    creatureDrop:FireServer(targetWeld, targetRoot)
+    task.wait(0.05)
+
+    if targetWeld == leftWeld then leftHeldTarget = nil else rightHeldTarget = nil end
+    return true
+end
+
+local function startAutoKick()
+    if autoKickTask then return end
+    autoKickEnabled = true
+    undeitedhub.Toggles.autoKickPlayer = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+    SafeNotify({ Title = "Auto Kick Player", Content = "Enabled", Duration = 2 })
+
+    autoKickTask = task.spawn(function()
+        while autoKickEnabled do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                if not selectedKickPlayer or selectedKickPlayer == "" then
+                    task.wait(0.5)
+                    continue
+                end
+                local target = Players:FindFirstChild(selectedKickPlayer)
+                if not target then
+                    task.wait(0.5)
+                    continue
+                end
+                if target == LocalPlayer then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local grabState = grabEnabled
+                if grabState then stopGrabLoop() end
+
+                pcall(performKick, target)
+
+                if grabState then startGrabLoop() end
+            end
+            task.wait(KICK_INTERVAL)
+        end
+        autoKickTask = nil
+    end)
+end
+
+local function stopAutoKick()
+    autoKickEnabled = false
+    undeitedhub.Toggles.autoKickPlayer = false
+    if autoKickTask then
+        task.cancel(autoKickTask)
+        autoKickTask = nil
+    end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+    SafeNotify({ Title = "Auto Kick Player", Content = "Disabled", Duration = 2 })
+end
+
+local function refreshDropdowns()
+    local names = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(names, player.Name)
+        end
+    end
+    if bringDropdown then
+        bringDropdown:Refresh(names, true)
+        if not table.find(names, selectedBringPlayer) then
+            selectedBringPlayer = names[1] or ""
+            bringDropdown:Set(selectedBringPlayer)
+        end
+    end
+    if kickDropdown then
+        kickDropdown:Refresh(names, true)
+        if not table.find(names, selectedKickPlayer) then
+            selectedKickPlayer = names[1] or ""
+            kickDropdown:Set(selectedKickPlayer)
+        end
+    end
+end
+
+bringDropdown = BlobmanTab:Dropdown({
+    Title = "Select Player to Bring",
+    Values = {},
+    Value = "",
+    Callback = function(value)
+        selectedBringPlayer = value
+    end
+})
+
+kickDropdown = BlobmanTab:Dropdown({
+    Title = "Select Player to Auto Kick",
+    Values = {},
+    Value = "",
+    Callback = function(value)
+        selectedKickPlayer = value
+    end
+})
+
+Players.PlayerAdded:Connect(refreshDropdowns)
+Players.PlayerRemoving:Connect(refreshDropdowns)
+refreshDropdowns()
+
+BlobmanTab:Button({
+    Title = "Bring Selected Player",
+    Callback = function()
+        pcall(bringSelectedPlayer)
+    end
+})
+
+BlobmanTab:Toggle({
+    Title = "Auto Kick Player",
+    Value = autoKickEnabled,
+    Callback = function(state)
+        if state then startAutoKick() else stopAutoKick() end
+    end
+})
 
 BlobmanTab:Toggle({
     Title = "Auto Grab Nearest",
@@ -515,26 +634,14 @@ BlobmanTab:Toggle({
     end
 })
 
-BlobmanTab:Button({
-    Title = "Kick Nearest Player",
-    Callback = function()
-        pcall(kickNearestPlayer)
-    end
-})
-
-BlobmanTab:Button({
-    Title = "Bring Nearest Player",
-    Callback = function()
-        pcall(bringNearestPlayer)
-    end
-})
-
 if grabEnabled then startGrabLoop() end
 if autoSitEnabled then startAutoSit() end
+if autoKickEnabled then startAutoKick() end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if grabEnabled then stopGrabLoop() end
     if autoSitEnabled then stopAutoSit() end
+    if autoKickEnabled then stopAutoKick() end
     oldDisable()
 end
