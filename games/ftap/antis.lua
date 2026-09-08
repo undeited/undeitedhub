@@ -28,6 +28,7 @@ local antiVoidEnabled = undeitedhub.Toggles.antiVoidEnabled or false
 
 local antiTask = nil
 
+-- Helper functions
 local function getToysFolder()
     return Workspace:FindFirstChild(localPlayer.Name .. "SpawnedInToys")
 end
