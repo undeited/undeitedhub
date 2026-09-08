@@ -43,7 +43,6 @@ local selectedKickPlayer = nil
 local bringDropdown = nil
 local kickDropdown = nil
 
--- ===== Helpers from reference script =====
 local function isPlayerValid(player)
     if not player then return false end
     if not player.Character then return false end
@@ -143,7 +142,6 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
--- ===== Network ownership (FE) =====
 local function setNetworkOwner(part)
     if not part then return end
     local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
@@ -161,10 +159,8 @@ local function setNetworkOwner(part)
     end
 end
 
--- Steal ownership like the reference script
 local function snowshipOnce(part)
     if not part then return false end
-    -- Check if we already own it
     local owner = part:FindFirstChild("PartOwner")
     if owner and owner.Value == LocalPlayer.Name then
         return true
@@ -175,7 +171,6 @@ local function snowshipOnce(part)
     return false
 end
 
--- ===== Blobman functions =====
 local function getSeatedBlobman()
     local char = getPlayerCharacter()
     if not char then return nil end
@@ -255,7 +250,35 @@ local function playGrabAnimation(blobman, side)
     end)
 end
 
--- ===== Auto Grab Loop =====
+local function dropHeldTarget(blobman, side)
+    if not blobman then return false end
+    local target = side == "left" and leftHeldTarget or rightHeldTarget
+    if not target then return false end
+    local root = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+
+    local leftDetector = blobman:FindFirstChild("LeftDetector")
+    local rightDetector = blobman:FindFirstChild("RightDetector")
+    local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
+    local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
+    local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+    local creatureDrop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
+    local weld = side == "left" and leftWeld or rightWeld
+
+    if creatureDrop and weld then
+        pcall(function()
+            creatureDrop:FireServer(weld, root)
+        end)
+        if side == "left" then
+            leftHeldTarget = nil
+        else
+            rightHeldTarget = nil
+        end
+        return true
+    end
+    return false
+end
+
 local function startGrabLoop()
     if grabTask then return end
     grabEnabled = true
@@ -337,7 +360,6 @@ local function stopGrabLoop()
     SafeNotify({ Title = "Auto Grab Nearest", Content = "Disabled", Duration = 2 })
 end
 
--- ===== Auto Sit =====
 local function startAutoSit()
     if autoSitTask then return end
     autoSitEnabled = true
@@ -375,7 +397,6 @@ local function stopAutoSit()
     SafeNotify({ Title = "Auto Sit", Content = "Disabled", Duration = 2 })
 end
 
--- ===== Bring Selected Player =====
 local function bringSelectedPlayer()
     if not selectedBringPlayer or selectedBringPlayer == "" then
         SafeNotify({ Title = "Bring", Content = "No player selected", Duration = 2 })
@@ -441,9 +462,15 @@ local function bringSelectedPlayer()
         targetWeld = rightWeld
         detector = rightDetector
     else
-        SafeNotify({ Title = "Bring", Content = "Both hands are full", Duration = 2 })
-        if grabState then startGrabLoop() end
-        return
+        dropHeldTarget(blobman, "left")
+        if not leftHeldTarget then
+            targetWeld = leftWeld
+            detector = leftDetector
+        else
+            SafeNotify({ Title = "Bring", Content = "Both hands are full and couldn't free one", Duration = 2 })
+            if grabState then startGrabLoop() end
+            return
+        end
     end
 
     local localChar = getPlayerCharacter()
@@ -454,7 +481,6 @@ local function bringSelectedPlayer()
         return
     end
 
-    -- Steal ownership
     for _ = 1, 3 do
         if snowshipOnce(targetRoot) then break end
         task.wait(0.1)
@@ -484,7 +510,6 @@ local function bringSelectedPlayer()
     if grabState then startGrabLoop() end
 end
 
--- ===== Auto Kick =====
 local function performKick(target)
     if not target then return false end
     if not isPlayerValid(target) then return false end
@@ -529,7 +554,6 @@ local function performKick(target)
     local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
     if not localRoot then return false end
 
-    -- Steal ownership
     for _ = 1, 3 do
         if snowshipOnce(targetRoot) then break end
         task.wait(0.1)
@@ -606,7 +630,6 @@ local function stopAutoKick()
     SafeNotify({ Title = "Auto Kick Player", Content = "Disabled", Duration = 2 })
 end
 
--- ===== Dropdowns =====
 local function refreshDropdowns()
     local names = {}
     for _, player in ipairs(Players:GetPlayers()) do
@@ -656,7 +679,6 @@ Players.PlayerAdded:Connect(refreshDropdowns)
 Players.PlayerRemoving:Connect(refreshDropdowns)
 refreshDropdowns()
 
--- ===== UI elements =====
 BlobmanTab:Button({
     Title = "Bring Selected Player",
     Callback = function()
