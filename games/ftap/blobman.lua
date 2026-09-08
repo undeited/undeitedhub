@@ -119,12 +119,13 @@ end
 local function deleteOccupiedBlobmen()
     local folder = getToysFolder()
     if not folder then return end
+    local myHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     for _, child in ipairs(folder:GetChildren()) do
         if child.Name == "CreatureBlobman" and child:IsA("Model") then
             local seat = child:FindFirstChild("VehicleSeat")
             if seat and seat.Occupant then
                 local occupant = seat.Occupant
-                if occupant ~= LocalPlayer.Character and occupant ~= LocalPlayer.Character and occupant.Parent ~= LocalPlayer.Character then
+                if occupant ~= myHum then
                     deleteToy(child)
                 end
             end
@@ -313,7 +314,6 @@ local function startAutoSit()
     autoSitTask = task.spawn(function()
         while autoSitEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                -- Delete any blobman that another player is sitting on
                 pcall(deleteOccupiedBlobmen)
 
                 local char = getPlayerCharacter()
