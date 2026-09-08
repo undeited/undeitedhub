@@ -33,7 +33,7 @@ local INTERACT_KEY = Enum.KeyCode.F
 local PROXIMITY_RANGE = 20
 local CHECK_DELAY = 0.5
 local KICK_INTERVAL = 0.3
-local KICK_STRENGTH = 500
+local KICK_STRENGTH = 1000
 
 local leftHeldTarget = nil
 local rightHeldTarget = nil
