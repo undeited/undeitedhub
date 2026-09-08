@@ -485,7 +485,38 @@ local function bringSelectedPlayer()
         return
     end
 
+    local localChar = getPlayerCharacter()
+    if not localChar then
+        SafeNotify({ Title = "Bring", Content = "Your character is invalid", Duration = 2 })
+        if grabState then startGrabLoop() end
+        return
+    end
+
+    local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+    if not localRoot then
+        SafeNotify({ Title = "Bring", Content = "Your HumanoidRootPart not found", Duration = 2 })
+        if grabState then startGrabLoop() end
+        return
+    end
+
+    local targetChar = target.Character
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then
+        SafeNotify({ Title = "Bring", Content = "Target has no HumanoidRootPart", Duration = 2 })
+        if grabState then startGrabLoop() end
+        return
+    end
+
+    local originalPos = localRoot.CFrame
+    local targetPos = targetRoot.CFrame + Vector3.new(0, 0, 3)
+    localRoot.CFrame = targetPos
+    task.wait(0.2)
+
     local success = pcall(grabPlayer, blobman, target, hand)
+
+    localRoot.CFrame = originalPos
+    task.wait(0.1)
+
     if success then
         SafeNotify({ Title = "Bring", Content = "Brought " .. target.Name, Duration = 2 })
     else
