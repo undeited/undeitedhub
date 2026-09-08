@@ -44,6 +44,23 @@ local selectedKickPlayer = nil
 local bringDropdown = nil
 local kickDropdown = nil
 
+local function isPlayerValid(player)
+    if not player then return false end
+    if not player.Character then return false end
+    local hum = player.Character:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    return true
+end
+
+local function clearInvalidHeldTargets()
+    if leftHeldTarget and not isPlayerValid(leftHeldTarget) then
+        leftHeldTarget = nil
+    end
+    if rightHeldTarget and not isPlayerValid(rightHeldTarget) then
+        rightHeldTarget = nil
+    end
+end
+
 local function setNetworkOwner(part)
     if not part then return end
     local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
@@ -166,14 +183,10 @@ local function getNearestUnheldPlayer(blobmanModel, excludeLeft, excludeRight)
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
+        if not isPlayerValid(player) then continue end
         local char = player.Character
-        if not char then continue end
         local targetRoot = char:FindFirstChild("HumanoidRootPart")
-        local targetHum = char:FindFirstChildOfClass("Humanoid")
-        if not targetRoot or not targetHum or targetHum.Health <= 0 then continue end
-        if char:FindFirstChildOfClass("ForceField") then continue end
         if char == excludeLeft or char == excludeRight then continue end
-
         local dist = (pivotPoint - targetRoot.Position).Magnitude
         if dist < PROXIMITY_RANGE and dist < bestDist then
             best = char
@@ -248,6 +261,7 @@ local function startGrabLoop()
     grabTask = task.spawn(function()
         while grabEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                clearInvalidHeldTargets()
                 local blobman = getSeatedBlobman()
                 if blobman then
                     local leftDetector = blobman:FindFirstChild("LeftDetector")
@@ -277,12 +291,12 @@ local function startGrabLoop()
                                 local victimRoot = victim:FindFirstChild("HumanoidRootPart")
                                 local victimHum = victim:FindFirstChildOfClass("Humanoid")
                                 if victimRoot and victimHum and victimHum.Health > 0 and victim.Parent then
-                                    leftHeldTarget = victim
+                                    leftHeldTarget = victim.Parent
                                     victimRoot.CFrame = leftDetector.CFrame
                                     victimRoot.Velocity = Vector3.new(0,0,0)
                                     task.wait(0.08)
                                     if victimHum.Health > 0 and victim.Parent then
-                                        creatureGrab:FireServer(victim, victimRoot, leftWeld)
+                                        creatureGrab:FireServer(victim.Parent, victimRoot, leftWeld)
                                         playGrabAnimation(blobman, "left")
                                     else
                                         leftHeldTarget = nil
@@ -298,12 +312,12 @@ local function startGrabLoop()
                                 local victimRoot = victim:FindFirstChild("HumanoidRootPart")
                                 local victimHum = victim:FindFirstChildOfClass("Humanoid")
                                 if victimRoot and victimHum and victimHum.Health > 0 and victim.Parent then
-                                    rightHeldTarget = victim
+                                    rightHeldTarget = victim.Parent
                                     victimRoot.CFrame = rightDetector.CFrame
                                     victimRoot.Velocity = Vector3.new(0,0,0)
                                     task.wait(0.08)
                                     if victimHum.Health > 0 and victim.Parent then
-                                        creatureGrab:FireServer(victim, victimRoot, rightWeld)
+                                        creatureGrab:FireServer(victim.Parent, victimRoot, rightWeld)
                                         playGrabAnimation(blobman, "right")
                                     else
                                         rightHeldTarget = nil
@@ -392,6 +406,11 @@ local function bringSelectedPlayer()
         return
     end
 
+    if not isPlayerValid(target) then
+        SafeNotify({ Title = "Bring", Content = "Target is dead or invalid", Duration = 2 })
+        return
+    end
+
     local blobman = getSeatedBlobman()
     if not blobman then
         SafeNotify({ Title = "Bring", Content = "Sitting on blobman...", Duration = 2 })
@@ -416,11 +435,6 @@ local function bringSelectedPlayer()
     end
 
     local targetChar = target.Character
-    if not targetChar then
-        SafeNotify({ Title = "Bring", Content = "Target has no character", Duration = 2 })
-        return
-    end
-
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
     local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
     if not targetRoot or not targetHum or targetHum.Health <= 0 then
@@ -430,6 +444,8 @@ local function bringSelectedPlayer()
 
     local grabState = grabEnabled
     if grabState then stopGrabLoop() end
+
+    clearInvalidHeldTargets()
 
     local targetWeld, detector
     if not leftHeldTarget then
@@ -453,6 +469,7 @@ local function bringSelectedPlayer()
     end
 
     setNetworkOwner(targetRoot)
+
     local originalPos = localRoot.CFrame
     local targetPos = targetRoot.CFrame + Vector3.new(0, 0, 3)
     localRoot.CFrame = targetPos
@@ -467,11 +484,10 @@ local function bringSelectedPlayer()
     localRoot.CFrame = originalPos
     task.wait(0.1)
 
-    -- Do NOT drop – keep held
     if targetWeld == leftWeld then
-        leftHeldTarget = targetChar
+        leftHeldTarget = target
     else
-        rightHeldTarget = targetChar
+        rightHeldTarget = target
     end
 
     SafeNotify({ Title = "Bring", Content = "Brought " .. target.Name .. " to you", Duration = 2 })
@@ -480,6 +496,8 @@ end
 
 local function performKick(target)
     if not target then return false end
+    if not isPlayerValid(target) then return false end
+
     local blobman = getSeatedBlobman()
     if not blobman then
         blobman = sitOnBlobman()
@@ -499,10 +517,11 @@ local function performKick(target)
     end
 
     local targetChar = target.Character
-    if not targetChar then return false end
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
     local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
     if not targetRoot or not targetHum or targetHum.Health <= 0 then return false end
+
+    clearInvalidHeldTargets()
 
     local targetWeld, detector
     if not leftHeldTarget then
