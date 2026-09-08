@@ -534,7 +534,17 @@ local function performKick(target)
         return false
     end
 
+    local localChar = LocalPlayer.Character
+    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return false end
+
     setNetworkOwner(targetRoot)
+
+    -- Teleport to target (like bring)
+    local originalPos = localRoot.CFrame
+    local targetPos = targetRoot.CFrame + Vector3.new(0, 0, 3)
+    localRoot.CFrame = targetPos
+    task.wait(0.2)
 
     targetRoot.CFrame = detector.CFrame
     targetRoot.Velocity = Vector3.new(0,0,0)
@@ -542,9 +552,14 @@ local function performKick(target)
     creatureGrab:FireServer(target, targetRoot, targetWeld)
     task.wait(0.15)
 
+    -- Apply kick velocity and drop
     local vel = Vector3.new(0, KICK_STRENGTH, 0)
     targetRoot.Velocity = vel
     creatureDrop:FireServer(targetWeld, targetRoot)
+    task.wait(0.05)
+
+    -- Teleport back (optional, but keeps you safe)
+    localRoot.CFrame = originalPos
     task.wait(0.05)
 
     if targetWeld == leftWeld then leftHeldTarget = nil else rightHeldTarget = nil end
