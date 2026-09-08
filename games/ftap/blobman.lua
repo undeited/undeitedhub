@@ -30,7 +30,7 @@ local autoSitTask = nil
 local INTERACT_KEY = Enum.KeyCode.F
 local PROXIMITY_RANGE = 20
 local CHECK_DELAY = 0.5
-local OWNERSHIP_TIMEOUT = 1.0
+local OWNERSHIP_TIMEOUT = 0.5
 
 local leftHeldTarget = nil
 local rightHeldTarget = nil
@@ -44,11 +44,6 @@ local function isPlayerValid(player)
     if not player.Character then return false end
     local hum = player.Character:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
-end
-
--- Temporarily disabled plot check
-local function isPlayerInPlot(player)
-    return false
 end
 
 local function clearInvalidHeldTargets()
@@ -248,7 +243,6 @@ local function getNearestUnheldPlayer(blobmanModel, excludeLeft, excludeRight)
         if player == LocalPlayer then continue end
         if not isPlayerValid(player) then continue end
         if player == excludeLeft or player == excludeRight then continue end
-        if isPlayerInPlot(player) then continue end
         if grabbedCooldown[player] and tick() - grabbedCooldown[player] < 2 then continue end
         local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
         if targetRoot then
@@ -305,8 +299,6 @@ end
 
 local function grabPlayer(blobman, target, hand)
     if not blobman or not target then return false end
-    if isPlayerInPlot(target) then return false end
-
     local leftDetector = blobman:FindFirstChild("LeftDetector")
     local rightDetector = blobman:FindFirstChild("RightDetector")
     local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
@@ -323,29 +315,18 @@ local function grabPlayer(blobman, target, hand)
         weld = rightWeld
     end
 
-    if not detector or not weld or not creatureGrab then
-        SafeNotify({ Title = "Grab", Content = "Missing blobman components", Duration = 2 })
-        return false
-    end
+    if not detector or not weld or not creatureGrab then return false end
 
     local targetChar = target.Character
     local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
     local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
-    if not targetRoot or not targetHum or targetHum.Health <= 0 then
-        SafeNotify({ Title = "Grab", Content = "Target invalid or dead", Duration = 2 })
-        return false
-    end
+    if not targetRoot or not targetHum or targetHum.Health <= 0 then return false end
 
-    local owned = false
     for _ = 1, 3 do
-        if snowshipOnce(targetRoot) then
-            owned = true
-            break
-        end
+        if snowshipOnce(targetRoot) then break end
         task.wait(0.1)
     end
-    if not owned then
-        SafeNotify({ Title = "Grab", Content = "Ownership failed (timeout)", Duration = 2 })
+    if not waitForOwnership(targetRoot) then
         return false
     end
 
@@ -474,14 +455,8 @@ local function bringSelectedPlayer()
         return
     end
 
-    if isPlayerInPlot(target) then
-        SafeNotify({ Title = "Bring", Content = "Target is inside a plot", Duration = 2 })
-        return
-    end
-
     local blobman = getSeatedBlobman()
     if not blobman then
-        SafeNotify({ Title = "Bring", Content = "Not on blobman, trying to sit..." })
         blobman = sitOnBlobman()
         if not blobman then
             SafeNotify({ Title = "Bring", Content = "Failed to sit on blobman", Duration = 2 })
@@ -495,7 +470,6 @@ local function bringSelectedPlayer()
     clearInvalidHeldTargets()
 
     if leftHeldTarget and rightHeldTarget then
-        SafeNotify({ Title = "Bring", Content = "Both hands full, dropping left..." })
         dropHeldTarget(blobman, "left")
         clearInvalidHeldTargets()
     end
@@ -506,14 +480,13 @@ local function bringSelectedPlayer()
     elseif not rightHeldTarget then
         hand = "right"
     else
-        SafeNotify({ Title = "Bring", Content = "Both hands are still full", Duration = 2 })
+        SafeNotify({ Title = "Bring", Content = "Both hands are full and couldn't free one", Duration = 2 })
         if grabState then startGrabLoop() end
         return
     end
 
-    SafeNotify({ Title = "Bring", Content = "Grabbing " .. target.Name .. " with " .. hand .. " hand..." })
-    local ok, result = pcall(grabPlayer, blobman, target, hand)
-    if ok and result then
+    local success = pcall(grabPlayer, blobman, target, hand)
+    if success then
         SafeNotify({ Title = "Bring", Content = "Brought " .. target.Name, Duration = 2 })
     else
         SafeNotify({ Title = "Bring", Content = "Failed to bring " .. target.Name, Duration = 2 })
