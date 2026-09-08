@@ -1,21 +1,6 @@
 local WindUI = undeitedhub.WindUI
 local BlobmanTab = undeitedhub.Window:Tab({ Title = "Blobman" })
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
@@ -300,7 +285,6 @@ local function startAutoSit()
     autoSitEnabled = true
     undeitedhub.Toggles.autoSit = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Sit", Content = "Enabled", Duration = 2 })
 
     autoSitTask = task.spawn(function()
         while autoSitEnabled do
@@ -329,28 +313,23 @@ local function stopAutoSit()
         autoSitTask = nil
     end
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    SafeNotify({ Title = "Auto Sit", Content = "Disabled", Duration = 2 })
 end
 
 local function bringSelectedPlayer()
     if not selectedBringPlayer or selectedBringPlayer == "" then
-        SafeNotify({ Title = "Bring", Content = "No player selected", Duration = 2 })
         return
     end
 
     local target = Players:FindFirstChild(selectedBringPlayer)
     if not target then
-        SafeNotify({ Title = "Bring", Content = "Player not found", Duration = 2 })
         return
     end
 
     if target == LocalPlayer then
-        SafeNotify({ Title = "Bring", Content = "You cannot bring yourself", Duration = 2 })
         return
     end
 
     if not isPlayerValid(target) then
-        SafeNotify({ Title = "Bring", Content = "Target is dead or invalid", Duration = 2 })
         return
     end
 
@@ -358,7 +337,6 @@ local function bringSelectedPlayer()
     if not blobman then
         blobman = sitOnBlobman()
         if not blobman then
-            SafeNotify({ Title = "Bring", Content = "Failed to sit on blobman", Duration = 2 })
             return
         end
     end
@@ -366,7 +344,6 @@ local function bringSelectedPlayer()
     clearInvalidHeldTargets()
 
     if leftHeldTarget and rightHeldTarget then
-        SafeNotify({ Title = "Bring", Content = "Dropping left hand to free a slot", Duration = 2 })
         dropHeldTarget(blobman, "left")
         clearInvalidHeldTargets()
     end
@@ -377,30 +354,24 @@ local function bringSelectedPlayer()
     elseif not rightHeldTarget then
         hand = "right"
     else
-        SafeNotify({ Title = "Bring", Content = "Both hands are still full. Aborting.", Duration = 2 })
         return
     end
 
     local localChar = getPlayerCharacter()
     if not localChar then
-        SafeNotify({ Title = "Bring", Content = "Your character is invalid", Duration = 2 })
         return
     end
 
     local localRoot = localChar:FindFirstChild("HumanoidRootPart")
     if not localRoot then
-        SafeNotify({ Title = "Bring", Content = "Your HumanoidRootPart not found", Duration = 2 })
         return
     end
 
     local targetChar = target.Character
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
     if not targetRoot then
-        SafeNotify({ Title = "Bring", Content = "Target has no HumanoidRootPart", Duration = 2 })
         return
     end
-
-    SafeNotify({ Title = "Bring", Content = "Teleporting to target...", Duration = 2 })
 
     local originalPos = localRoot.CFrame
     local targetPos = targetRoot.CFrame + Vector3.new(0, 0, 3)
@@ -408,23 +379,14 @@ local function bringSelectedPlayer()
     task.wait(0.2)
 
     if not getSeatedBlobman() then
-        SafeNotify({ Title = "Bring", Content = "Re‑seating on blobman...", Duration = 2 })
         sitOnBlobman()
         task.wait(0.3)
     end
 
-    SafeNotify({ Title = "Bring", Content = "Grabbing target...", Duration = 2 })
-
-    local success = pcall(grabPlayer, blobman, target, hand)
+    pcall(grabPlayer, blobman, target, hand)
 
     localRoot.CFrame = originalPos
     task.wait(0.1)
-
-    if success then
-        SafeNotify({ Title = "Bring", Content = "Brought " .. target.Name, Duration = 2 })
-    else
-        SafeNotify({ Title = "Bring", Content = "Failed to bring " .. target.Name, Duration = 2 })
-    end
 end
 
 local function refreshDropdowns()
