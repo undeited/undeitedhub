@@ -43,13 +43,27 @@ local selectedKickPlayer = nil
 local bringDropdown = nil
 local kickDropdown = nil
 
-local grabbedCooldown = {}  -- target -> last grab time
+local grabbedCooldown = {}
 
 local function isPlayerValid(player)
     if not player then return false end
     if not player.Character then return false end
     local hum = player.Character:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
+end
+
+local function isPlayerInPlot(player)
+    if not player or not player.Character then return false end
+    local root = player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    local plots = Workspace:FindFirstChild("Plots")
+    if not plots then return false end
+    for _, plot in ipairs(plots:GetChildren()) do
+        if plot:IsA("Model") and root:IsDescendantOf(plot) then
+            return true
+        end
+    end
+    return false
 end
 
 local function clearInvalidHeldTargets()
@@ -249,6 +263,7 @@ local function getNearestUnheldPlayer(blobmanModel, excludeLeft, excludeRight)
         if player == LocalPlayer then continue end
         if not isPlayerValid(player) then continue end
         if player == excludeLeft or player == excludeRight then continue end
+        if isPlayerInPlot(player) then continue end
         if grabbedCooldown[player] and tick() - grabbedCooldown[player] < 2 then continue end
         local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
         if targetRoot then
@@ -305,6 +320,10 @@ end
 
 local function grabPlayer(blobman, target, hand)
     if not blobman or not target then return false end
+    if isPlayerInPlot(target) then
+        return false
+    end
+
     local leftDetector = blobman:FindFirstChild("LeftDetector")
     local rightDetector = blobman:FindFirstChild("RightDetector")
     local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
@@ -461,6 +480,11 @@ local function bringSelectedPlayer()
         return
     end
 
+    if isPlayerInPlot(target) then
+        SafeNotify({ Title = "Bring", Content = "Target is inside a plot", Duration = 2 })
+        return
+    end
+
     local blobman = getSeatedBlobman()
     if not blobman then
         blobman = sitOnBlobman()
@@ -504,6 +528,7 @@ end
 local function performKick(target)
     if not target then return false end
     if not isPlayerValid(target) then return false end
+    if isPlayerInPlot(target) then return false end
 
     local blobman = getSeatedBlobman()
     if not blobman then
@@ -581,6 +606,10 @@ local function startAutoKick()
                     continue
                 end
                 if target == LocalPlayer then
+                    task.wait(0.5)
+                    continue
+                end
+                if isPlayerInPlot(target) then
                     task.wait(0.5)
                     continue
                 end
