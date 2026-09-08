@@ -44,6 +44,23 @@ local selectedKickPlayer = nil
 local bringDropdown = nil
 local kickDropdown = nil
 
+local function setNetworkOwner(part)
+    if not part then return end
+    local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
+    if remote then
+        remote = remote:FindFirstChild("SetNetworkOwner")
+    end
+    if remote then
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            pcall(function()
+                remote:FireServer(part, CFrame.lookAt(root.Position, part.Position))
+            end)
+        end
+    end
+end
+
 local function updateToyFolder()
     toyFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
 end
@@ -435,6 +452,7 @@ local function bringSelectedPlayer()
         return
     end
 
+    setNetworkOwner(targetRoot)
     local originalPos = localRoot.CFrame
     local targetPos = targetRoot.CFrame + Vector3.new(0, 0, 3)
     localRoot.CFrame = targetPos
@@ -449,10 +467,12 @@ local function bringSelectedPlayer()
     localRoot.CFrame = originalPos
     task.wait(0.1)
 
-    creatureDrop:FireServer(targetWeld, targetRoot)
-    task.wait(0.1)
-
-    if targetWeld == leftWeld then leftHeldTarget = nil else rightHeldTarget = nil end
+    -- Do NOT drop – keep held
+    if targetWeld == leftWeld then
+        leftHeldTarget = targetChar
+    else
+        rightHeldTarget = targetChar
+    end
 
     SafeNotify({ Title = "Bring", Content = "Brought " .. target.Name .. " to you", Duration = 2 })
     if grabState then startGrabLoop() end
@@ -494,6 +514,8 @@ local function performKick(target)
     else
         return false
     end
+
+    setNetworkOwner(targetRoot)
 
     targetRoot.CFrame = detector.CFrame
     targetRoot.Velocity = Vector3.new(0,0,0)
