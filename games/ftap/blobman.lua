@@ -116,6 +116,22 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
+local function deleteOccupiedBlobmen()
+    local folder = getToysFolder()
+    if not folder then return end
+    for _, child in ipairs(folder:GetChildren()) do
+        if child.Name == "CreatureBlobman" and child:IsA("Model") then
+            local seat = child:FindFirstChild("VehicleSeat")
+            if seat and seat.Occupant then
+                local occupant = seat.Occupant
+                if occupant ~= LocalPlayer.Character and occupant ~= LocalPlayer.Character and occupant.Parent ~= LocalPlayer.Character then
+                    deleteToy(child)
+                end
+            end
+        end
+    end
+end
+
 local function setNetworkOwner(part)
     if not part then return end
     local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
@@ -263,7 +279,6 @@ local function grabPlayer(blobman, target, hand)
     local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
     if not targetRoot or not targetHum or targetHum.Health <= 0 then return false end
 
-    -- Try to steal ownership up to 3 times
     local success = false
     for i = 1, 3 do
         if snowshipOnce(targetRoot) then
@@ -298,6 +313,9 @@ local function startAutoSit()
     autoSitTask = task.spawn(function()
         while autoSitEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                -- Delete any blobman that another player is sitting on
+                pcall(deleteOccupiedBlobmen)
+
                 local char = getPlayerCharacter()
                 if char then
                     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -324,7 +342,7 @@ local function stopAutoSit()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
-local function bringPlayer(target)
+local function bringPlayer(target, dropAfter)
     if not target or target == LocalPlayer then return end
     if not isPlayerValid(target) then return end
 
@@ -359,7 +377,6 @@ local function bringPlayer(target)
     local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
     if not targetRoot then return end
 
-    -- Teleport above the target to avoid obstacles
     local originalPos = localRoot.CFrame
     local targetPos = targetRoot.CFrame + Vector3.new(0, 3, 0)
     localRoot.CFrame = targetPos
@@ -370,7 +387,6 @@ local function bringPlayer(target)
         task.wait(0.3)
     end
 
-    -- Retry grab up to 3 times
     local success = false
     for i = 1, 3 do
         success = pcall(grabPlayer, blobman, target, hand)
@@ -380,18 +396,22 @@ local function bringPlayer(target)
 
     localRoot.CFrame = originalPos
     task.wait(0.1)
+
+    if success and dropAfter then
+        dropHeldTarget(blobman, hand)
+    end
 end
 
 local function bringSelectedPlayer()
     if not selectedBringPlayer or selectedBringPlayer == "" then return
     local target = Players:FindFirstChild(selectedBringPlayer)
-    if target then bringPlayer(target) end
+    if target then bringPlayer(target, false) end
 end
 
 local function bringAllPlayers()
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-            bringPlayer(player)
+            bringPlayer(player, true)
             task.wait(0.3)
         end
     end
