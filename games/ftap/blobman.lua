@@ -349,7 +349,7 @@ local function bringPlayer(target, dropAfter)
     local blobman = getSeatedBlobman()
     if not blobman then
         blobman = sitOnBlobman()
-        if not blobman then return
+        if not blobman then return end
     end
 
     clearInvalidHeldTargets()
