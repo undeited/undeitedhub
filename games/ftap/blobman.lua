@@ -116,7 +116,6 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
--- Deletes any blobman that is occupied by someone else
 local function deleteOccupiedBlobmen()
     local folder = getToysFolder()
     if not folder then return end
