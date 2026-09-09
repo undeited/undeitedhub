@@ -10,6 +10,12 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local autoSitEnabled = undeitedhub.Toggles.autoSit or false
 local autoSitTask = nil
 
+local kickEnabled = undeitedhub.Toggles.kickPlayer or false
+local kickTask = nil
+local selectedKickPlayer = nil
+local kickDropdown = nil
+local kickBodyVelocity = nil
+
 local INTERACT_KEY = Enum.KeyCode.F
 
 local leftHeldTarget = nil
@@ -116,7 +122,6 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
--- FIXED: missing 'then' corrected; condition restructured for clarity
 local function deleteOccupiedBlobmen()
     local folder = getToysFolder()
     if not folder then return end
@@ -342,6 +347,143 @@ local function stopAutoSit()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
+local function applyKickForce(target)
+    if not target or not target.Character then return end
+    local root = target.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    if kickBodyVelocity then
+        kickBodyVelocity:Destroy()
+        kickBodyVelocity = nil
+    end
+    local bv = Instance.new("BodyVelocity")
+    bv.Velocity = Vector3.new(0, 50, 0)
+    bv.MaxForce = Vector3.new(0, math.huge, 0)
+    bv.Parent = root
+    kickBodyVelocity = bv
+end
+
+local function removeKickForce()
+    if kickBodyVelocity then
+        kickBodyVelocity:Destroy()
+        kickBodyVelocity = nil
+    end
+end
+
+local function kickPlayer(target)
+    if not target or target == LocalPlayer then return end
+    if not isPlayerValid(target) then return end
+
+    local blobman = getSeatedBlobman()
+    if not blobman then
+        blobman = sitOnBlobman()
+        if not blobman then return
+    end
+
+    clearInvalidHeldTargets()
+
+    if leftHeldTarget and rightHeldTarget then
+        dropHeldTarget(blobman, "left")
+        clearInvalidHeldTargets()
+    end
+
+    local hand
+    if not leftHeldTarget then
+        hand = "left"
+    elseif not rightHeldTarget then
+        hand = "right"
+    else
+        return
+    end
+
+    local localChar = getPlayerCharacter()
+    if not localChar then return end
+    local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return end
+
+    local targetChar = target.Character
+    local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
+
+    local originalPos = localRoot.CFrame
+    local targetPos = targetRoot.CFrame + Vector3.new(0, 3, 0)
+    localRoot.CFrame = targetPos
+    task.wait(0.2)
+
+    if not getSeatedBlobman() then
+        sitOnBlobman()
+        task.wait(0.3)
+    end
+
+    local success = false
+    for i = 1, 3 do
+        success = pcall(grabPlayer, blobman, target, hand)
+        if success then break end
+        task.wait(0.2)
+    end
+
+    localRoot.CFrame = originalPos
+    task.wait(0.1)
+
+    if success then
+        applyKickForce(target)
+    end
+end
+
+local function startKickLoop()
+    if kickTask then return end
+    kickEnabled = true
+    undeitedhub.Toggles.kickPlayer = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+
+    kickTask = task.spawn(function()
+        while kickEnabled do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                if not selectedKickPlayer or selectedKickPlayer == "" then
+                    task.wait(0.5)
+                    continue
+                end
+                local target = Players:FindFirstChild(selectedKickPlayer)
+                if not target then
+                    task.wait(0.5)
+                    continue
+                end
+                if target == LocalPlayer then
+                    task.wait(0.5)
+                    continue
+                end
+                if not isPlayerValid(target) then
+                    task.wait(0.5)
+                    continue
+                end
+
+                pcall(kickPlayer, target)
+            end
+            task.wait(2)
+        end
+        kickTask = nil
+    end)
+end
+
+local function stopKickLoop()
+    kickEnabled = false
+    undeitedhub.Toggles.kickPlayer = false
+    if kickTask then
+        task.cancel(kickTask)
+        kickTask = nil
+    end
+    removeKickForce()
+    local blobman = getSeatedBlobman()
+    if blobman then
+        if leftHeldTarget then
+            dropHeldTarget(blobman, "left")
+        end
+        if rightHeldTarget then
+            dropHeldTarget(blobman, "right")
+        end
+    end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+end
+
 local function bringPlayer(target, dropAfter)
     if not target or target == LocalPlayer then return end
     if not isPlayerValid(target) then return end
@@ -349,7 +491,7 @@ local function bringPlayer(target, dropAfter)
     local blobman = getSeatedBlobman()
     if not blobman then
         blobman = sitOnBlobman()
-        if not blobman then return end
+        if not blobman then return
     end
 
     clearInvalidHeldTargets()
@@ -438,6 +580,15 @@ local function refreshDropdowns()
             end)
         end
     end
+    if kickDropdown then
+        kickDropdown:Refresh(names, true)
+        if not table.find(names, selectedKickPlayer) then
+            selectedKickPlayer = names[1] or ""
+            pcall(function()
+                kickDropdown:Set(selectedKickPlayer)
+            end)
+        end
+    end
 end
 
 bringDropdown = BlobmanTab:Dropdown({
@@ -446,6 +597,15 @@ bringDropdown = BlobmanTab:Dropdown({
     Value = "",
     Callback = function(value)
         selectedBringPlayer = value
+    end
+})
+
+kickDropdown = BlobmanTab:Dropdown({
+    Title = "Select Player to Kick (Hold in Air)",
+    Values = {},
+    Value = "",
+    Callback = function(value)
+        selectedKickPlayer = value
     end
 })
 
@@ -468,6 +628,18 @@ BlobmanTab:Button({
 })
 
 BlobmanTab:Toggle({
+    Title = "Kick Player",
+    Value = kickEnabled,
+    Callback = function(state)
+        if state then
+            startKickLoop()
+        else
+            stopKickLoop()
+        end
+    end
+})
+
+BlobmanTab:Toggle({
     Title = "Auto Sit",
     Value = autoSitEnabled,
     Callback = function(state)
@@ -476,9 +648,11 @@ BlobmanTab:Toggle({
 })
 
 if autoSitEnabled then startAutoSit() end
+if kickEnabled then startKickLoop() end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if autoSitEnabled then stopAutoSit() end
+    if kickEnabled then stopKickLoop() end
     oldDisable()
 end
