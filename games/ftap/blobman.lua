@@ -383,6 +383,8 @@ local function kickPlayer(target)
             blobman = sitOnBlobman()
             if not blobman then return
         end
+    end
+end
 
         clearInvalidHeldTargets()
 
@@ -535,6 +537,8 @@ local function bringPlayer(target, dropAfter)
 
     if success and dropAfter then
         dropHeldTarget(blobman, hand)
+    end
+end
     end
 end
 
