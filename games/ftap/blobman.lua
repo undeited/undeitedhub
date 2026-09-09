@@ -124,8 +124,7 @@ local function deleteOccupiedBlobmen()
         if child.Name == "CreatureBlobman" and child:IsA("Model") then
             local seat = child:FindFirstChild("VehicleSeat")
             if seat and seat.Occupant then
-                local occupant = seat.Occupant
-                if occupant ~= myHum then
+                if seat.Occupant ~= myHum then
                     deleteToy(child)
                 end
             end
