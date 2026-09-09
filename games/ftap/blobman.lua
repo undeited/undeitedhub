@@ -116,7 +116,7 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
--- FIXED: missing 'then' was the culprit
+-- FIXED: missing 'then' corrected; condition restructured for clarity
 local function deleteOccupiedBlobmen()
     local folder = getToysFolder()
     if not folder then return end
@@ -124,8 +124,8 @@ local function deleteOccupiedBlobmen()
     for _, child in ipairs(folder:GetChildren()) do
         if child.Name == "CreatureBlobman" and child:IsA("Model") then
             local seat = child:FindFirstChild("VehicleSeat")
-            if seat and seat.Occupant then
-                if seat.Occupant ~= myHum then
+            if seat then
+                if seat.Occupant and seat.Occupant ~= myHum then
                     deleteToy(child)
                 end
             end
