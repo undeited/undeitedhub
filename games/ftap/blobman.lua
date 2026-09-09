@@ -116,6 +116,7 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
+-- FIXED: missing 'then' was the culprit
 local function deleteOccupiedBlobmen()
     local folder = getToysFolder()
     if not folder then return end
