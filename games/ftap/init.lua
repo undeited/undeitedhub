@@ -23,7 +23,9 @@ end
 local function LoadScript(name)
     local script = HttpGet(BASE_URL .. name)
     local fn, err = LoadString(script, name)
-    if not fn then error(err) end
+    if not fn then
+        error("Failed to compile " .. name .. ": " .. tostring(err), 0)
+    end
     return fn()
 end
 
