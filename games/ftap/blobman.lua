@@ -356,7 +356,7 @@ local function applyKickForce(target)
         kickBodyVelocity = nil
     end
     local bv = Instance.new("BodyVelocity")
-    bv.Velocity = Vector3.new(0, 50, 0)
+    bv.Velocity = Vector3.new(0, 75, 0)
     bv.MaxForce = Vector3.new(0, math.huge, 0)
     bv.Parent = root
     kickBodyVelocity = bv
@@ -369,64 +369,83 @@ local function removeKickForce()
     end
 end
 
+local function isPlayerHeld(player)
+    return (leftHeldTarget == player or rightHeldTarget == player)
+end
+
 local function kickPlayer(target)
     if not target or target == LocalPlayer then return end
     if not isPlayerValid(target) then return end
 
-    local blobman = getSeatedBlobman()
-    if not blobman then
-        blobman = sitOnBlobman()
-        if not blobman then return
+    if not isPlayerHeld(target) then
+        local blobman = getSeatedBlobman()
+        if not blobman then
+            blobman = sitOnBlobman()
+            if not blobman then return
         end
-    end
 
-    clearInvalidHeldTargets()
-
-    if leftHeldTarget and rightHeldTarget then
-        dropHeldTarget(blobman, "left")
         clearInvalidHeldTargets()
-    end
 
-    local hand
-    if not leftHeldTarget then
-        hand = "left"
-    elseif not rightHeldTarget then
-        hand = "right"
-    else
-        return
-    end
+        if leftHeldTarget and rightHeldTarget then
+            dropHeldTarget(blobman, "left")
+            clearInvalidHeldTargets()
+        end
 
-    local localChar = getPlayerCharacter()
-    if not localChar then return end
-    local localRoot = localChar:FindFirstChild("HumanoidRootPart")
-    if not localRoot then return end
+        local hand
+        if not leftHeldTarget then
+            hand = "left"
+        elseif not rightHeldTarget then
+            hand = "right"
+        else
+            return
+        end
 
-    local targetChar = target.Character
-    local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then return end
+        local localChar = getPlayerCharacter()
+        if not localChar then return end
+        local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+        if not localRoot then return end
 
-    local originalPos = localRoot.CFrame
-    local targetPos = targetRoot.CFrame + Vector3.new(0, 3, 0)
-    localRoot.CFrame = targetPos
-    task.wait(0.2)
+        local targetChar = target.Character
+        local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+        if not targetRoot then return end
 
-    if not getSeatedBlobman() then
-        sitOnBlobman()
-        task.wait(0.3)
-    end
-
-    local success = false
-    for i = 1, 3 do
-        success = pcall(grabPlayer, blobman, target, hand)
-        if success then break end
+        local originalPos = localRoot.CFrame
+        local targetPos = targetRoot.CFrame + Vector3.new(0, 3, 0)
+        localRoot.CFrame = targetPos
         task.wait(0.2)
+
+        if not getSeatedBlobman() then
+            sitOnBlobman()
+            task.wait(0.3)
+        end
+
+        local success = false
+        for i = 1, 3 do
+            success = pcall(grabPlayer, blobman, target, hand)
+            if success then break end
+            task.wait(0.2)
+        end
+
+        localRoot.CFrame = originalPos
+        task.wait(0.1)
+
+        if not success then return
     end
 
-    localRoot.CFrame = originalPos
-    task.wait(0.1)
+    applyKickForce(target)
+end
 
-    if success then
-        applyKickForce(target)
+local function kickLoop()
+    while kickEnabled do
+        if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+            if selectedKickPlayer and selectedKickPlayer ~= "" then
+                local target = Players:FindFirstChild(selectedKickPlayer)
+                if target and target ~= LocalPlayer and isPlayerValid(target) then
+                    pcall(kickPlayer, target)
+                end
+            end
+        end
+        task.wait(0.5)
     end
 end
 
@@ -436,33 +455,7 @@ local function startKickLoop()
     undeitedhub.Toggles.kickPlayer = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
-    kickTask = task.spawn(function()
-        while kickEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                if not selectedKickPlayer or selectedKickPlayer == "" then
-                    task.wait(0.5)
-                    continue
-                end
-                local target = Players:FindFirstChild(selectedKickPlayer)
-                if not target then
-                    task.wait(0.5)
-                    continue
-                end
-                if target == LocalPlayer then
-                    task.wait(0.5)
-                    continue
-                end
-                if not isPlayerValid(target) then
-                    task.wait(0.5)
-                    continue
-                end
-
-                pcall(kickPlayer, target)
-            end
-            task.wait(2)
-        end
-        kickTask = nil
-    end)
+    kickTask = task.spawn(kickLoop)
 end
 
 local function stopKickLoop()
@@ -493,7 +486,6 @@ local function bringPlayer(target, dropAfter)
     if not blobman then
         blobman = sitOnBlobman()
         if not blobman then return
-        end
     end
 
     clearInvalidHeldTargets()
@@ -603,7 +595,7 @@ bringDropdown = BlobmanTab:Dropdown({
 })
 
 kickDropdown = BlobmanTab:Dropdown({
-    Title = "Select Player to Kick (Hold in Air)",
+    Title = "Select Player to Kick",
     Values = {},
     Value = "",
     Callback = function(value)
