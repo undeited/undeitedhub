@@ -16,6 +16,10 @@ local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
 
+local blobmanMonitorTask = nil
+local BLOBMAN_VOID_Y = -100
+local BLOBMAN_RESPAWN_DELAY = 0.5
+
 local INTERACT_KEY = Enum.KeyCode.F
 
 local leftHeldTarget = nil
@@ -168,6 +172,55 @@ local function ensureSingleBlobman()
     end
 
     return getBlobmen()[1]
+end
+
+local function startBlobmanMonitor()
+    if blobmanMonitorTask then
+        return
+    end
+
+    blobmanMonitorTask = task.spawn(function()
+        while true do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                local blobmen = getBlobmen()
+
+                if #blobmen == 0 then
+                    spawnBlobman()
+
+                    task.wait(0.5)
+                else
+                    local blobman = blobmen[1]
+
+                    local primary =
+                        blobman.PrimaryPart
+                        or blobman:FindFirstChild("HumanoidRootPart")
+                        or blobman:FindFirstChild("VehicleSeat")
+
+                    if primary and primary.Position.Y <= BLOBMAN_VOID_Y then
+                        local oldBlobman = blobman
+
+                        deleteToy(oldBlobman)
+
+                        task.wait(BLOBMAN_RESPAWN_DELAY)
+
+                        local remaining = getBlobmen()
+
+                        if #remaining == 0 then
+                            spawnBlobman()
+
+                            task.wait(0.5)
+                        end
+                    elseif #blobmen > 1 then
+                        for i = 2, #blobmen do
+                            deleteToy(blobmen[i])
+                        end
+                    end
+                end
+            end
+
+            task.wait(0.25)
+        end
+    end)
 end
 
 local function deleteOccupiedBlobmen()
@@ -400,12 +453,15 @@ local function startHover(target, blobman)
         end
 
         local targetCharacter = target.Character
-        local targetRoot = targetCharacter
+
+        local targetRoot =
+            targetCharacter
             and targetCharacter:FindFirstChild("HumanoidRootPart")
 
         local blobmanRoot =
             blobman:FindFirstChild("HumanoidRootPart")
             or blobman.PrimaryPart
+            or blobman:FindFirstChild("VehicleSeat")
 
         if not targetRoot or not blobmanRoot then
             return
@@ -974,6 +1030,7 @@ kickDropdown = BlobmanTab:Dropdown({
 })
 
 Players.PlayerAdded:Connect(refreshDropdowns)
+
 Players.PlayerRemoving:Connect(function(player)
     stopHover(player)
     refreshDropdowns()
@@ -1019,6 +1076,8 @@ BlobmanTab:Toggle({
     end
 })
 
+startBlobmanMonitor()
+
 if autoSitEnabled then
     startAutoSit()
 end
@@ -1039,6 +1098,15 @@ undeitedhub.DisableAll = function()
 
     if kickEnabled then
         stopKickLoop()
+    end
+
+    if blobmanMonitorTask then
+        task.cancel(blobmanMonitorTask)
+        blobmanMonitorTask = nil
+    end
+
+    for target in pairs(hoveringTargets) do
+        stopHover(target)
     end
 
     oldDisable()
