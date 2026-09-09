@@ -17,8 +17,8 @@ local selectedKickPlayer = nil
 local kickDropdown = nil
 
 local blobmanMonitorTask = nil
-local BLOBMAN_VOID_Y = -100
 local BLOBMAN_RESPAWN_DELAY = 0.5
+local BLOBMAN_VOID_THRESHOLD = 50
 
 local INTERACT_KEY = Enum.KeyCode.F
 
@@ -156,11 +156,13 @@ local function deleteToy(toy)
         return
     end
 
-    local remote = ReplicatedStorage:FindFirstChild("MenuToys")
+    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
 
-    if remote then
-        remote = remote:FindFirstChild("DestroyToy")
+    if not menuToys then
+        return
     end
+
+    local remote = menuToys:FindFirstChild("DestroyToy")
 
     if remote then
         pcall(function()
@@ -176,11 +178,14 @@ local function spawnBlobman()
         return
     end
 
-    local spawnRemote = ReplicatedStorage:FindFirstChild("MenuToys")
+    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
 
-    if spawnRemote then
-        spawnRemote = spawnRemote:FindFirstChild("SpawnToyRemoteFunction")
+    if not menuToys then
+        return
     end
+
+    local spawnRemote =
+        menuToys:FindFirstChild("SpawnToyRemoteFunction")
 
     if spawnRemote then
         pcall(function()
@@ -192,11 +197,8 @@ local function spawnBlobman()
         end)
     end
 
-    local buyRemote = ReplicatedStorage:FindFirstChild("MenuToys")
-
-    if buyRemote then
-        buyRemote = buyRemote:FindFirstChild("BuyToyRemoteFunction")
-    end
+    local buyRemote =
+        menuToys:FindFirstChild("BuyToyRemoteFunction")
 
     if buyRemote then
         pcall(function()
@@ -245,21 +247,38 @@ local function startBlobmanMonitor()
                 else
                     local blobman = blobmen[1]
 
-                    local primary =
-                        blobman.PrimaryPart
-                        or blobman:FindFirstChild("HumanoidRootPart")
+                    local root =
+                        blobman:FindFirstChild("HumanoidRootPart")
+                        or blobman.PrimaryPart
                         or blobman:FindFirstChild("VehicleSeat")
 
-                    if primary and primary.Position.Y <= BLOBMAN_VOID_Y then
-                        deleteToy(blobman)
+                    if root then
+                        local deathHeight =
+                            Workspace.FallenPartsDestroyHeight
 
-                        task.wait(BLOBMAN_RESPAWN_DELAY)
-
-                        if #getBlobmen() == 0 then
-                            spawnBlobman()
-                            task.wait(0.5)
+                        if not deathHeight
+                            or deathHeight == math.huge
+                            or deathHeight == -math.huge then
+                            deathHeight = -500
                         end
-                    elseif #blobmen > 1 then
+
+                        if root.Position.Y <=
+                            deathHeight + BLOBMAN_VOID_THRESHOLD then
+
+                            deleteToy(blobman)
+
+                            task.wait(BLOBMAN_RESPAWN_DELAY)
+
+                            if #getBlobmen() == 0 then
+                                spawnBlobman()
+                                task.wait(0.5)
+                            end
+                        end
+                    end
+
+                    blobmen = getBlobmen()
+
+                    if #blobmen > 1 then
                         for i = 2, #blobmen do
                             deleteToy(blobmen[i])
                         end
@@ -267,7 +286,7 @@ local function startBlobmanMonitor()
                 end
             end
 
-            task.wait(0.25)
+            task.wait()
         end
     end)
 end
@@ -298,24 +317,28 @@ local function setNetworkOwner(part)
         return
     end
 
-    local remote = ReplicatedStorage:FindFirstChild("GrabEvents")
+    local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
 
-    if remote then
-        remote = remote:FindFirstChild("SetNetworkOwner")
+    if not grabEvents then
+        return
     end
 
-    if remote then
-        local char = getPlayerCharacter()
-        local root = char and char:FindFirstChild("HumanoidRootPart")
+    local remote = grabEvents:FindFirstChild("SetNetworkOwner")
 
-        if root then
-            pcall(function()
-                remote:FireServer(
-                    part,
-                    CFrame.lookAt(root.Position, part.Position)
-                )
-            end)
-        end
+    if not remote then
+        return
+    end
+
+    local char = getPlayerCharacter()
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+
+    if root then
+        pcall(function()
+            remote:FireServer(
+                part,
+                CFrame.lookAt(root.Position, part.Position)
+            )
+        end)
     end
 end
 
@@ -516,8 +539,14 @@ local function startHover(target, blobman)
             return
         end
 
+        local position =
+            blobmanRoot.Position + Vector3.new(0, 15, 0)
+
         targetRoot.CFrame =
-            blobmanRoot.CFrame * CFrame.new(0, 30, 0)
+            CFrame.new(
+                position,
+                position + blobmanRoot.CFrame.LookVector
+            )
 
         targetRoot.AssemblyLinearVelocity = Vector3.zero
         targetRoot.AssemblyAngularVelocity = Vector3.zero
@@ -679,7 +708,11 @@ local function grabPlayer(blobman, target, hand)
     task.wait(0.08)
 
     local grabSuccess = pcall(function()
-        creatureGrab:FireServer(target, targetRoot, weld)
+        creatureGrab:FireServer(
+            target,
+            targetRoot,
+            weld
+        )
     end)
 
     if not grabSuccess then
@@ -749,11 +782,6 @@ local function stopAutoSit()
     if undeitedhub.SaveSettings then
         undeitedhub.SaveSettings()
     end
-end
-
-local function isPlayerHeld(player)
-    return leftHeldTarget == player
-        or rightHeldTarget == player
 end
 
 local function kickPlayer(target)
@@ -868,12 +896,33 @@ local function kickPlayer(target)
     startHover(target, blobman)
 end
 
+local function getPlayerFromDropdownValue(value)
+    if not value or value == "" then
+        return nil
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            if player.DisplayName == value then
+                return player
+            end
+
+            if value ==
+                player.DisplayName .. " (@" .. player.Name .. ")" then
+                return player
+            end
+        end
+    end
+
+    return nil
+end
+
 local function kickLoop()
     while kickEnabled do
         if _G.UNDEITEDHUB_WINDOW_VISIBLE then
             if selectedKickPlayer and selectedKickPlayer ~= "" then
                 local target =
-                    Players:FindFirstChild(selectedKickPlayer)
+                    getPlayerFromDropdownValue(selectedKickPlayer)
 
                 if target
                     and target ~= LocalPlayer
@@ -1044,7 +1093,7 @@ local function bringSelectedPlayer()
     end
 
     local target =
-        Players:FindFirstChild(selectedBringPlayer)
+        getPlayerFromDropdownValue(selectedBringPlayer)
 
     if target then
         bringPlayer(target, false)
@@ -1064,20 +1113,42 @@ local function bringAllPlayers()
 end
 
 local function refreshDropdowns()
-    local names = {}
+    local displayNames = {}
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer
             and not isPlayerInProtectedPlot(player) then
-            table.insert(names, player.Name)
+
+            local displayName = player.DisplayName
+
+            local duplicate = false
+
+            for _, existingPlayer in ipairs(Players:GetPlayers()) do
+                if existingPlayer ~= player
+                    and existingPlayer ~= LocalPlayer
+                    and existingPlayer.DisplayName == player.DisplayName then
+
+                    duplicate = true
+                    break
+                end
+            end
+
+            if duplicate then
+                displayName =
+                    player.DisplayName .. " (@" .. player.Name .. ")"
+            end
+
+            table.insert(displayNames, displayName)
         end
     end
 
-    if bringDropdown then
-        bringDropdown:Refresh(names, true)
+    table.sort(displayNames)
 
-        if not table.find(names, selectedBringPlayer) then
-            selectedBringPlayer = names[1] or ""
+    if bringDropdown then
+        bringDropdown:Refresh(displayNames, true)
+
+        if not table.find(displayNames, selectedBringPlayer) then
+            selectedBringPlayer = displayNames[1] or ""
 
             pcall(function()
                 bringDropdown:Set(selectedBringPlayer)
@@ -1086,10 +1157,10 @@ local function refreshDropdowns()
     end
 
     if kickDropdown then
-        kickDropdown:Refresh(names, true)
+        kickDropdown:Refresh(displayNames, true)
 
-        if not table.find(names, selectedKickPlayer) then
-            selectedKickPlayer = names[1] or ""
+        if not table.find(displayNames, selectedKickPlayer) then
+            selectedKickPlayer = displayNames[1] or ""
 
             pcall(function()
                 kickDropdown:Set(selectedKickPlayer)
@@ -1116,11 +1187,41 @@ kickDropdown = BlobmanTab:Dropdown({
     end
 })
 
-Players.PlayerAdded:Connect(refreshDropdowns)
+Players.PlayerAdded:Connect(function()
+    task.wait(0.1)
+    refreshDropdowns()
+end)
 
 Players.PlayerRemoving:Connect(function(player)
     stopHover(player)
+
+    if selectedBringPlayer == player.DisplayName
+        or selectedBringPlayer ==
+            player.DisplayName .. " (@" .. player.Name .. ")" then
+        selectedBringPlayer = nil
+    end
+
+    if selectedKickPlayer == player.DisplayName
+        or selectedKickPlayer ==
+            player.DisplayName .. " (@" .. player.Name .. ")" then
+        selectedKickPlayer = nil
+    end
+
     refreshDropdowns()
+end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    player.CharacterAdded:Connect(function()
+        task.wait(0.2)
+        refreshDropdowns()
+    end)
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0.2)
+        refreshDropdowns()
+    end)
 end)
 
 refreshDropdowns()
