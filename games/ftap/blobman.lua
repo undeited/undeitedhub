@@ -30,12 +30,67 @@ local bringDropdown = nil
 local hoveringTargets = {}
 local hoverConnections = {}
 
+local function isPlayerInProtectedPlot(player)
+    if not player or not player.Character then
+        return false
+    end
+
+    local plots = Workspace:FindFirstChild("Plots")
+
+    if not plots then
+        return false
+    end
+
+    local character = player.Character
+
+    for i = 1, 5 do
+        local plot = plots:FindFirstChild("Plot" .. i)
+
+        if plot and character:IsDescendantOf(plot) then
+            return true
+        end
+    end
+
+    local root = character:FindFirstChild("HumanoidRootPart")
+
+    if not root then
+        return false
+    end
+
+    for i = 1, 5 do
+        local plot = plots:FindFirstChild("Plot" .. i)
+
+        if plot then
+            for _, part in ipairs(plot:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    local relative =
+                        part.CFrame:PointToObjectSpace(root.Position)
+
+                    local halfSize = part.Size / 2
+
+                    if math.abs(relative.X) <= halfSize.X
+                        and math.abs(relative.Y) <= halfSize.Y
+                        and math.abs(relative.Z) <= halfSize.Z then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
 local function isPlayerValid(player)
     if not player then
         return false
     end
 
     if not player.Character then
+        return false
+    end
+
+    if isPlayerInProtectedPlot(player) then
         return false
     end
 
@@ -186,7 +241,6 @@ local function startBlobmanMonitor()
 
                 if #blobmen == 0 then
                     spawnBlobman()
-
                     task.wait(0.5)
                 else
                     local blobman = blobmen[1]
@@ -197,17 +251,12 @@ local function startBlobmanMonitor()
                         or blobman:FindFirstChild("VehicleSeat")
 
                     if primary and primary.Position.Y <= BLOBMAN_VOID_Y then
-                        local oldBlobman = blobman
-
-                        deleteToy(oldBlobman)
+                        deleteToy(blobman)
 
                         task.wait(BLOBMAN_RESPAWN_DELAY)
 
-                        local remaining = getBlobmen()
-
-                        if #remaining == 0 then
+                        if #getBlobmen() == 0 then
                             spawnBlobman()
-
                             task.wait(0.5)
                         end
                     elseif #blobmen > 1 then
@@ -549,6 +598,10 @@ local function grabPlayer(blobman, target, hand)
         return false
     end
 
+    if isPlayerInProtectedPlot(target) then
+        return false
+    end
+
     local leftDetector = blobman:FindFirstChild("LeftDetector")
     local rightDetector = blobman:FindFirstChild("RightDetector")
 
@@ -599,6 +652,10 @@ local function grabPlayer(blobman, target, hand)
     local success = false
 
     for i = 1, 3 do
+        if isPlayerInProtectedPlot(target) then
+            return false
+        end
+
         if snowshipOnce(targetRoot) then
             success = true
             break
@@ -608,6 +665,10 @@ local function grabPlayer(blobman, target, hand)
     end
 
     if not success then
+        return false
+    end
+
+    if isPlayerInProtectedPlot(target) then
         return false
     end
 
@@ -754,6 +815,10 @@ local function kickPlayer(target)
         return
     end
 
+    if isPlayerInProtectedPlot(target) then
+        return
+    end
+
     local originalPos = localRoot.CFrame
 
     local targetPos =
@@ -771,6 +836,10 @@ local function kickPlayer(target)
     local success = false
 
     for i = 1, 3 do
+        if isPlayerInProtectedPlot(target) then
+            break
+        end
+
         local callSuccess, result = pcall(function()
             return grabPlayer(blobman, target, hand)
         end)
@@ -791,6 +860,11 @@ local function kickPlayer(target)
         return
     end
 
+    if isPlayerInProtectedPlot(target) then
+        dropHeldTarget(blobman, hand)
+        return
+    end
+
     startHover(target, blobman)
 end
 
@@ -804,6 +878,7 @@ local function kickLoop()
                 if target
                     and target ~= LocalPlayer
                     and isPlayerValid(target) then
+
                     pcall(kickPlayer, target)
                 end
             end
@@ -917,6 +992,10 @@ local function bringPlayer(target, dropAfter)
         return
     end
 
+    if isPlayerInProtectedPlot(target) then
+        return
+    end
+
     local originalPos = localRoot.CFrame
 
     local targetPos =
@@ -934,6 +1013,10 @@ local function bringPlayer(target, dropAfter)
     local success = false
 
     for i = 1, 3 do
+        if isPlayerInProtectedPlot(target) then
+            break
+        end
+
         local callSuccess, result = pcall(function()
             return grabPlayer(blobman, target, hand)
         end)
@@ -970,7 +1053,10 @@ end
 
 local function bringAllPlayers()
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
+        if player ~= LocalPlayer
+            and isPlayerValid(player)
+            and not isPlayerInProtectedPlot(player) then
+
             bringPlayer(player, true)
             task.wait(0.3)
         end
@@ -981,7 +1067,8 @@ local function refreshDropdowns()
     local names = {}
 
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
+        if player ~= LocalPlayer
+            and not isPlayerInProtectedPlot(player) then
             table.insert(names, player.Name)
         end
     end
