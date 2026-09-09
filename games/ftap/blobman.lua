@@ -6,6 +6,7 @@ local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
 
 local autoSitEnabled = undeitedhub.Toggles.autoSit or false
 local autoSitTask = nil
@@ -14,7 +15,6 @@ local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
-local kickBodyVelocity = nil
 
 local INTERACT_KEY = Enum.KeyCode.F
 
@@ -23,11 +23,20 @@ local rightHeldTarget = nil
 local selectedBringPlayer = nil
 local bringDropdown = nil
 
+local hoveringTargets = {}
+local hoverConnections = {}
+
 local function isPlayerValid(player)
-    if not player then return false end
-    if not player.Character then return false end
+    if not player then
+        return false
+    end
+
+    if not player.Character then
+        return false
+    end
 
     local hum = player.Character:FindFirstChildOfClass("Humanoid")
+
     return hum and hum.Health > 0
 end
 
@@ -84,7 +93,9 @@ local function getBlobmen()
 end
 
 local function deleteToy(toy)
-    if not toy then return end
+    if not toy then
+        return
+    end
 
     local remote = ReplicatedStorage:FindFirstChild("MenuToys")
 
@@ -352,6 +363,62 @@ local function playGrabAnimation(blobman, side)
     end)
 end
 
+local function stopHover(target)
+    hoveringTargets[target] = nil
+
+    local connection = hoverConnections[target]
+
+    if connection then
+        connection:Disconnect()
+        hoverConnections[target] = nil
+    end
+end
+
+local function startHover(target, blobman)
+    if not target or not blobman then
+        return
+    end
+
+    stopHover(target)
+
+    hoveringTargets[target] = true
+
+    hoverConnections[target] = RunService.Heartbeat:Connect(function()
+        if not hoveringTargets[target] then
+            stopHover(target)
+            return
+        end
+
+        if not isPlayerValid(target) then
+            stopHover(target)
+            return
+        end
+
+        if not blobman or not blobman.Parent then
+            stopHover(target)
+            return
+        end
+
+        local targetCharacter = target.Character
+        local targetRoot = targetCharacter
+            and targetCharacter:FindFirstChild("HumanoidRootPart")
+
+        local blobmanRoot =
+            blobman:FindFirstChild("HumanoidRootPart")
+            or blobman.PrimaryPart
+
+        if not targetRoot or not blobmanRoot then
+            return
+        end
+
+        targetRoot.CFrame =
+            blobmanRoot.CFrame * CFrame.new(0, 30, 0)
+
+        targetRoot.AssemblyLinearVelocity = Vector3.zero
+        targetRoot.AssemblyAngularVelocity = Vector3.zero
+    end)
+end
+
 local function dropHeldTarget(blobman, side)
     if not blobman then
         return false
@@ -366,10 +433,18 @@ local function dropHeldTarget(blobman, side)
         return false
     end
 
+    stopHover(target)
+
     local root = target.Character
         and target.Character:FindFirstChild("HumanoidRootPart")
 
     if not root then
+        if side == "left" then
+            leftHeldTarget = nil
+        else
+            rightHeldTarget = nil
+        end
+
         return false
     end
 
@@ -452,6 +527,7 @@ local function grabPlayer(blobman, target, hand)
     end
 
     local targetChar = target.Character
+
     local targetRoot =
         targetChar
         and targetChar:FindFirstChild("HumanoidRootPart")
@@ -480,11 +556,18 @@ local function grabPlayer(blobman, target, hand)
     end
 
     targetRoot.CFrame = detector.CFrame
-    targetRoot.Velocity = Vector3.new(0, 0, 0)
+    targetRoot.AssemblyLinearVelocity = Vector3.zero
+    targetRoot.AssemblyAngularVelocity = Vector3.zero
 
     task.wait(0.08)
 
-    creatureGrab:FireServer(target, targetRoot, weld)
+    local grabSuccess = pcall(function()
+        creatureGrab:FireServer(target, targetRoot, weld)
+    end)
+
+    if not grabSuccess then
+        return false
+    end
 
     task.wait(0.15)
 
@@ -548,39 +631,6 @@ local function stopAutoSit()
 
     if undeitedhub.SaveSettings then
         undeitedhub.SaveSettings()
-    end
-end
-
-local function applyKickForce(target)
-    if not target or not target.Character then
-        return
-    end
-
-    local root =
-        target.Character:FindFirstChild("HumanoidRootPart")
-
-    if not root then
-        return
-    end
-
-    if kickBodyVelocity then
-        kickBodyVelocity:Destroy()
-        kickBodyVelocity = nil
-    end
-
-    local bv = Instance.new("BodyVelocity")
-
-    bv.Velocity = Vector3.new(0, 75, 0)
-    bv.MaxForce = Vector3.new(0, math.huge, 0)
-    bv.Parent = root
-
-    kickBodyVelocity = bv
-end
-
-local function removeKickForce()
-    if kickBodyVelocity then
-        kickBodyVelocity:Destroy()
-        kickBodyVelocity = nil
     end
 end
 
@@ -649,6 +699,7 @@ local function kickPlayer(target)
     end
 
     local originalPos = localRoot.CFrame
+
     local targetPos =
         targetRoot.CFrame + Vector3.new(0, 3, 0)
 
@@ -684,7 +735,7 @@ local function kickPlayer(target)
         return
     end
 
-    applyKickForce(target)
+    startHover(target, blobman)
 end
 
 local function kickLoop()
@@ -697,7 +748,6 @@ local function kickLoop()
                 if target
                     and target ~= LocalPlayer
                     and isPlayerValid(target) then
-
                     pcall(kickPlayer, target)
                 end
             end
@@ -731,7 +781,9 @@ local function stopKickLoop()
         kickTask = nil
     end
 
-    removeKickForce()
+    for target in pairs(hoveringTargets) do
+        stopHover(target)
+    end
 
     local blobman = getSeatedBlobman()
 
@@ -922,7 +974,10 @@ kickDropdown = BlobmanTab:Dropdown({
 })
 
 Players.PlayerAdded:Connect(refreshDropdowns)
-Players.PlayerRemoving:Connect(refreshDropdowns)
+Players.PlayerRemoving:Connect(function(player)
+    stopHover(player)
+    refreshDropdowns()
+end)
 
 refreshDropdowns()
 
