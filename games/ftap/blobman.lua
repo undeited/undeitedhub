@@ -389,11 +389,8 @@ local function bringPlayer(target, dropAfter)
 
     local success = false
     for i = 1, 3 do
-        local callSuccess, grabSuccess = pcall(grabPlayer, blobman, target, hand)
-        success = callSuccess and grabSuccess == true
-        if success then
-            break
-        end
+        success = pcall(grabPlayer, blobman, target, hand)
+        if success then break end
         task.wait(0.2)
     end
 
