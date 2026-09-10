@@ -406,18 +406,9 @@ local function startKickLoop()
 
     kickTask = task.spawn(function()
         local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
-        local myChar = LocalPlayer.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not myRoot then
-            kickEnabled = false
-            undeitedhub.Toggles.kickPlayer = false
-            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-            return
-        end
-
-        local savedPos = myRoot.CFrame
         local dragging = false
         local grabStartTime = 0
+        local savedPos = nil
         local target = nil
 
         while kickEnabled do
@@ -432,32 +423,57 @@ local function startKickLoop()
                 continue
             end
 
+            local myChar = getPlayerCharacter()
+            if not myChar then
+                task.wait(0.3)
+                continue
+            end
+
+            local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+            local myHum = myChar:FindFirstChildOfClass("Humanoid")
+            if not myRoot or not myHum or myHum.Health <= 0 then
+                task.wait(0.3)
+                continue
+            end
+
+            local seat = myHum.SeatPart
+            if not seat or not seat.Parent or seat.Parent.Name ~= "CreatureBlobman" then
+                dragging = false
+                grabStartTime = 0
+                savedPos = myRoot.CFrame
+                pcall(sitOnBlobman)
+                task.wait(0.3)
+                continue
+            end
+
+            if not savedPos then
+                savedPos = myRoot.CFrame
+            end
+
             local tChar = target.Character
             local tRoot = tChar:FindFirstChild("HumanoidRootPart")
             local tHum = tChar:FindFirstChild("Humanoid")
-            local seat = myChar and myChar.Humanoid and myChar.Humanoid.SeatPart
 
             if tRoot and tHum and tHum.Health > 0 then
                 tRoot.AssemblyLinearVelocity = Vector3.zero
                 tRoot.Velocity = Vector3.zero
 
-                if seat then
-                    local blobman = seat.Parent
-                    local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
-                    local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
-                    local drop = remoteFolder and remoteFolder:FindFirstChild("CreatureDrop")
-                    local L_Det = blobman:FindFirstChild("LeftDetector")
-                    local R_Det = blobman:FindFirstChild("RightDetector")
-                    local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
-                    local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
-                    if grab and drop and L_Weld and R_Weld then
-                        pcall(function()
-                            grab:FireServer(L_Det, tRoot, L_Weld)
-                            grab:FireServer(R_Det, tRoot, R_Weld)
-                            drop:FireServer(L_Weld, tRoot)
-                            drop:FireServer(R_Weld, tRoot)
-                        end)
-                    end
+                local blobman = seat.Parent
+                local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+                local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
+                local drop = remoteFolder and remoteFolder:FindFirstChild("CreatureDrop")
+                local L_Det = blobman:FindFirstChild("LeftDetector")
+                local R_Det = blobman:FindFirstChild("RightDetector")
+                local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
+                local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
+
+                if grab and drop and L_Weld and R_Weld then
+                    pcall(function()
+                        grab:FireServer(L_Det, tRoot, L_Weld)
+                        grab:FireServer(R_Det, tRoot, R_Weld)
+                        drop:FireServer(L_Weld, tRoot)
+                        drop:FireServer(R_Weld, tRoot)
+                    end)
                 end
 
                 if not dragging then
@@ -495,6 +511,8 @@ local function startKickLoop()
             RunService.Heartbeat:Wait()
         end
 
+        local myChar = getPlayerCharacter()
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if myRoot and savedPos then
             myRoot.CFrame = savedPos
         end
