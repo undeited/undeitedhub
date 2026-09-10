@@ -238,7 +238,7 @@ local function stopKill()
 end
 
 CombatTab:Toggle({
-    Title = "Auto Kill",
+    Title = "Auto Kill Players",
     Value = killEnabled,
     Callback = function(state)
         if state then startKill() else stopKill() end
