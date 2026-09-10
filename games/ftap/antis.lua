@@ -147,6 +147,7 @@ local shurikenAntiKickActive = false
 local shurikenAntiKickTask = nil
 local shurikenCharFixConnection = nil
 local shurikenRespawnConnection = nil
+local shurikenPhysicsTask = nil
 local SelectedShurikenToy = "NinjaShuriken"
 
 local function fixShurikenCharacter(char)
@@ -173,6 +174,27 @@ local function fixShurikenCharacter(char)
             end
         end
         hum:ChangeState(Enum.HumanoidStateType.Running)
+    end
+end
+
+local function neutralizeShuriken(kunai)
+    if not kunai then return end
+    for _, obj in ipairs(kunai:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            pcall(function()
+                obj.CanTouch = false
+                obj.CanCollide = false
+                obj.CanQuery = false
+                obj.Massless = true
+                obj.AssemblyLinearVelocity = Vector3.zero
+                obj.AssemblyAngularVelocity = Vector3.zero
+                obj.Velocity = Vector3.zero
+                obj.RotVelocity = Vector3.zero
+            end)
+        end
+        if obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") or obj:IsA("BodyForce") or obj:IsA("BodyThrust") or obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") or obj:IsA("VectorForce") then
+            pcall(function() obj:Destroy() end)
+        end
     end
 end
 
@@ -205,6 +227,31 @@ local function ToggleShurikenAntiKick(enable)
             task.wait(1)
             if shurikenAntiKickActive then
                 ClearKunai()
+            end
+        end)
+
+        if shurikenPhysicsTask then shurikenPhysicsTask = nil end
+        shurikenPhysicsTask = task.spawn(function()
+            while shurikenAntiKickActive do
+                pcall(function()
+                    local inv = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+                    if inv then
+                        for _, toy in pairs(inv:GetChildren()) do
+                            if toy.Name == "AntiKick" or toy.Name == SelectedShurikenToy then
+                                for _, obj in ipairs(toy:GetDescendants()) do
+                                    if obj:IsA("BasePart") then
+                                        obj.Massless = true
+                                        obj.AssemblyLinearVelocity = Vector3.zero
+                                        obj.AssemblyAngularVelocity = Vector3.zero
+                                        obj.Velocity = Vector3.zero
+                                        obj.RotVelocity = Vector3.zero
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+                RunService.Heartbeat:Wait()
             end
         end)
 
@@ -248,6 +295,9 @@ local function ToggleShurikenAntiKick(enable)
                 if not kunai or not kunai:FindFirstChild("StickyPart") then return end
                 local currentHRP = getHRP()
                 if not currentHRP then return end
+
+                neutralizeShuriken(kunai)
+
                 if kunai:FindFirstChild("SoundPart") then
                     if not kunai.SoundPart:FindFirstChild("PartOwner") or kunai.SoundPart.PartOwner.Value ~= plr.Name then
                         setOwner:FireServer(kunai.SoundPart, kunai.SoundPart.CFrame)
@@ -257,14 +307,9 @@ local function ToggleShurikenAntiKick(enable)
                 if firePart then
                     stickyEvent:FireServer(kunai.StickyPart, firePart, CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), math.rad(90)))
                 end
-                for _, obj in pairs(kunai:GetChildren()) do
-                    if obj:IsA("BasePart") then
-                        obj.CanTouch = false
-                        obj.CanCollide = false
-                        obj.CanQuery = false
-                        obj.Transparency = 0.8
-                    end
-                end
+
+                neutralizeShuriken(kunai)
+
                 if kunai:FindFirstChild("Handle") then
                     local handle = kunai.Handle
                     if not handle:FindFirstChild("Highlight") then
@@ -327,6 +372,7 @@ local function ToggleShurikenAntiKick(enable)
                     if kunai == nil then return end
                     kunai.Name = "AntiKick"
                     if not kunai then return end
+                    neutralizeShuriken(kunai)
                 end
 
                 repeat
@@ -334,6 +380,7 @@ local function ToggleShurikenAntiKick(enable)
                         StickKunai(kunai)
                         kunai.Name = "AntiKick"
                     end
+                    neutralizeShuriken(kunai)
                     task.wait(0.3)
                 until not kunai or not shurikenAntiKickActive or not kunai:FindFirstChild("StickyPart") or kunai.StickyPart.CanTouch == false
                     or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart")
@@ -361,6 +408,9 @@ local function ToggleShurikenAntiKick(enable)
             task.cancel(shurikenAntiKickTask)
             shurikenAntiKickTask = nil
         end
+        if shurikenPhysicsTask then
+            shurikenPhysicsTask = nil
+        end
         if shurikenCharFixConnection then
             shurikenCharFixConnection:Disconnect()
             shurikenCharFixConnection = nil
@@ -375,7 +425,7 @@ local function ToggleShurikenAntiKick(enable)
 end
 
 AntisTab:Toggle({
-    Title = "Shuriken Anti Kick",
+    Title = "Anti Kick",
     Value = false,
     Callback = function(state)
         ToggleShurikenAntiKick(state)
@@ -384,7 +434,7 @@ AntisTab:Toggle({
             undeitedhub.SaveSettings()
         end
         SafeNotify({
-            Title = "Shuriken Anti Kick",
+            Title = "Anti Kick",
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
