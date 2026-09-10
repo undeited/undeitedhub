@@ -1,6 +1,5 @@
 local WindUI = undeitedhub.WindUI
 local AntisTab = undeitedhub.Window:Tab({ Title = "Antis" })
-
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
@@ -92,16 +91,13 @@ end
 
 local function ToggleShurikenAntiKick(enable)
     shurikenAntiKickActive = enable
-
     if enable then
         fixShurikenCharacter(LocalPlayer.Character)
-
         if shurikenCharFixConnection then shurikenCharFixConnection:Disconnect() end
         shurikenCharFixConnection = LocalPlayer.CharacterAdded:Connect(function(char)
             task.wait(0.5)
             fixShurikenCharacter(char)
         end)
-
         if shurikenRespawnConnection then shurikenRespawnConnection:Disconnect() end
         shurikenRespawnConnection = LocalPlayer.CharacterAdded:Connect(function()
             task.wait(1)
@@ -109,7 +105,6 @@ local function ToggleShurikenAntiKick(enable)
                 ClearKunai()
             end
         end)
-
         shurikenAntiKickTask = task.spawn(function()
             local plr = LocalPlayer
             local setOwner = ReplicatedStorage:WaitForChild("GrabEvents"):WaitForChild("SetNetworkOwner")
@@ -117,7 +112,6 @@ local function ToggleShurikenAntiKick(enable)
             local spawnRemote = ReplicatedStorage.MenuToys.SpawnToyRemoteFunction
             local destroyrem = ReplicatedStorage:WaitForChild("MenuToys"):WaitForChild("DestroyToy")
             local canSpawn = plr:WaitForChild("CanSpawnToy")
-
             local function getHRP()
                 if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                     return plr.Character.HumanoidRootPart
@@ -126,7 +120,6 @@ local function ToggleShurikenAntiKick(enable)
                     return character:WaitForChild("HumanoidRootPart")
                 end
             end
-
             local function CheckForHome()
                 if not Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) then
                     return false
@@ -145,7 +138,6 @@ local function ToggleShurikenAntiKick(enable)
                 end
                 return false
             end
-
             local function StickKunai(kunai)
                 if not kunai or not kunai:FindFirstChild("StickyPart") then return end
                 local currentHRP = getHRP()
@@ -175,7 +167,6 @@ local function ToggleShurikenAntiKick(enable)
                     end
                 end
             end
-
             local function SpawnToy(name)
                 local t = tick()
                 while not canSpawn.Value do
@@ -199,7 +190,6 @@ local function ToggleShurikenAntiKick(enable)
                 end
                 return nil
             end
-
             while shurikenAntiKickActive do
                 task.wait(0.005)
                 if not plr.Character or not plr.Character:FindFirstChild("Humanoid") or plr.Character.Humanoid.Health <= 0 then
@@ -209,7 +199,6 @@ local function ToggleShurikenAntiKick(enable)
                 end
                 local inv = Workspace:FindFirstChild(plr.Name .. "SpawnedInToys")
                 local kunai = inv and inv:FindFirstChild(SelectedShurikenToy)
-
                 if Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) then
                     local boolik, house = CheckForHome()
                     if boolik and house and Workspace.Plots:FindFirstChild(house.Name) then
@@ -222,7 +211,6 @@ local function ToggleShurikenAntiKick(enable)
                         end
                     end
                 end
-
                 if not kunai then
                     if Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) then return end
                     kunai = SpawnToy(SelectedShurikenToy)
@@ -230,7 +218,6 @@ local function ToggleShurikenAntiKick(enable)
                     kunai.Name = "AntiKick"
                     if not kunai then return end
                 end
-
                 repeat
                     if kunai and kunai:FindFirstChild("StickyPart") and kunai.StickyPart.CanTouch == true then
                         StickKunai(kunai)
@@ -241,11 +228,9 @@ local function ToggleShurikenAntiKick(enable)
                     or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart")
                     or not kunai:FindFirstChild("StickyPart")
                     or (plr.Character.HumanoidRootPart.Position - kunai.StickyPart.Position).Magnitude >= 20
-
                 if not kunai or not kunai:FindFirstChild("StickyPart") or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") or (plr.Character.HumanoidRootPart.Position - kunai.StickyPart.Position).Magnitude >= 20 then
                     ClearKunai()
                 end
-
                 pcall(function()
                     repeat
                         task.wait(0.05)
@@ -271,7 +256,6 @@ local function ToggleShurikenAntiKick(enable)
             shurikenRespawnConnection:Disconnect()
             shurikenRespawnConnection = nil
         end
-
         fixShurikenCharacter(LocalPlayer.Character)
         ClearKunai()
     end
@@ -298,10 +282,92 @@ if undeitedhub.Toggles.shurikenAntiKick then
     ToggleShurikenAntiKick(true)
 end
 
+local antiFireActive = false
+local antiFireTask = nil
+local hkFirePart = nil
+
+local function ToggleAntiFire(state)
+    antiFireActive = state
+    if state then
+        pcall(function()
+            if Workspace.Plots and Workspace.Plots.Plot5 and Workspace.Plots.Plot5.Barrier then
+                if Workspace.Plots.Plot5.Barrier:FindFirstChild("AntiFirePart") then
+                    hkFirePart = Workspace.Plots.Plot5.Barrier.AntiFirePart
+                else
+                    hkFirePart = Workspace.Plots.Plot5.Barrier:FindFirstChild("PlotBarrier")
+                end
+                if hkFirePart then
+                    hkFirePart.CanCollide = true
+                    hkFirePart.CanQuery = true
+                    hkFirePart.Name = "AntiFirePart"
+                    local h2 = hkFirePart:Clone()
+                    h2.Name = "FalseBorder"
+                    h2.Parent = hkFirePart.Parent
+                    hkFirePart.Size = Vector3.new(1, 1, 1)
+                    for _, prt in pairs(hkFirePart:GetChildren()) do
+                        prt:Destroy()
+                    end
+                    hkFirePart.CanQuery = false
+                    hkFirePart.CanCollide = false
+                end
+            end
+        end)
+        antiFireTask = task.spawn(function()
+            while antiFireActive do
+                pcall(function()
+                    if hkFirePart then
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            hkFirePart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
+                        end
+                        hkFirePart.CanCollide = not hkFirePart.CanCollide
+                        hkFirePart.CanCollide = not hkFirePart.CanCollide
+                    end
+                end)
+                task.wait()
+            end
+            if hkFirePart then
+                hkFirePart.CFrame = CFrame.new(0, -15, 0)
+            end
+        end)
+    else
+        if antiFireTask then
+            task.cancel(antiFireTask)
+            antiFireTask = nil
+        end
+        if hkFirePart then
+            hkFirePart.CFrame = CFrame.new(0, -15, 0)
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Fire",
+    Value = false,
+    Callback = function(state)
+        ToggleAntiFire(state)
+        undeitedhub.Toggles.antiFire = state
+        if undeitedhub.SaveSettings then
+            undeitedhub.SaveSettings()
+        end
+        SafeNotify({
+            Title = "Anti Fire",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+if undeitedhub.Toggles.antiFire then
+    ToggleAntiFire(true)
+end
+
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if shurikenAntiKickActive then
         ToggleShurikenAntiKick(false)
+    end
+    if antiFireActive then
+        ToggleAntiFire(false)
     end
     oldDisable()
 end
