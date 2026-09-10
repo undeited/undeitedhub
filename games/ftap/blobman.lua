@@ -8,9 +8,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 
-local autoSitEnabled = undeitedhub.Toggles.autoSit or false
-local autoSitTask = nil
-
 local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
@@ -137,21 +134,6 @@ local function ensureSingleBlobman()
         task.wait(0.2)
     end
     return getBlobmen()[1]
-end
-
-local function deleteOccupiedBlobmen()
-    local folder = getToysFolder()
-    if not folder then return end
-    local character = LocalPlayer.Character
-    local myHum = character and character:FindFirstChildOfClass("Humanoid")
-    for _, child in ipairs(folder:GetChildren()) do
-        if child.Name == "CreatureBlobman" and child:IsA("Model") then
-            local seat = child:FindFirstChild("VehicleSeat")
-            if seat and seat.Occupant and seat.Occupant ~= myHum then
-                deleteToy(child)
-            end
-        end
-    end
 end
 
 local function setNetworkOwner(part)
@@ -378,41 +360,6 @@ local function grabPlayer(blobman, target, hand)
     end
     playGrabAnimation(blobman, hand)
     return true
-end
-
-local function startAutoSit()
-    if autoSitTask then return end
-    autoSitEnabled = true
-    undeitedhub.Toggles.autoSit = true
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    autoSitTask = task.spawn(function()
-        while autoSitEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                pcall(deleteOccupiedBlobmen)
-                local character = getPlayerCharacter()
-                if character then
-                    local hum = character:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then
-                        if not getSeatedBlobman() then
-                            pcall(sitOnBlobman)
-                        end
-                    end
-                end
-            end
-            task.wait(1)
-        end
-        autoSitTask = nil
-    end)
-end
-
-local function stopAutoSit()
-    autoSitEnabled = false
-    undeitedhub.Toggles.autoSit = false
-    if autoSitTask then
-        task.cancel(autoSitTask)
-        autoSitTask = nil
-    end
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 local function getDropdownName(player)
@@ -841,20 +788,10 @@ BlobmanTab:Toggle({
     end
 })
 
-BlobmanTab:Toggle({
-    Title = "Auto Sit",
-    Value = autoSitEnabled,
-    Callback = function(state)
-        if state then startAutoSit() else stopAutoSit() end
-    end
-})
-
-if autoSitEnabled then startAutoSit() end
 if kickEnabled then startKickLoop() end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
-    if autoSitEnabled then stopAutoSit() end
     if kickEnabled then stopKickLoop() end
     for target in pairs(hoveringTargets) do stopHover(target) end
     oldDisable()
