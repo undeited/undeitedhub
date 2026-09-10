@@ -520,12 +520,32 @@ local function startKickLoop()
                     end
                 else
                     local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
+
                     myRoot.CFrame = savedPos
-                    tRoot.CFrame = lockPos
-                    if GE then
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+
+                    for i = 1, 6 do
+                        if not kickEnabled then break end
                         pcall(function()
                             tHum.PlatformStand = true
-                            if GE.SetNetworkOwner then GE.SetNetworkOwner:FireServer(tRoot, lockPos) end
+                            tHum.Sit = false
+
+                            if GE and GE.SetNetworkOwner then
+                                GE.SetNetworkOwner:FireServer(tRoot, lockPos)
+                            end
+
+                            tRoot.CFrame = lockPos
+                            tRoot.AssemblyLinearVelocity = Vector3.zero
+                            tRoot.AssemblyAngularVelocity = Vector3.zero
+                            tRoot.Velocity = Vector3.zero
+                            tRoot.RotVelocity = Vector3.zero
+                        end)
+                        RunService.Heartbeat:Wait()
+                    end
+
+                    if GE then
+                        pcall(function()
                             if GE.DestroyGrabLine then GE.DestroyGrabLine:FireServer(tRoot) end
                             if GE.CreateGrabLine then GE.CreateGrabLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false) end
                         end)
@@ -607,7 +627,6 @@ local function bringPlayer(target, dropAfter)
     local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
     local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
     local createLine = GE and GE:FindFirstChild("CreateGrabLine")
-    local destroyLine = GE and GE:FindFirstChild("DestroyGrabLine")
 
     local originalCFrame = localRoot.CFrame
 
