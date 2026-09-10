@@ -489,6 +489,9 @@ local function startKickLoop()
             local tHum = tChar:FindFirstChild("Humanoid")
 
             if tRoot and tHum and tHum.Health > 0 then
+                tRoot.AssemblyLinearVelocity = Vector3.zero
+                tRoot.Velocity = Vector3.zero
+
                 local blobman = seat.Parent
                 local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
                 local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
@@ -508,69 +511,63 @@ local function startKickLoop()
                 end
 
                 if not dragging then
-                    if grabStartTime == 0 then
-                        grabStartTime = tick()
-                    end
-
                     myRoot.CFrame = tRoot.CFrame
+                    if setNet then
+                        pcall(function()
+                            setNet:FireServer(tRoot, myRoot.CFrame)
+                        end)
+                    end
+                    if createLine then
+                        pcall(function()
+                            createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
+                        end)
+                    end
+                    pcall(function()
+                        tHum.PlatformStand = true
+                    end)
+                    if grabStartTime == 0 then grabStartTime = tick() end
+                    if tick() - grabStartTime > 0.3 then
+                        dragging = true
+                        grabStartTime = 0
+                    end
+                else
+                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
+                    myRoot.CFrame = savedPos
                     myRoot.AssemblyLinearVelocity = Vector3.zero
                     myRoot.AssemblyAngularVelocity = Vector3.zero
 
                     if setNet then
                         pcall(function()
-                            setNet:FireServer(tRoot, tRoot.CFrame)
+                            setNet:FireServer(tRoot, lockPos)
                         end)
                     end
-
+                    if destroyLine then
+                        pcall(function()
+                            destroyLine:FireServer(tRoot)
+                        end)
+                    end
                     if createLine then
                         pcall(function()
                             createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
                         end)
                     end
 
-                    if tHum.PlatformStand ~= true then
-                        pcall(function() tHum.PlatformStand = true end)
-                    end
+                    tRoot.CFrame = lockPos
+                    tRoot.AssemblyLinearVelocity = Vector3.zero
+                    tRoot.AssemblyAngularVelocity = Vector3.zero
+                    tRoot.Velocity = Vector3.zero
+                    tRoot.RotVelocity = Vector3.zero
 
-                    if tick() - grabStartTime > 0.12 then
-                        dragging = true
-                        grabStartTime = 0
-                    end
-                else
-                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
-
-                    myRoot.CFrame = savedPos
-                    myRoot.AssemblyLinearVelocity = Vector3.zero
-                    myRoot.AssemblyAngularVelocity = Vector3.zero
-
-                    for i = 1, 4 do
-                        if not kickEnabled then break end
-                        if setNet then
-                            setNet:FireServer(tRoot, lockPos)
-                            setNet:FireServer(tRoot, lockPos)
-                        end
-                        if destroyLine then
-                            destroyLine:FireServer(tRoot)
-                        end
-                        tRoot.CFrame = lockPos
-                        tRoot.AssemblyLinearVelocity = Vector3.zero
-                        tRoot.AssemblyAngularVelocity = Vector3.zero
-                        tRoot.Velocity = Vector3.zero
-                        tRoot.RotVelocity = Vector3.zero
-                    end
-
-                    if tHum.PlatformStand ~= true then
-                        pcall(function() tHum.PlatformStand = true end)
-                    end
+                    pcall(function()
+                        tHum.PlatformStand = true
+                    end)
                 end
             else
                 dragging = false
                 grabStartTime = 0
             end
 
-            if not dragging then
-                RunService.Heartbeat:Wait()
-            end
+            RunService.Heartbeat:Wait()
         end
 
         local myChar = getPlayerCharacter()
@@ -761,18 +758,24 @@ local function refreshDropdowns()
         end
     end
     table.sort(displayNames)
+
     if bringDropdown then
         bringDropdown:Refresh(displayNames, true)
-        if not table.find(displayNames, selectedBringPlayer) then
-            selectedBringPlayer = displayNames[1] or ""
-            pcall(function() bringDropdown:Set(selectedBringPlayer) end)
+        if selectedBringPlayer and selectedBringPlayer ~= "" then
+            if not table.find(displayNames, selectedBringPlayer) then
+                selectedBringPlayer = ""
+                pcall(function() bringDropdown:Set("") end)
+            end
         end
     end
+
     if kickDropdown then
         kickDropdown:Refresh(displayNames, true)
-        if not table.find(displayNames, selectedKickPlayer) then
-            selectedKickPlayer = displayNames[1] or ""
-            pcall(function() kickDropdown:Set(selectedKickPlayer) end)
+        if selectedKickPlayer and selectedKickPlayer ~= "" then
+            if not table.find(displayNames, selectedKickPlayer) then
+                selectedKickPlayer = ""
+                pcall(function() kickDropdown:Set("") end)
+            end
         end
     end
 end
@@ -802,11 +805,15 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
     stopHover(player)
-    if selectedBringPlayer == player.DisplayName or selectedBringPlayer == player.DisplayName .. " (@)" .. player.Name .. ")" then
-        selectedBringPlayer = nil
+    local removedName = player.DisplayName
+    local removedNameWithUser = player.DisplayName .. " (@)" .. player.Name .. ")"
+    if selectedBringPlayer == removedName or selectedBringPlayer == removedNameWithUser then
+        selectedBringPlayer = ""
+        pcall(function() bringDropdown:Set("") end)
     end
-    if selectedKickPlayer == player.DisplayName or selectedKickPlayer == player.DisplayName .. " (@)" .. player.Name .. ")" then
-        selectedKickPlayer = nil
+    if selectedKickPlayer == removedName or selectedKickPlayer == removedNameWithUser then
+        selectedKickPlayer = ""
+        pcall(function() kickDropdown:Set("") end)
     end
     refreshDropdowns()
 end)
