@@ -171,6 +171,128 @@ if undeitedhub.Toggles.antiBlobman then
     ToggleAntiBlobman(true)
 end
 
+local antiLagActive = false
+local ocnAutoLagEnabled = false
+local ocnAutoLagActive = false
+local ocnFpsThreshold = 30
+local ocnFpsFrames = 0
+local ocnLastFpsCheck = tick()
+local ocnAutoLagStartDelay = tick()
+
+local function ApplyAntiLag(state)
+    ocnAutoLagActive = state
+    if state then
+        pcall(function()
+            LocalPlayer.PlayerScripts.CharacterAndBeamMove.Disabled = true
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr.Character and plr.Character:FindFirstChild("GrabParts") then
+                    plr.Character.GrabParts:Destroy()
+                end
+            end
+        end)
+    else
+        pcall(function()
+            LocalPlayer.PlayerScripts.CharacterAndBeamMove.Disabled = false
+        end)
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Lag",
+    Value = false,
+    Callback = function(state)
+        antiLagActive = state
+        ApplyAntiLag(state)
+        undeitedhub.Toggles.antiLag = state
+        if undeitedhub.SaveSettings then
+            undeitedhub.SaveSettings()
+        end
+        SafeNotify({
+            Title = "Anti Lag",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+if undeitedhub.Toggles.antiLag then
+    antiLagActive = true
+    ApplyAntiLag(true)
+end
+
+AntisTab:Toggle({
+    Title = "Auto Anti Lag",
+    Value = false,
+    Callback = function(state)
+        ocnAutoLagEnabled = state
+        if state then
+            ocnLastFpsCheck = tick()
+            ocnFpsFrames = 0
+            ocnAutoLagStartDelay = tick()
+        end
+        undeitedhub.Toggles.autoAntiLag = state
+        if undeitedhub.SaveSettings then
+            undeitedhub.SaveSettings()
+        end
+        SafeNotify({
+            Title = "Auto Anti Lag",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+AntisTab:Slider({
+    Title = "Auto Anti Lag FPS Threshold",
+    Value = {
+        Min = 10,
+        Max = 120,
+        Default = 30,
+    },
+    Callback = function(value)
+        ocnFpsThreshold = value
+        undeitedhub.Toggles.antiLagFPS = value
+        if undeitedhub.SaveSettings then
+            undeitedhub.SaveSettings()
+        end
+    end
+})
+
+if undeitedhub.Toggles.antiLagFPS then
+    ocnFpsThreshold = undeitedhub.Toggles.antiLagFPS
+end
+
+if undeitedhub.Toggles.autoAntiLag then
+    ocnAutoLagEnabled = true
+    ocnLastFpsCheck = tick()
+    ocnFpsFrames = 0
+    ocnAutoLagStartDelay = tick()
+end
+
+task.spawn(function()
+    while task.wait() do
+        if ocnAutoLagEnabled then
+            if tick() - ocnAutoLagStartDelay < 5 then
+                task.wait()
+            else
+                ocnFpsFrames = ocnFpsFrames + 1
+                local now = tick()
+                if now - ocnLastFpsCheck >= 1 then
+                    local fps = ocnFpsFrames / (now - ocnLastFpsCheck)
+                    ocnFpsFrames = 0
+                    ocnLastFpsCheck = now
+                    if fps <= ocnFpsThreshold and not ocnAutoLagActive then
+                        ApplyAntiLag(true)
+                    elseif fps > ocnFpsThreshold and ocnAutoLagActive then
+                        ApplyAntiLag(false)
+                    end
+                end
+            end
+        end
+        task.wait()
+    end
+end)
+
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if antiFireActive then
@@ -179,5 +301,10 @@ undeitedhub.DisableAll = function()
     if antiBlobmanActive then
         ToggleAntiBlobman(false)
     end
+    if antiLagActive or ocnAutoLagActive then
+        antiLagActive = false
+        ApplyAntiLag(false)
+    end
+    ocnAutoLagEnabled = false
     oldDisable()
 end
