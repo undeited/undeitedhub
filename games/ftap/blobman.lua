@@ -581,7 +581,9 @@ local function startKickLoop()
         if not myRoot then
             kickEnabled = false
             undeitedhub.Toggles.kickPlayer = false
-            if undeitedhub.SaveSettings then undeitedhub.SaveSettings()
+            if undeitedhub.SaveSettings then
+                undeitedhub.SaveSettings()
+            end
             return
         end
 
