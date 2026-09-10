@@ -434,6 +434,10 @@ local function startKickLoop()
 
     kickTask = task.spawn(function()
         local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
+        local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
+        local createLine = GE and GE:FindFirstChild("CreateGrabLine")
+        local destroyLine = GE and GE:FindFirstChild("DestroyGrabLine")
+
         local dragging = false
         local grabStartTime = 0
         local savedPos = nil
@@ -447,20 +451,22 @@ local function startKickLoop()
             end
 
             if not target or not target.Parent or not target.Character then
-                task.wait(0.5)
+                dragging = false
+                grabStartTime = 0
+                task.wait(0.2)
                 continue
             end
 
             local myChar = getPlayerCharacter()
             if not myChar then
-                task.wait(0.3)
+                task.wait(0.1)
                 continue
             end
 
             local myRoot = myChar:FindFirstChild("HumanoidRootPart")
             local myHum = myChar:FindFirstChildOfClass("Humanoid")
             if not myRoot or not myHum or myHum.Health <= 0 then
-                task.wait(0.3)
+                task.wait(0.1)
                 continue
             end
 
@@ -470,7 +476,7 @@ local function startKickLoop()
                 grabStartTime = 0
                 savedPos = myRoot.CFrame
                 pcall(sitOnBlobman)
-                task.wait(0.3)
+                task.wait(0.1)
                 continue
             end
 
@@ -483,9 +489,6 @@ local function startKickLoop()
             local tHum = tChar:FindFirstChild("Humanoid")
 
             if tRoot and tHum and tHum.Health > 0 then
-                tRoot.AssemblyLinearVelocity = Vector3.zero
-                tRoot.Velocity = Vector3.zero
-
                 local blobman = seat.Parent
                 local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
                 local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
@@ -505,16 +508,31 @@ local function startKickLoop()
                 end
 
                 if not dragging then
+                    if grabStartTime == 0 then
+                        grabStartTime = tick()
+                    end
+
                     myRoot.CFrame = tRoot.CFrame
-                    if GE then
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+
+                    if setNet then
                         pcall(function()
-                            tHum.PlatformStand = true
-                            if GE.SetNetworkOwner then GE.SetNetworkOwner:FireServer(tRoot, myRoot.CFrame) end
-                            if GE.CreateGrabLine then GE.CreateGrabLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false) end
+                            setNet:FireServer(tRoot, tRoot.CFrame)
                         end)
                     end
-                    if grabStartTime == 0 then grabStartTime = tick() end
-                    if tick() - grabStartTime > 0.3 then
+
+                    if createLine then
+                        pcall(function()
+                            createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
+                        end)
+                    end
+
+                    if tHum.PlatformStand ~= true then
+                        pcall(function() tHum.PlatformStand = true end)
+                    end
+
+                    if tick() - grabStartTime > 0.12 then
                         dragging = true
                         grabStartTime = 0
                     end
@@ -525,30 +543,24 @@ local function startKickLoop()
                     myRoot.AssemblyLinearVelocity = Vector3.zero
                     myRoot.AssemblyAngularVelocity = Vector3.zero
 
-                    for i = 1, 6 do
+                    for i = 1, 4 do
                         if not kickEnabled then break end
-                        pcall(function()
-                            tHum.PlatformStand = true
-                            tHum.Sit = false
-
-                            if GE and GE.SetNetworkOwner then
-                                GE.SetNetworkOwner:FireServer(tRoot, lockPos)
-                            end
-
-                            tRoot.CFrame = lockPos
-                            tRoot.AssemblyLinearVelocity = Vector3.zero
-                            tRoot.AssemblyAngularVelocity = Vector3.zero
-                            tRoot.Velocity = Vector3.zero
-                            tRoot.RotVelocity = Vector3.zero
-                        end)
-                        RunService.Heartbeat:Wait()
+                        if setNet then
+                            setNet:FireServer(tRoot, lockPos)
+                            setNet:FireServer(tRoot, lockPos)
+                        end
+                        if destroyLine then
+                            destroyLine:FireServer(tRoot)
+                        end
+                        tRoot.CFrame = lockPos
+                        tRoot.AssemblyLinearVelocity = Vector3.zero
+                        tRoot.AssemblyAngularVelocity = Vector3.zero
+                        tRoot.Velocity = Vector3.zero
+                        tRoot.RotVelocity = Vector3.zero
                     end
 
-                    if GE then
-                        pcall(function()
-                            if GE.DestroyGrabLine then GE.DestroyGrabLine:FireServer(tRoot) end
-                            if GE.CreateGrabLine then GE.CreateGrabLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false) end
-                        end)
+                    if tHum.PlatformStand ~= true then
+                        pcall(function() tHum.PlatformStand = true end)
                     end
                 end
             else
@@ -556,7 +568,9 @@ local function startKickLoop()
                 grabStartTime = 0
             end
 
-            RunService.Heartbeat:Wait()
+            if not dragging then
+                RunService.Heartbeat:Wait()
+            end
         end
 
         local myChar = getPlayerCharacter()
