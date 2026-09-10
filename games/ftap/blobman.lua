@@ -15,6 +15,7 @@ local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
+local KICK_HEIGHT = 25
 
 local blobmanMonitorTask = nil
 local BLOBMAN_RESPAWN_DELAY = 0.5
@@ -546,97 +547,6 @@ local function stopAutoSit()
     end
 end
 
-local function kickPlayer(target)
-    if not target or target == LocalPlayer then
-        return
-    end
-    if not isPlayerValid(target) then
-        return
-    end
-    if hoveringTargets[target] then
-        return
-    end
-    local blobman = getSeatedBlobman()
-    if not blobman then
-        blobman = sitOnBlobman()
-        if not blobman then
-            return
-        end
-    end
-    clearInvalidHeldTargets()
-    if leftHeldTarget and rightHeldTarget then
-        dropHeldTarget(blobman, "left")
-        clearInvalidHeldTargets()
-    end
-    local hand
-    if not leftHeldTarget then
-        hand = "left"
-    elseif not rightHeldTarget then
-        hand = "right"
-    else
-        return
-    end
-    local localCharacter = getPlayerCharacter()
-    if not localCharacter then
-        return
-    end
-    local localRoot = localCharacter:FindFirstChild("HumanoidRootPart")
-    if not localRoot then
-        return
-    end
-    local targetCharacter = target.Character
-    local targetRoot = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then
-        return
-    end
-    if isPlayerInProtectedPlot(target) then
-        return
-    end
-    local originalCFrame = localRoot.CFrame
-    localRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
-    task.wait(0.2)
-    if not getSeatedBlobman() then
-        sitOnBlobman()
-        task.wait(0.3)
-    end
-    local success = false
-    for i = 1, 3 do
-        if isPlayerInProtectedPlot(target) then
-            break
-        end
-        local callSuccess, result = pcall(function()
-            return grabPlayer(blobman, target, hand)
-        end)
-        if callSuccess and result then
-            success = true
-            break
-        end
-        task.wait(0.2)
-    end
-    localRoot.CFrame = originalCFrame
-    task.wait(0.1)
-    if not success then
-        return
-    end
-    if isPlayerInProtectedPlot(target) then
-        dropHeldTarget(blobman, hand)
-        return
-    end
-    dropHeldTarget(blobman, hand)
-    task.wait(0.1)
-    local targetRoot2 = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-    if targetRoot2 then
-        local flingDir = (targetRoot2.Position - blobman:GetPivot().Position).Unit * 200 + Vector3.new(0, 100, 0)
-        targetRoot2.AssemblyLinearVelocity = flingDir
-        targetRoot2.AssemblyAngularVelocity = Vector3.new(0, 50, 0)
-    end
-    if hand == "left" then
-        leftHeldTarget = nil
-    else
-        rightHeldTarget = nil
-    end
-end
-
 local function getPlayerFromDropdownValue(value)
     if not value or value == "" then
         return nil
@@ -654,20 +564,6 @@ local function getPlayerFromDropdownValue(value)
     return nil
 end
 
-local function kickLoop()
-    while kickEnabled do
-        if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-            if selectedKickPlayer and selectedKickPlayer ~= "" then
-                local target = getPlayerFromDropdownValue(selectedKickPlayer)
-                if target and target ~= LocalPlayer and isPlayerValid(target) then
-                    pcall(kickPlayer, target)
-                end
-            end
-        end
-        task.wait(0.5)
-    end
-end
-
 local function startKickLoop()
     if kickTask then
         return
@@ -677,7 +573,111 @@ local function startKickLoop()
     if undeitedhub.SaveSettings then
         undeitedhub.SaveSettings()
     end
-    kickTask = task.spawn(kickLoop)
+
+    kickTask = task.spawn(function()
+        local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
+        local myChar = LocalPlayer.Character
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if not myRoot then
+            kickEnabled = false
+            undeitedhub.Toggles.kickPlayer = false
+            if undeitedhub.SaveSettings then undeitedhub.SaveSettings()
+            return
+        end
+
+        local savedPos = myRoot.CFrame
+        local dragging = false
+        local grabStartTime = 0
+        local target = nil
+
+        while kickEnabled do
+            if selectedKickPlayer and selectedKickPlayer ~= "" then
+                target = getPlayerFromDropdownValue(selectedKickPlayer)
+            else
+                target = nil
+            end
+
+            if not target or not target.Parent or not target.Character then
+                task.wait(0.5)
+                continue
+            end
+
+            local tChar = target.Character
+            local tRoot = tChar:FindFirstChild("HumanoidRootPart")
+            local tHum = tChar:FindFirstChild("Humanoid")
+            local seat = myChar and myChar.Humanoid and myChar.Humanoid.SeatPart
+
+            if tRoot and tHum and tHum.Health > 0 then
+                tRoot.AssemblyLinearVelocity = Vector3.zero
+                tRoot.Velocity = Vector3.zero
+
+                if seat then
+                    local blobman = seat.Parent
+                    local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+                    local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
+                    local drop = remoteFolder and remoteFolder:FindFirstChild("CreatureDrop")
+                    local L_Det = blobman:FindFirstChild("LeftDetector")
+                    local R_Det = blobman:FindFirstChild("RightDetector")
+                    local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
+                    local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
+
+                    if grab and drop and L_Weld and R_Weld then
+                        pcall(function()
+                            grab:FireServer(L_Det, tRoot, L_Weld)
+                            grab:FireServer(R_Det, tRoot, R_Weld)
+                            drop:FireServer(L_Weld, tRoot)
+                            drop:FireServer(R_Weld, tRoot)
+                        end)
+                    end
+                end
+
+                if not dragging then
+                    myRoot.CFrame = tRoot.CFrame
+                    if GE then
+                        pcall(function()
+                            tHum.PlatformStand = true
+                            if GE.SetNetworkOwner then GE.SetNetworkOwner:FireServer(tRoot, myRoot.CFrame) end
+                            if GE.CreateGrabLine then GE.CreateGrabLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false) end
+                        end)
+                    end
+                    if grabStartTime == 0 then
+                        grabStartTime = tick()
+                    end
+                    if tick() - grabStartTime > 0.3 then
+                        dragging = true
+                        grabStartTime = 0
+                    end
+                else
+                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
+                    myRoot.CFrame = savedPos
+                    tRoot.CFrame = lockPos
+                    if GE then
+                        pcall(function()
+                            tHum.PlatformStand = true
+                            if GE.SetNetworkOwner then GE.SetNetworkOwner:FireServer(tRoot, lockPos) end
+                            if GE.DestroyGrabLine then GE.DestroyGrabLine:FireServer(tRoot) end
+                            if GE.CreateGrabLine then GE.CreateGrabLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false) end
+                        end)
+                    end
+                end
+            else
+                dragging = false
+                grabStartTime = 0
+            end
+
+            RunService.Heartbeat:Wait()
+        end
+
+        if myRoot and savedPos then
+            myRoot.CFrame = savedPos
+        end
+        kickEnabled = false
+        undeitedhub.Toggles.kickPlayer = false
+        if undeitedhub.SaveSettings then
+            undeitedhub.SaveSettings()
+        end
+        kickTask = nil
+    end)
 end
 
 local function stopKickLoop()
@@ -687,9 +687,6 @@ local function stopKickLoop()
         task.cancel(kickTask)
         kickTask = nil
     end
-    for target in pairs(hoveringTargets) do
-        stopHover(target)
-    end
     local blobman = getSeatedBlobman()
     if blobman then
         if leftHeldTarget then
@@ -698,6 +695,9 @@ local function stopKickLoop()
         if rightHeldTarget then
             dropHeldTarget(blobman, "right")
         end
+    end
+    for target in pairs(hoveringTargets) do
+        stopHover(target)
     end
     if undeitedhub.SaveSettings then
         undeitedhub.SaveSettings()
