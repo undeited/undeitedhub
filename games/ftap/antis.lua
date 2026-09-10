@@ -153,10 +153,10 @@ end
 
 local antiKickActive = false
 local antiKickTask = nil
-local antiKickCharFixConnection = nil
-local antiKickRespawnConnection = nil
 local antiKickPhysicsTask = nil
-local AntiKickToy = "NinjaShuriken"
+local antiKickCharConnection = nil
+local antiKickRespawnConnection = nil
+local AntiKickToyInternal = "NinjaShuriken"
 
 local function fixAntiKickCharacter(char)
     if not char then return end
@@ -185,14 +185,20 @@ local function fixAntiKickCharacter(char)
     end
 end
 
+local function findAntiKickToy()
+    local inv = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+    if not inv then return nil, nil end
+    local toy = inv:FindFirstChild(AntiKickToyInternal) or inv:FindFirstChild("AntiKick")
+    return toy, inv
+end
+
 local function neutralizeToy(toy)
     if not toy then return end
     for _, obj in ipairs(toy:GetDescendants()) do
         if obj:IsA("BasePart") then
             pcall(function()
-                obj.CanTouch = false
-                obj.CanCollide = false
                 obj.CanQuery = false
+                obj.CanCollide = false
                 obj.Massless = true
                 obj.AssemblyLinearVelocity = Vector3.zero
                 obj.AssemblyAngularVelocity = Vector3.zero
@@ -200,32 +206,87 @@ local function neutralizeToy(toy)
                 obj.RotVelocity = Vector3.zero
             end)
         end
-        if obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") or obj:IsA("BodyForce") or obj:IsA("BodyThrust") or obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") or obj:IsA("VectorForce") then
+        if obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") or obj:IsA("BodyForce") or obj:IsA("BodyThrust")
+            or obj:IsA("BodyPosition") or obj:IsA("BodyGyro")
+            or obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") or obj:IsA("VectorForce")
+            or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") then
             pcall(function() obj:Destroy() end)
         end
     end
 end
 
-local function ClearAntiKickToy()
+local function clearAntiKickToys()
     local inv = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
     local destroyrem = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("DestroyToy")
     if inv and destroyrem then
         for _, v in pairs(inv:GetChildren()) do
-            if v.Name == "AntiKick" or v.Name == AntiKickToy then
+            if v.Name == "AntiKick" or v.Name == AntiKickToyInternal then
                 pcall(function() destroyrem:FireServer(v) end)
             end
         end
     end
 end
 
-local function ToggleAntiKick(enable)
-    antiKickActive = enable
+local function StickToy(toy)
+    if not toy then return false end
+    local stickyPart = toy:FindFirstChild("StickyPart")
+    if not stickyPart then return false end
 
-    if enable then
+    local character = LocalPlayer.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local firePart = hrp:FindFirstChild("FirePlayerPart")
+    if not firePart then return false end
+
+    neutralizeToy(toy)
+
+    local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+    local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
+    local playerEvents = ReplicatedStorage:FindFirstChild("PlayerEvents")
+    local stickyEvent = playerEvents and playerEvents:FindFirstChild("StickyPartEvent")
+
+    local soundPart = toy:FindFirstChild("SoundPart")
+    if soundPart and setNet then
+        local owner = soundPart:FindFirstChild("PartOwner")
+        if not owner or owner.Value ~= LocalPlayer.Name then
+            pcall(function()
+                setNet:FireServer(soundPart, soundPart.CFrame)
+            end)
+        end
+    end
+
+    if stickyEvent then
+        pcall(function()
+            stickyEvent:FireServer(stickyPart, firePart, CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), math.rad(90)))
+        end)
+    else
+        return false
+    end
+
+    task.wait(0.1)
+    neutralizeToy(toy)
+
+    local handle = toy:FindFirstChild("Handle")
+    if handle and not handle:FindFirstChild("AntiKickHL") then
+        local hl = Instance.new("Highlight")
+        hl.Name = "AntiKickHL"
+        hl.FillColor = Color3.fromRGB(0, 255, 255)
+        hl.OutlineColor = Color3.fromRGB(0, 255, 255)
+        hl.FillTransparency = 0.5
+        hl.Parent = handle
+    end
+
+    return true
+end
+
+local function ToggleAntiKick(state)
+    antiKickActive = state
+
+    if state then
         fixAntiKickCharacter(LocalPlayer.Character)
 
-        if antiKickCharFixConnection then antiKickCharFixConnection:Disconnect() end
-        antiKickCharFixConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        if antiKickCharConnection then antiKickCharConnection:Disconnect() end
+        antiKickCharConnection = LocalPlayer.CharacterAdded:Connect(function(char)
             task.wait(0.5)
             fixAntiKickCharacter(char)
         end)
@@ -234,29 +295,16 @@ local function ToggleAntiKick(enable)
         antiKickRespawnConnection = LocalPlayer.CharacterAdded:Connect(function()
             task.wait(1)
             if antiKickActive then
-                ClearAntiKickToy()
+                clearAntiKickToys()
             end
         end)
 
-        if antiKickPhysicsTask then antiKickPhysicsTask = nil end
         antiKickPhysicsTask = task.spawn(function()
             while antiKickActive do
                 pcall(function()
-                    local inv = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-                    if inv then
-                        for _, toy in pairs(inv:GetChildren()) do
-                            if toy.Name == "AntiKick" or toy.Name == AntiKickToy then
-                                for _, obj in ipairs(toy:GetDescendants()) do
-                                    if obj:IsA("BasePart") then
-                                        obj.Massless = true
-                                        obj.AssemblyLinearVelocity = Vector3.zero
-                                        obj.AssemblyAngularVelocity = Vector3.zero
-                                        obj.Velocity = Vector3.zero
-                                        obj.RotVelocity = Vector3.zero
-                                    end
-                                end
-                            end
-                        end
+                    local toy = findAntiKickToy()
+                    if toy then
+                        neutralizeToy(toy)
                     end
                 end)
                 RunService.Heartbeat:Wait()
@@ -265,170 +313,95 @@ local function ToggleAntiKick(enable)
 
         antiKickTask = task.spawn(function()
             local plr = LocalPlayer
-            local setOwner = ReplicatedStorage:WaitForChild("GrabEvents"):WaitForChild("SetNetworkOwner")
-            local stickyEvent = ReplicatedStorage:WaitForChild("PlayerEvents"):WaitForChild("StickyPartEvent")
-            local spawnRemote = ReplicatedStorage.MenuToys.SpawnToyRemoteFunction
-            local destroyrem = ReplicatedStorage:WaitForChild("MenuToys"):WaitForChild("DestroyToy")
+            local grabEvents = ReplicatedStorage:WaitForChild("GrabEvents")
+            local setNet = grabEvents:WaitForChild("SetNetworkOwner")
+            local spawnRemote = ReplicatedStorage:WaitForChild("MenuToys"):WaitForChild("SpawnToyRemoteFunction")
             local canSpawn = plr:WaitForChild("CanSpawnToy")
 
             local function getHRP()
-                if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                    return plr.Character.HumanoidRootPart
-                else
-                    local character = plr.CharacterAdded:Wait()
-                    return character:WaitForChild("HumanoidRootPart")
-                end
-            end
-
-            local function CheckForHome()
-                if not Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) then
-                    return false
-                end
-                for _, v in pairs(Workspace.Plots:GetChildren()) do
-                    local sign = v:FindFirstChild("PlotSign")
-                    local owners = sign and sign:FindFirstChild("ThisPlotsOwners")
-                    if owners then
-                        for _, b in pairs(owners:GetChildren()) do
-                            if b.Value == plr.Name then
-                                local folder = Workspace.PlotItems:FindFirstChild(v.Name)
-                                if folder then return true, folder end
-                            end
-                        end
-                    end
-                end
-                return false
-            end
-
-            local function StickToy(toy)
-                if not toy or not toy:FindFirstChild("StickyPart") then return end
-                local currentHRP = getHRP()
-                if not currentHRP then return end
-
-                neutralizeToy(toy)
-
-                if toy:FindFirstChild("SoundPart") then
-                    if not toy.SoundPart:FindFirstChild("PartOwner") or toy.SoundPart.PartOwner.Value ~= plr.Name then
-                        setOwner:FireServer(toy.SoundPart, toy.SoundPart.CFrame)
-                    end
-                end
-                local firePart = currentHRP:FindFirstChild("FirePlayerPart") or currentHRP:WaitForChild("FirePlayerPart", 5)
-                if firePart then
-                    stickyEvent:FireServer(toy.StickyPart, firePart, CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), math.rad(90)))
-                end
-
-                neutralizeToy(toy)
-
-                if toy:FindFirstChild("Handle") then
-                    local handle = toy.Handle
-                    if not handle:FindFirstChild("Highlight") then
-                        local high = Instance.new("Highlight", handle)
-                        high.FillColor = Color3.fromRGB(0, 255, 255)
-                    end
-                end
-            end
-
-            local function SpawnToy(name)
-                local t = tick()
-                while not canSpawn.Value do
-                    if not antiKickActive or tick() - t > 5 then return nil end
-                    task.wait(0.1)
-                end
-                local currentHRP = getHRP()
-                if currentHRP then
-                    task.spawn(function()
-                        pcall(function()
-                            spawnRemote:InvokeServer(name, currentHRP.CFrame * CFrame.new(0, 12, 20), Vector3.new(0, 0, 0))
-                        end)
-                    end)
-                end
-                local boolik, house = CheckForHome()
-                local inv = Workspace:FindFirstChild(plr.Name .. "SpawnedInToys")
-                if boolik and house then
-                    return house:WaitForChild(name, 2)
-                elseif not Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) and inv then
-                    return inv:WaitForChild(name, 2)
+                local character = plr.Character
+                if character then
+                    return character:FindFirstChild("HumanoidRootPart")
                 end
                 return nil
             end
 
             while antiKickActive do
-                task.wait(0.005)
-                if not plr.Character or not plr.Character:FindFirstChild("Humanoid") or plr.Character.Humanoid.Health <= 0 then
-                    task.wait(0.5)
-                    ClearAntiKickToy()
-                    return
-                end
-                local inv = Workspace:FindFirstChild(plr.Name .. "SpawnedInToys")
-                local toy = inv and inv:FindFirstChild(AntiKickToy)
+                task.wait(0.1)
 
-                if Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) then
-                    local boolik, house = CheckForHome()
-                    if boolik and house and Workspace.Plots:FindFirstChild(house.Name) then
-                        local sign = Workspace.Plots[house.Name]:FindFirstChild("PlotSign")
-                        if sign and sign.ThisPlotsOwners.Value.TimeRemainingNum.Value > 89 then
-                            toy = SpawnToy(AntiKickToy)
-                            if toy == nil then return end
-                            toy.Name = "AntiKick"
-                            StickToy(toy)
+                if not plr.Character or not plr.Character:FindFirstChild("Humanoid") or plr.Character.Humanoid.Health <= 0 then
+                    clearAntiKickToys()
+                    task.wait(0.5)
+                    continue
+                end
+
+                local toy = findAntiKickToy()
+
+                local needsStick = false
+                if toy then
+                    local stickyPart = toy:FindFirstChild("StickyPart")
+                    if stickyPart then
+                        local weld = stickyPart:FindFirstChild("StickyWeld")
+                        if not weld or not weld.Part1 then
+                            needsStick = true
                         end
                     end
                 end
 
                 if not toy then
-                    if Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) then return end
-                    toy = SpawnToy(AntiKickToy)
-                    if toy == nil then return end
-                    toy.Name = "AntiKick"
-                    if not toy then return end
-                    neutralizeToy(toy)
-                end
-
-                repeat
-                    if toy and toy:FindFirstChild("StickyPart") and toy.StickyPart.CanTouch == true then
-                        StickToy(toy)
-                        toy.Name = "AntiKick"
+                    local t = tick()
+                    while not canSpawn.Value do
+                        if not antiKickActive or tick() - t > 5 then break end
+                        task.wait(0.1)
                     end
-                    neutralizeToy(toy)
-                    task.wait(0.3)
-                until not toy or not antiKickActive or not toy:FindFirstChild("StickyPart") or toy.StickyPart.CanTouch == false
-                    or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart")
-                    or not toy:FindFirstChild("StickyPart")
-                    or (plr.Character.HumanoidRootPart.Position - toy.StickyPart.Position).Magnitude >= 20
+                    if not canSpawn.Value then continue end
 
-                if not toy or not toy:FindFirstChild("StickyPart") or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") or (plr.Character.HumanoidRootPart.Position - toy.StickyPart.Position).Magnitude >= 20 then
-                    ClearAntiKickToy()
-                end
+                    local hrp = getHRP()
+                    if not hrp then continue end
 
-                pcall(function()
+                    task.spawn(function()
+                        pcall(function()
+                            spawnRemote:InvokeServer(AntiKickToyInternal, hrp.CFrame * CFrame.new(0, 12, 20), Vector3.zero)
+                        end)
+                    end)
+
+                    local waitStart = tick()
                     repeat
                         task.wait(0.05)
-                    until not antiKickActive or not plr.Character or not plr.Character:FindFirstChild("Humanoid") or not toy or not toy:FindFirstChild("StickyPart") or not toy.StickyPart:FindFirstChild("StickyWeld") or not toy.StickyPart.StickyWeld.Part1
-                    if not toy or not toy:FindFirstChild("StickyPart") or (plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health <= 0) or not toy["StickyPart"]:FindFirstChild("StickyWeld").Part1 then
-                        ClearAntiKickToy()
-                    end
-                end)
+                        toy = findAntiKickToy()
+                    until toy or tick() - waitStart > 3
+
+                    if not toy then continue end
+                    needsStick = true
+                end
+
+                if needsStick and toy then
+                    pcall(function() StickToy(toy) end)
+                    task.wait(0.3)
+                end
             end
-            ClearAntiKickToy()
+
+            clearAntiKickToys()
         end)
     else
-        antiKickActive = false
         if antiKickTask then
             task.cancel(antiKickTask)
             antiKickTask = nil
         end
         if antiKickPhysicsTask then
+            task.cancel(antiKickPhysicsTask)
             antiKickPhysicsTask = nil
         end
-        if antiKickCharFixConnection then
-            antiKickCharFixConnection:Disconnect()
-            antiKickCharFixConnection = nil
+        if antiKickCharConnection then
+            antiKickCharConnection:Disconnect()
+            antiKickCharConnection = nil
         end
         if antiKickRespawnConnection then
             antiKickRespawnConnection:Disconnect()
             antiKickRespawnConnection = nil
         end
         fixAntiKickCharacter(LocalPlayer.Character)
-        ClearAntiKickToy()
+        clearAntiKickToys()
     end
 end
 
