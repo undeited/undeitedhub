@@ -415,12 +415,23 @@ local function stopAutoSit()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
+local function getDropdownName(player)
+    return player.DisplayName .. " (@" .. player.Name .. ")"
+end
+
 local function getPlayerFromDropdownValue(value)
     if not value or value == "" then return nil end
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-            if player.DisplayName == value then return player end
-            if value == player.DisplayName .. " (@)" .. player.Name .. ")" then return player end
+            if value == getDropdownName(player) then
+                return player
+            end
+            if value == player.DisplayName then
+                return player
+            end
+            if value == player.Name then
+                return player
+            end
         end
     end
     return nil
@@ -736,20 +747,6 @@ local function bringAllPlayers()
     end
 end
 
-local function getDropdownName(player)
-    local duplicate = false
-    for _, otherPlayer in ipairs(Players:GetPlayers()) do
-        if otherPlayer ~= player and otherPlayer ~= LocalPlayer and otherPlayer.DisplayName == player.DisplayName then
-            duplicate = true
-            break
-        end
-    end
-    if duplicate then
-        return player.DisplayName .. " (@)" .. player.Name .. ")"
-    end
-    return player.DisplayName
-end
-
 local function refreshDropdowns()
     local displayNames = {}
     for _, player in ipairs(Players:GetPlayers()) do
@@ -805,13 +802,12 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
     stopHover(player)
-    local removedName = player.DisplayName
-    local removedNameWithUser = player.DisplayName .. " (@)" .. player.Name .. ")"
-    if selectedBringPlayer == removedName or selectedBringPlayer == removedNameWithUser then
+    local formatted = getDropdownName(player)
+    if selectedBringPlayer == formatted or selectedBringPlayer == player.DisplayName or selectedBringPlayer == player.Name then
         selectedBringPlayer = ""
         pcall(function() bringDropdown:Set("") end)
     end
-    if selectedKickPlayer == removedName or selectedKickPlayer == removedNameWithUser then
+    if selectedKickPlayer == formatted or selectedKickPlayer == player.DisplayName or selectedKickPlayer == player.Name then
         selectedKickPlayer = ""
         pcall(function() kickDropdown:Set("") end)
     end
