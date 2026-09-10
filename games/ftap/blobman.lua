@@ -163,14 +163,18 @@ local function setNetworkOwner(part)
     local character = getPlayerCharacter()
     local root = character and character:FindFirstChild("HumanoidRootPart")
     if root then
-        pcall(function() remote:FireServer(part, CFrame.lookAt(root.Position, part.Position)) end)
+        pcall(function()
+            remote:FireServer(part, CFrame.lookAt(root.Position, part.Position))
+        end)
     end
 end
 
 local function snowshipOnce(part)
     if not part then return false end
     local owner = part:FindFirstChild("PartOwner")
-    if owner and owner.Value == LocalPlayer.Name then return true end
+    if owner and owner.Value == LocalPlayer.Name then
+        return true
+    end
     if LocalPlayer:DistanceFromCharacter(part.Position) <= 30 then
         setNetworkOwner(part)
         return true
@@ -307,14 +311,14 @@ end
 local function grabPlayer(blobman, target, hand)
     if not blobman or not target then return false end
     if isPlayerInProtectedPlot(target) then return false end
+
     local leftDetector = blobman:FindFirstChild("LeftDetector")
     local rightDetector = blobman:FindFirstChild("RightDetector")
     local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
     local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
     local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
     local creatureGrab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
-    local detector
-    local weld
+    local detector, weld
     if hand == "left" then
         detector = leftDetector
         weld = leftWeld
@@ -323,31 +327,55 @@ local function grabPlayer(blobman, target, hand)
         weld = rightWeld
     end
     if not detector or not weld or not creatureGrab then return false end
+
     local character = target.Character
     local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
     local targetHum = character and character:FindFirstChildOfClass("Humanoid")
     if not targetRoot or not targetHum or targetHum.Health <= 0 then return false end
-    local networkOwned = false
-    for i = 1, 3 do
+
+    local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
+    local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
+    local createLine = GE and GE:FindFirstChild("CreateGrabLine")
+
+    local myChar = getPlayerCharacter()
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return false end
+
+    for i = 1, 8 do
         if isPlayerInProtectedPlot(target) then return false end
-        if snowshipOnce(targetRoot) then
-            networkOwned = true
-            break
+        if setNet then
+            pcall(function()
+                setNet:FireServer(targetRoot, CFrame.lookAt(myRoot.Position, targetRoot.Position))
+            end)
         end
-        task.wait(0.1)
+        task.wait(0.02)
     end
-    if not networkOwned then return false end
+
+    if createLine then
+        pcall(function()
+            createLine:FireServer(targetRoot, Vector3.zero, targetRoot.Position, false)
+        end)
+    end
+
     if isPlayerInProtectedPlot(target) then return false end
+
     targetRoot.CFrame = detector.CFrame
     targetRoot.AssemblyLinearVelocity = Vector3.zero
     targetRoot.AssemblyAngularVelocity = Vector3.zero
     task.wait(0.08)
+
     local grabSuccess = pcall(function()
-        creatureGrab:FireServer(target, targetRoot, weld)
+        creatureGrab:FireServer(detector, targetRoot, weld)
     end)
     if not grabSuccess then return false end
+
     task.wait(0.15)
-    if hand == "left" then leftHeldTarget = target else rightHeldTarget = target end
+
+    if hand == "left" then
+        leftHeldTarget = target
+    else
+        rightHeldTarget = target
+    end
     playGrabAnimation(blobman, hand)
     return true
 end
@@ -544,16 +572,19 @@ end
 local function bringPlayer(target, dropAfter)
     if not target or target == LocalPlayer then return end
     if not isPlayerValid(target) then return end
+
     local blobman = getSeatedBlobman()
     if not blobman then
         blobman = sitOnBlobman()
         if not blobman then return end
     end
+
     clearInvalidHeldTargets()
     if leftHeldTarget and rightHeldTarget then
         dropHeldTarget(blobman, "left")
         clearInvalidHeldTargets()
     end
+
     local hand
     if not leftHeldTarget then
         hand = "left"
@@ -562,21 +593,47 @@ local function bringPlayer(target, dropAfter)
     else
         return
     end
+
     local localCharacter = getPlayerCharacter()
     if not localCharacter then return end
     local localRoot = localCharacter:FindFirstChild("HumanoidRootPart")
     if not localRoot then return end
     local targetCharacter = target.Character
     local targetRoot = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then return end
+    local targetHum = targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
+    if not targetRoot or not targetHum then return end
     if isPlayerInProtectedPlot(target) then return end
+
+    local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
+    local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
+    local createLine = GE and GE:FindFirstChild("CreateGrabLine")
+    local destroyLine = GE and GE:FindFirstChild("DestroyGrabLine")
+
     local originalCFrame = localRoot.CFrame
+
     localRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
     task.wait(0.2)
+
     if not getSeatedBlobman() then
         sitOnBlobman()
         task.wait(0.3)
     end
+
+    for i = 1, 10 do
+        pcall(function()
+            if setNet then
+                setNet:FireServer(targetRoot, localRoot.CFrame)
+            end
+        end)
+        task.wait(0.01)
+    end
+
+    pcall(function()
+        if createLine then
+            createLine:FireServer(targetRoot, Vector3.zero, targetRoot.Position, false)
+        end
+    end)
+
     local success = false
     for i = 1, 3 do
         if isPlayerInProtectedPlot(target) then break end
@@ -589,10 +646,46 @@ local function bringPlayer(target, dropAfter)
         end
         task.wait(0.2)
     end
+
+    if not success then
+        localRoot.CFrame = originalCFrame
+        return
+    end
+
     localRoot.CFrame = originalCFrame
-    task.wait(0.1)
-    if success and dropAfter then
-        dropHeldTarget(blobman, hand)
+    task.wait(0.05)
+
+    local currentBlobman = getSeatedBlobman()
+    local handDet
+    if currentBlobman then
+        if hand == "left" then
+            handDet = currentBlobman:FindFirstChild("LeftDetector")
+        else
+            handDet = currentBlobman:FindFirstChild("RightDetector")
+        end
+    end
+
+    for i = 1, 25 do
+        if not targetRoot or not targetRoot.Parent or not targetHum.Parent then break end
+        if handDet and handDet.Parent then
+            pcall(function()
+                targetHum.PlatformStand = true
+                targetRoot.CFrame = handDet.CFrame
+                targetRoot.AssemblyLinearVelocity = Vector3.zero
+                targetRoot.AssemblyAngularVelocity = Vector3.zero
+                if setNet then
+                    setNet:FireServer(targetRoot, handDet.CFrame)
+                end
+            end)
+        end
+        task.wait(0.02)
+    end
+
+    if dropAfter then
+        local finalBlobman = getSeatedBlobman()
+        if finalBlobman then
+            dropHeldTarget(finalBlobman, hand)
+        end
     end
 end
 

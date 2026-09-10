@@ -101,76 +101,6 @@ if undeitedhub.Toggles.antiFire then
     ToggleAntiFire(true)
 end
 
-local antiBlobmanActive = false
-local antiBlobmanTask = nil
-
-local function ToggleAntiBlobman(state)
-    antiBlobmanActive = state
-    if state then
-        antiBlobmanTask = task.spawn(function()
-            while antiBlobmanActive do
-                pcall(function()
-                    local char = LocalPlayer.Character
-                    if char then
-                        if not char:FindFirstChild("TruePositionPart") then
-                            local tp = Instance.new("Part")
-                            tp.Parent = char
-                            tp.Name = "TruePositionPart"
-                            tp.Anchored = true
-                            tp.CFrame = CFrame.new(0, -100, 0)
-                        end
-                        for _, prt in pairs(char:GetChildren()) do
-                            if prt:IsA("BasePart") and prt.Massless then
-                                prt.Massless = false
-                            end
-                            if prt.Name == "HumanoidRootPart" and char.HumanoidRootPart:FindFirstChild("RootAttachment") then
-                                for _ = 1, 10 do task.wait() end
-                                if char and char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart:FindFirstChild("RootAttachment") and char:FindFirstChild("TruePositionPart") then
-                                    char.HumanoidRootPart.RootAttachment.Parent = char.TruePositionPart
-                                end
-                            end
-                        end
-                    end
-                end)
-                task.wait()
-            end
-        end)
-    else
-        antiBlobmanActive = false
-        if antiBlobmanTask then
-            task.cancel(antiBlobmanTask)
-            antiBlobmanTask = nil
-        end
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("TruePositionPart") then
-            if char.TruePositionPart:FindFirstChild("RootAttachment") then
-                char.TruePositionPart.RootAttachment.Parent = char.HumanoidRootPart
-            end
-        end
-    end
-end
-
-AntisTab:Toggle({
-    Title = "Anti Blobman",
-    Value = false,
-    Callback = function(state)
-        ToggleAntiBlobman(state)
-        undeitedhub.Toggles.antiBlobman = state
-        if undeitedhub.SaveSettings then
-            undeitedhub.SaveSettings()
-        end
-        SafeNotify({
-            Title = "Anti Blobman",
-            Content = state and "Enabled" or "Disabled",
-            Duration = 2,
-        })
-    end
-})
-
-if undeitedhub.Toggles.antiBlobman then
-    ToggleAntiBlobman(true)
-end
-
 local antiLagActive = false
 
 local function ApplyAntiLag(state)
@@ -445,7 +375,7 @@ local function ToggleShurikenAntiKick(enable)
 end
 
 AntisTab:Toggle({
-    Title = "Anti Kick",
+    Title = "Shuriken Anti Kick",
     Value = false,
     Callback = function(state)
         ToggleShurikenAntiKick(state)
@@ -454,7 +384,7 @@ AntisTab:Toggle({
             undeitedhub.SaveSettings()
         end
         SafeNotify({
-            Title = "Anti Kick",
+            Title = "Shuriken Anti Kick",
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
@@ -469,9 +399,6 @@ local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if antiFireActive then
         ToggleAntiFire(false)
-    end
-    if antiBlobmanActive then
-        ToggleAntiBlobman(false)
     end
     if antiLagActive then
         antiLagActive = false
