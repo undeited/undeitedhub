@@ -201,7 +201,6 @@ end
 SafeLoad("games/ml/esp.lua")
 SafeLoad("games/ml/combat.lua")
 SafeLoad("games/ml/autofarm.lua")
-SafeLoad("games/ml/boss.lua")
 SafeLoad("shared/settings.lua")
 
 if _G.UNDEITEDHUB_STATES then
