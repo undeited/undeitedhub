@@ -22,6 +22,14 @@ local function SafeNotify(data)
     end
 end
 
+if undeitedhub.Toggles.shurikenAntiKick ~= nil and undeitedhub.Toggles.antiKick == nil then
+    undeitedhub.Toggles.antiKick = undeitedhub.Toggles.shurikenAntiKick
+    undeitedhub.Toggles.shurikenAntiKick = nil
+    if undeitedhub.SaveSettings then
+        undeitedhub.SaveSettings()
+    end
+end
+
 local antiFireActive = false
 local antiFireTask = nil
 local hkFirePart = nil
@@ -143,14 +151,14 @@ if undeitedhub.Toggles.antiLag then
     ApplyAntiLag(true)
 end
 
-local shurikenAntiKickActive = false
-local shurikenAntiKickTask = nil
-local shurikenCharFixConnection = nil
-local shurikenRespawnConnection = nil
-local shurikenPhysicsTask = nil
-local SelectedShurikenToy = "NinjaShuriken"
+local antiKickActive = false
+local antiKickTask = nil
+local antiKickCharFixConnection = nil
+local antiKickRespawnConnection = nil
+local antiKickPhysicsTask = nil
+local AntiKickToy = "NinjaShuriken"
 
-local function fixShurikenCharacter(char)
+local function fixAntiKickCharacter(char)
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -177,9 +185,9 @@ local function fixShurikenCharacter(char)
     end
 end
 
-local function neutralizeShuriken(kunai)
-    if not kunai then return end
-    for _, obj in ipairs(kunai:GetDescendants()) do
+local function neutralizeToy(toy)
+    if not toy then return end
+    for _, obj in ipairs(toy:GetDescendants()) do
         if obj:IsA("BasePart") then
             pcall(function()
                 obj.CanTouch = false
@@ -198,46 +206,46 @@ local function neutralizeShuriken(kunai)
     end
 end
 
-local function ClearKunai()
+local function ClearAntiKickToy()
     local inv = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
     local destroyrem = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("DestroyToy")
     if inv and destroyrem then
         for _, v in pairs(inv:GetChildren()) do
-            if v.Name == "AntiKick" or v.Name == SelectedShurikenToy then
+            if v.Name == "AntiKick" or v.Name == AntiKickToy then
                 pcall(function() destroyrem:FireServer(v) end)
             end
         end
     end
 end
 
-local function ToggleShurikenAntiKick(enable)
-    shurikenAntiKickActive = enable
+local function ToggleAntiKick(enable)
+    antiKickActive = enable
 
     if enable then
-        fixShurikenCharacter(LocalPlayer.Character)
+        fixAntiKickCharacter(LocalPlayer.Character)
 
-        if shurikenCharFixConnection then shurikenCharFixConnection:Disconnect() end
-        shurikenCharFixConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        if antiKickCharFixConnection then antiKickCharFixConnection:Disconnect() end
+        antiKickCharFixConnection = LocalPlayer.CharacterAdded:Connect(function(char)
             task.wait(0.5)
-            fixShurikenCharacter(char)
+            fixAntiKickCharacter(char)
         end)
 
-        if shurikenRespawnConnection then shurikenRespawnConnection:Disconnect() end
-        shurikenRespawnConnection = LocalPlayer.CharacterAdded:Connect(function()
+        if antiKickRespawnConnection then antiKickRespawnConnection:Disconnect() end
+        antiKickRespawnConnection = LocalPlayer.CharacterAdded:Connect(function()
             task.wait(1)
-            if shurikenAntiKickActive then
-                ClearKunai()
+            if antiKickActive then
+                ClearAntiKickToy()
             end
         end)
 
-        if shurikenPhysicsTask then shurikenPhysicsTask = nil end
-        shurikenPhysicsTask = task.spawn(function()
-            while shurikenAntiKickActive do
+        if antiKickPhysicsTask then antiKickPhysicsTask = nil end
+        antiKickPhysicsTask = task.spawn(function()
+            while antiKickActive do
                 pcall(function()
                     local inv = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
                     if inv then
                         for _, toy in pairs(inv:GetChildren()) do
-                            if toy.Name == "AntiKick" or toy.Name == SelectedShurikenToy then
+                            if toy.Name == "AntiKick" or toy.Name == AntiKickToy then
                                 for _, obj in ipairs(toy:GetDescendants()) do
                                     if obj:IsA("BasePart") then
                                         obj.Massless = true
@@ -255,7 +263,7 @@ local function ToggleShurikenAntiKick(enable)
             end
         end)
 
-        shurikenAntiKickTask = task.spawn(function()
+        antiKickTask = task.spawn(function()
             local plr = LocalPlayer
             local setOwner = ReplicatedStorage:WaitForChild("GrabEvents"):WaitForChild("SetNetworkOwner")
             local stickyEvent = ReplicatedStorage:WaitForChild("PlayerEvents"):WaitForChild("StickyPartEvent")
@@ -291,27 +299,27 @@ local function ToggleShurikenAntiKick(enable)
                 return false
             end
 
-            local function StickKunai(kunai)
-                if not kunai or not kunai:FindFirstChild("StickyPart") then return end
+            local function StickToy(toy)
+                if not toy or not toy:FindFirstChild("StickyPart") then return end
                 local currentHRP = getHRP()
                 if not currentHRP then return end
 
-                neutralizeShuriken(kunai)
+                neutralizeToy(toy)
 
-                if kunai:FindFirstChild("SoundPart") then
-                    if not kunai.SoundPart:FindFirstChild("PartOwner") or kunai.SoundPart.PartOwner.Value ~= plr.Name then
-                        setOwner:FireServer(kunai.SoundPart, kunai.SoundPart.CFrame)
+                if toy:FindFirstChild("SoundPart") then
+                    if not toy.SoundPart:FindFirstChild("PartOwner") or toy.SoundPart.PartOwner.Value ~= plr.Name then
+                        setOwner:FireServer(toy.SoundPart, toy.SoundPart.CFrame)
                     end
                 end
                 local firePart = currentHRP:FindFirstChild("FirePlayerPart") or currentHRP:WaitForChild("FirePlayerPart", 5)
                 if firePart then
-                    stickyEvent:FireServer(kunai.StickyPart, firePart, CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), math.rad(90)))
+                    stickyEvent:FireServer(toy.StickyPart, firePart, CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), math.rad(90)))
                 end
 
-                neutralizeShuriken(kunai)
+                neutralizeToy(toy)
 
-                if kunai:FindFirstChild("Handle") then
-                    local handle = kunai.Handle
+                if toy:FindFirstChild("Handle") then
+                    local handle = toy.Handle
                     if not handle:FindFirstChild("Highlight") then
                         local high = Instance.new("Highlight", handle)
                         high.FillColor = Color3.fromRGB(0, 255, 255)
@@ -322,7 +330,7 @@ local function ToggleShurikenAntiKick(enable)
             local function SpawnToy(name)
                 local t = tick()
                 while not canSpawn.Value do
-                    if not shurikenAntiKickActive or tick() - t > 5 then return nil end
+                    if not antiKickActive or tick() - t > 5 then return nil end
                     task.wait(0.1)
                 end
                 local currentHRP = getHRP()
@@ -343,84 +351,84 @@ local function ToggleShurikenAntiKick(enable)
                 return nil
             end
 
-            while shurikenAntiKickActive do
+            while antiKickActive do
                 task.wait(0.005)
                 if not plr.Character or not plr.Character:FindFirstChild("Humanoid") or plr.Character.Humanoid.Health <= 0 then
                     task.wait(0.5)
-                    ClearKunai()
+                    ClearAntiKickToy()
                     return
                 end
                 local inv = Workspace:FindFirstChild(plr.Name .. "SpawnedInToys")
-                local kunai = inv and inv:FindFirstChild(SelectedShurikenToy)
+                local toy = inv and inv:FindFirstChild(AntiKickToy)
 
                 if Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) then
                     local boolik, house = CheckForHome()
                     if boolik and house and Workspace.Plots:FindFirstChild(house.Name) then
                         local sign = Workspace.Plots[house.Name]:FindFirstChild("PlotSign")
                         if sign and sign.ThisPlotsOwners.Value.TimeRemainingNum.Value > 89 then
-                            kunai = SpawnToy(SelectedShurikenToy)
-                            if kunai == nil then return end
-                            kunai.Name = "AntiKick"
-                            StickKunai(kunai)
+                            toy = SpawnToy(AntiKickToy)
+                            if toy == nil then return end
+                            toy.Name = "AntiKick"
+                            StickToy(toy)
                         end
                     end
                 end
 
-                if not kunai then
+                if not toy then
                     if Workspace.PlotItems.PlayersInPlots:FindFirstChild(plr.Name) then return end
-                    kunai = SpawnToy(SelectedShurikenToy)
-                    if kunai == nil then return end
-                    kunai.Name = "AntiKick"
-                    if not kunai then return end
-                    neutralizeShuriken(kunai)
+                    toy = SpawnToy(AntiKickToy)
+                    if toy == nil then return end
+                    toy.Name = "AntiKick"
+                    if not toy then return end
+                    neutralizeToy(toy)
                 end
 
                 repeat
-                    if kunai and kunai:FindFirstChild("StickyPart") and kunai.StickyPart.CanTouch == true then
-                        StickKunai(kunai)
-                        kunai.Name = "AntiKick"
+                    if toy and toy:FindFirstChild("StickyPart") and toy.StickyPart.CanTouch == true then
+                        StickToy(toy)
+                        toy.Name = "AntiKick"
                     end
-                    neutralizeShuriken(kunai)
+                    neutralizeToy(toy)
                     task.wait(0.3)
-                until not kunai or not shurikenAntiKickActive or not kunai:FindFirstChild("StickyPart") or kunai.StickyPart.CanTouch == false
+                until not toy or not antiKickActive or not toy:FindFirstChild("StickyPart") or toy.StickyPart.CanTouch == false
                     or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart")
-                    or not kunai:FindFirstChild("StickyPart")
-                    or (plr.Character.HumanoidRootPart.Position - kunai.StickyPart.Position).Magnitude >= 20
+                    or not toy:FindFirstChild("StickyPart")
+                    or (plr.Character.HumanoidRootPart.Position - toy.StickyPart.Position).Magnitude >= 20
 
-                if not kunai or not kunai:FindFirstChild("StickyPart") or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") or (plr.Character.HumanoidRootPart.Position - kunai.StickyPart.Position).Magnitude >= 20 then
-                    ClearKunai()
+                if not toy or not toy:FindFirstChild("StickyPart") or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") or (plr.Character.HumanoidRootPart.Position - toy.StickyPart.Position).Magnitude >= 20 then
+                    ClearAntiKickToy()
                 end
 
                 pcall(function()
                     repeat
                         task.wait(0.05)
-                    until not shurikenAntiKickActive or not plr.Character or not plr.Character:FindFirstChild("Humanoid") or not kunai or not kunai:FindFirstChild("StickyPart") or not kunai.StickyPart:FindFirstChild("StickyWeld") or not kunai.StickyPart.StickyWeld.Part1
-                    if not kunai or not kunai:FindFirstChild("StickyPart") or (plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health <= 0) or not kunai["StickyPart"]:FindFirstChild("StickyWeld").Part1 then
-                        ClearKunai()
+                    until not antiKickActive or not plr.Character or not plr.Character:FindFirstChild("Humanoid") or not toy or not toy:FindFirstChild("StickyPart") or not toy.StickyPart:FindFirstChild("StickyWeld") or not toy.StickyPart.StickyWeld.Part1
+                    if not toy or not toy:FindFirstChild("StickyPart") or (plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health <= 0) or not toy["StickyPart"]:FindFirstChild("StickyWeld").Part1 then
+                        ClearAntiKickToy()
                     end
                 end)
             end
-            ClearKunai()
+            ClearAntiKickToy()
         end)
     else
-        shurikenAntiKickActive = false
-        if shurikenAntiKickTask then
-            task.cancel(shurikenAntiKickTask)
-            shurikenAntiKickTask = nil
+        antiKickActive = false
+        if antiKickTask then
+            task.cancel(antiKickTask)
+            antiKickTask = nil
         end
-        if shurikenPhysicsTask then
-            shurikenPhysicsTask = nil
+        if antiKickPhysicsTask then
+            antiKickPhysicsTask = nil
         end
-        if shurikenCharFixConnection then
-            shurikenCharFixConnection:Disconnect()
-            shurikenCharFixConnection = nil
+        if antiKickCharFixConnection then
+            antiKickCharFixConnection:Disconnect()
+            antiKickCharFixConnection = nil
         end
-        if shurikenRespawnConnection then
-            shurikenRespawnConnection:Disconnect()
-            shurikenRespawnConnection = nil
+        if antiKickRespawnConnection then
+            antiKickRespawnConnection:Disconnect()
+            antiKickRespawnConnection = nil
         end
-        fixShurikenCharacter(LocalPlayer.Character)
-        ClearKunai()
+        fixAntiKickCharacter(LocalPlayer.Character)
+        ClearAntiKickToy()
     end
 end
 
@@ -428,8 +436,8 @@ AntisTab:Toggle({
     Title = "Anti Kick",
     Value = false,
     Callback = function(state)
-        ToggleShurikenAntiKick(state)
-        undeitedhub.Toggles.shurikenAntiKick = state
+        ToggleAntiKick(state)
+        undeitedhub.Toggles.antiKick = state
         if undeitedhub.SaveSettings then
             undeitedhub.SaveSettings()
         end
@@ -441,8 +449,8 @@ AntisTab:Toggle({
     end
 })
 
-if undeitedhub.Toggles.shurikenAntiKick then
-    ToggleShurikenAntiKick(true)
+if undeitedhub.Toggles.antiKick then
+    ToggleAntiKick(true)
 end
 
 local oldDisable = undeitedhub.DisableAll or function() end
@@ -454,8 +462,8 @@ undeitedhub.DisableAll = function()
         antiLagActive = false
         ApplyAntiLag(false)
     end
-    if shurikenAntiKickActive then
-        ToggleShurikenAntiKick(false)
+    if antiKickActive then
+        ToggleAntiKick(false)
     end
     oldDisable()
 end
