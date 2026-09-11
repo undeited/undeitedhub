@@ -440,7 +440,7 @@ VisualTab:Toggle({
         undeitedhub.Toggles.espEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "ESP Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
-        if not espEnabled then ClearHighlights()
+        if not espEnabled then ClearHighlights() end
         RefreshESP()
     end
 })
@@ -453,7 +453,7 @@ VisualTab:Toggle({
         undeitedhub.Toggles.espNamesEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "ESP Names", Content = state and "Enabled" or "Disabled", Duration = 2 })
-        if not espNamesEnabled then ClearNames()
+        if not espNamesEnabled then ClearNames() end
         RefreshESP()
     end
 })
@@ -466,7 +466,7 @@ VisualTab:Toggle({
         undeitedhub.Toggles.gunHighlightEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "Gun Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
-        if not gunHighlightEnabled then ClearGunHighlights()
+        if not gunHighlightEnabled then ClearGunHighlights() end
         RefreshESP()
     end
 })
@@ -479,7 +479,7 @@ VisualTab:Toggle({
         undeitedhub.Toggles.coinHighlightEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "Coin Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
-        if not coinHighlightEnabled then ClearCoinHighlights()
+        if not coinHighlightEnabled then ClearCoinHighlights() end
         RefreshESP()
     end
 })
@@ -594,7 +594,7 @@ local function forceRoleScan()
             end
         end
     end
-    if changed then RefreshESP()
+    if changed then RefreshESP() end
 end
 
 task.spawn(function()
