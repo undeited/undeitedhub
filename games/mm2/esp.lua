@@ -19,12 +19,10 @@ end
 local VisualTab = undeitedhub.Window:Tab({ Title = "Visual" })
 
 local espEnabled = undeitedhub.Toggles.espEnabled or false
-local espNamesEnabled = undeitedhub.Toggles.espNamesEnabled or false
 local gunHighlightEnabled = undeitedhub.Toggles.gunHighlightEnabled or false
 local coinHighlightEnabled = undeitedhub.Toggles.coinHighlightEnabled or false
 
 local highlightMap = {}
-local nameMap = {}
 local gunHighlightMap = {}
 local coinHighlightMap = {}
 
@@ -188,15 +186,6 @@ local function ClearHighlights()
     highlightMap = {}
 end
 
-local function ClearNames()
-    for _, billboard in pairs(nameMap) do
-        if billboard and billboard.Parent then
-            pcall(billboard.Destroy, billboard)
-        end
-    end
-    nameMap = {}
-end
-
 local function ClearGunHighlights()
     for _, highlight in pairs(gunHighlightMap) do
         if highlight and highlight.Parent then
@@ -217,58 +206,22 @@ end
 
 local function ClearESP()
     ClearHighlights()
-    ClearNames()
     ClearGunHighlights()
     ClearCoinHighlights()
 end
 
-local function CreateNameTag(player, character)
-    if nameMap[player] then
-        pcall(nameMap[player].Destroy, nameMap[player])
-        nameMap[player] = nil
-    end
-    local head = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
-    if not head then return end
-
-    local displayName = player.DisplayName or player.Name
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 100, 0, 18)
-    billboard.Adornee = head
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
-    billboard.AlwaysOnTop = true
-    billboard.MaxDistance = 1000
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = displayName
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.TextScaled = false
-    label.TextSize = 13
-    label.Font = Enum.Font.GothamSemibold
-    label.TextStrokeTransparency = 0.4
-    label.TextStrokeColor3 = Color3.new(0, 0, 0)
-
-    label.Parent = billboard
-    billboard.Parent = character
-    nameMap[player] = billboard
-end
-
 local function UpdateESP()
-    if not espEnabled and not espNamesEnabled then
-        ClearESP()
+    if not espEnabled then
+        ClearHighlights()
         return
     end
 
     if IsInLobby() or not IsRoundActive() then
-        ClearESP()
+        ClearHighlights()
         return
     end
 
     local localPlayer = game.Players.LocalPlayer
-    local localChar = localPlayer and localPlayer.Character
-    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
     local seen = {}
 
     for _, player in ipairs(game.Players:GetPlayers()) do
@@ -279,63 +232,32 @@ local function UpdateESP()
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if not humanoid or humanoid.Health <= 0 then continue end
 
-        if espEnabled then
-            local roleColor = GetPlayerRoleColor(player)
-            local highlight = highlightMap[player]
-            if not highlight then
-                highlight = Instance.new("Highlight")
-                highlight.Name = "UndeitedSP"
-                highlight.FillColor = roleColor
-                highlight.FillTransparency = 0.5
-                highlight.OutlineColor = roleColor
-                highlight.OutlineTransparency = 0.2
-                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                highlight.Parent = character
-                highlightMap[player] = highlight
-            end
-            highlight.Adornee = character
+        local roleColor = GetPlayerRoleColor(player)
+        local highlight = highlightMap[player]
+        if not highlight then
+            highlight = Instance.new("Highlight")
+            highlight.Name = "UndeitedSP"
             highlight.FillColor = roleColor
+            highlight.FillTransparency = 0.5
             highlight.OutlineColor = roleColor
-            highlight.Enabled = true
+            highlight.OutlineTransparency = 0.2
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Parent = character
+            highlightMap[player] = highlight
         end
-
-        if espNamesEnabled then
-            if not nameMap[player] then
-                CreateNameTag(player, character)
-            end
-            local targetRoot = character:FindFirstChild("HumanoidRootPart")
-            local billboard = nameMap[player]
-            if billboard and localRoot and targetRoot then
-                local dist = (targetRoot.Position - localRoot.Position).Magnitude
-                billboard.Enabled = dist >= 50
-            elseif billboard then
-                billboard.Enabled = true
-            end
-        end
+        highlight.Adornee = character
+        highlight.FillColor = roleColor
+        highlight.OutlineColor = roleColor
+        highlight.Enabled = true
 
         seen[player] = true
     end
 
-    if espEnabled then
-        for player, highlight in pairs(highlightMap) do
-            if not seen[player] and highlight and highlight.Parent then
-                pcall(highlight.Destroy, highlight)
-                highlightMap[player] = nil
-            end
+    for player, highlight in pairs(highlightMap) do
+        if not seen[player] and highlight and highlight.Parent then
+            pcall(highlight.Destroy, highlight)
+            highlightMap[player] = nil
         end
-    else
-        ClearHighlights()
-    end
-
-    if espNamesEnabled then
-        for player, billboard in pairs(nameMap) do
-            if not seen[player] and billboard and billboard.Parent then
-                pcall(billboard.Destroy, billboard)
-                nameMap[player] = nil
-            end
-        end
-    else
-        ClearNames()
     end
 end
 
@@ -446,19 +368,6 @@ VisualTab:Toggle({
 })
 
 VisualTab:Toggle({
-    Title = "ESP Names",
-    Value = espNamesEnabled,
-    Callback = function(state)
-        espNamesEnabled = state
-        undeitedhub.Toggles.espNamesEnabled = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "ESP Names", Content = state and "Enabled" or "Disabled", Duration = 2 })
-        if not espNamesEnabled then ClearNames() end
-        RefreshESP()
-    end
-})
-
-VisualTab:Toggle({
     Title = "Gun Highlight",
     Value = gunHighlightEnabled,
     Callback = function(state)
@@ -505,10 +414,6 @@ game.Players.PlayerRemoving:Connect(function(player)
     if highlightMap[player] then
         pcall(highlightMap[player].Destroy, highlightMap[player])
         highlightMap[player] = nil
-    end
-    if nameMap[player] then
-        pcall(nameMap[player].Destroy, nameMap[player])
-        nameMap[player] = nil
     end
 end)
 
@@ -638,11 +543,9 @@ undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
 local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
     espEnabled = false
-    espNamesEnabled = false
     gunHighlightEnabled = false
     coinHighlightEnabled = false
     undeitedhub.Toggles.espEnabled = false
-    undeitedhub.Toggles.espNamesEnabled = false
     undeitedhub.Toggles.gunHighlightEnabled = false
     undeitedhub.Toggles.coinHighlightEnabled = false
     ClearESP()
@@ -650,7 +553,7 @@ undeitedhub.DisableAll = function()
     oldDisable()
 end
 
-if espEnabled or espNamesEnabled or gunHighlightEnabled or coinHighlightEnabled then
+if espEnabled or gunHighlightEnabled or coinHighlightEnabled then
     task.spawn(function()
         task.wait(0.5)
         RefreshESP()
