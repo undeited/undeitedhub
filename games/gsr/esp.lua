@@ -179,7 +179,7 @@ VisualTab:Toggle({
 })
 
 VisualTab:Toggle({
-    Title = "ESP Names",
+    Title = "Player Names",
     Value = espNamesEnabled,
     Callback = function(state)
         pcall(function()
@@ -187,7 +187,7 @@ VisualTab:Toggle({
             undeitedhub.Toggles.espNamesEnabled = state
             if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             SafeNotify({
-                Title = "ESP Names",
+                Title = "Player Names",
                 Content = espNamesEnabled and "Enabled" or "Disabled",
                 Duration = 2,
             })
