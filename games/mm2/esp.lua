@@ -355,13 +355,13 @@ local function RefreshESP()
 end
 
 VisualTab:Toggle({
-    Title = "ESP Highlight",
+    Title = "Player Highlight",
     Value = espEnabled,
     Callback = function(state)
         espEnabled = state
         undeitedhub.Toggles.espEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "ESP Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
+        SafeNotify({ Title = "Player Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
         if not espEnabled then ClearHighlights() end
         RefreshESP()
     end
