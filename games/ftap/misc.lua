@@ -69,16 +69,27 @@ MiscTab:Button({
     end
 })
 
-local infiniteLineReachEnabled = undeitedhub.Toggles.infiniteLineReachEnabled or false
-local infiniteLineReachHooked = false
-local INF_REACH_DISTANCE = 1e6
+-- ============================================================
+-- INF Reach
+-- ExtendGrabLine is only the visual beam. The server validates
+-- distance when SetNetworkOwner fires, so we briefly move the
+-- player next to the target while that remote is sent, then
+-- snap back. We do NOT modify ExtendGrabLine anymore because
+-- changing its value corrupts the game's grab state machine
+-- and produces "Unable to cast CoordinateFrame to bool".
+-- ============================================================
+local infReachEnabled = undeitedhub.Toggles.infReachEnabled or false
+local infReachHooked = false
 local INF_GRAB_RANGE = 30
+local INF_TELEPORT_HOLD = 0.2
+local INF_TELEPORT_COOLDOWN = 0.15
+local lastTeleportTime = 0
 
 local function SetupInfReach()
-    if infiniteLineReachHooked then return end
+    if infReachHooked then return end
     if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function" then
         SafeNotify({
-            Title = "INF Line Reach",
+            Title = "INF Reach",
             Content = "Executor does not support hookmetamethod.",
             Duration = 4,
         })
@@ -87,38 +98,52 @@ local function SetupInfReach()
 
     local oldNamecall
     local hookFn = function(self, ...)
-        local method = getnamecallmethod()
-        if infiniteLineReachEnabled and method == "FireServer" and typeof(self) == "Instance" then
+        -- Everything here is isolated so a bug in our logic can
+        -- never break the game's own remote calls.
+        if infReachEnabled then
+            pcall(function()
+                if getnamecallmethod() ~= "FireServer" then return end
+                if typeof(self) ~= "Instance" then return end
+                if self.Name ~= "SetNetworkOwner" then return end
 
-            if self.Name == "ExtendGrabLine" then
-                local args = { ... }
-                if type(args[1]) == "number" then
-                    return oldNamecall(self, INF_REACH_DISTANCE)
-                end
-
-            elseif self.Name == "SetNetworkOwner" then
                 local args = { ... }
                 local targetPart = args[1]
-                if typeof(targetPart) == "Instance" and targetPart:IsA("BasePart") then
-                    local char = game.Players.LocalPlayer.Character
-                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        local dist = (targetPart.Position - hrp.Position).Magnitude
-                        if dist > INF_GRAB_RANGE then
-                            local savedCFrame = hrp.CFrame
-                            hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 5, 0))
-                            task.delay(0.2, function()
-                                local c = game.Players.LocalPlayer.Character
-                                local h = c and c:FindFirstChild("HumanoidRootPart")
-                                if h and h.Parent then
-                                    pcall(function() h.CFrame = savedCFrame end)
-                                end
-                            end)
-                        end
+                if typeof(targetPart) ~= "Instance" then return end
+                if not targetPart:IsA("BasePart") then return end
+
+                local now = tick()
+                if now - lastTeleportTime < INF_TELEPORT_COOLDOWN then return end
+
+                local char = game.Players.LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if not hrp then return end
+
+                local dist = (targetPart.Position - hrp.Position).Magnitude
+                if dist <= INF_GRAB_RANGE then return end
+
+                lastTeleportTime = now
+
+                local savedCFrame = hrp.CFrame
+                local savedVelocity = hrp.AssemblyLinearVelocity
+
+                hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 5, 0))
+
+                -- Restore on a separate thread so the namecall hook
+                -- returns immediately and the game keeps its normal
+                -- call ordering.
+                task.delay(INF_TELEPORT_HOLD, function()
+                    local c = game.Players.LocalPlayer.Character
+                    local h = c and c:FindFirstChild("HumanoidRootPart")
+                    if h and h.Parent then
+                        pcall(function()
+                            h.CFrame = savedCFrame
+                            h.AssemblyLinearVelocity = savedVelocity
+                        end)
                     end
-                end
-            end
+                end)
+            end)
         end
+
         return oldNamecall(self, ...)
     end
 
@@ -127,15 +152,15 @@ local function SetupInfReach()
     end
 
     oldNamecall = hookmetamethod(game, "__namecall", hookFn)
-    infiniteLineReachHooked = true
+    infReachHooked = true
 end
 
 MiscTab:Toggle({
-    Title = "INF Line Reach",
-    Value = infiniteLineReachEnabled,
+    Title = "INF Reach",
+    Value = infReachEnabled,
     Callback = function(state)
-        infiniteLineReachEnabled = state
-        undeitedhub.Toggles.infiniteLineReachEnabled = state
+        infReachEnabled = state
+        undeitedhub.Toggles.infReachEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
         if state then
@@ -143,14 +168,14 @@ MiscTab:Toggle({
         end
 
         SafeNotify({
-            Title = "INF Line Reach",
+            Title = "INF Reach",
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
     end
 })
 
-if infiniteLineReachEnabled then
+if infReachEnabled then
     task.spawn(function()
         task.wait(0.5)
         SetupInfReach()
@@ -160,8 +185,8 @@ end
 undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
 local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
-    infiniteLineReachEnabled = false
-    undeitedhub.Toggles.infiniteLineReachEnabled = false
+    infReachEnabled = false
+    undeitedhub.Toggles.infReachEnabled = false
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end
