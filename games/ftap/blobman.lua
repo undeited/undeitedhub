@@ -8,19 +8,31 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 
+local function SafeNotify(data)
+    if type(data) ~= "table" then return end
+    if WindUI and type(WindUI.Notify) == "function" then
+        pcall(WindUI.Notify, WindUI, data)
+    else
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = data.Title or "",
+                Text = data.Content or "",
+                Duration = data.Duration or 3,
+            })
+        end)
+    end
+end
+
 local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
 local KICK_HEIGHT = 25
 
-local kickAllEnabled = undeitedhub.Toggles.kickAll or false
-local kickAllTask = nil
-
 local INTERACT_KEY = Enum.KeyCode.F
 local leftHeldTarget = nil
 local rightHeldTarget = nil
-local selectedBringPlayer = nil
+local selectedBringPlayerObj = nil
 local bringDropdown = nil
 local hoveringTargets = {}
 local hoverConnections = {}
@@ -561,253 +573,6 @@ local function stopKickLoop()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
-local function startKickAllLoop()
-    if kickAllTask then return end
-    kickAllEnabled = true
-    undeitedhub.Toggles.kickAll = true
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-
-    kickAllTask = task.spawn(function()
-        local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
-        local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
-        local createLine = GE and GE:FindFirstChild("CreateGrabLine")
-        local destroyLine = GE and GE:FindFirstChild("DestroyGrabLine")
-
-        local dragging = false
-        local grabStartTime = 0
-        local savedPos = nil
-        local targetIndex = 1
-        local dragHoldStart = 0
-        local draggedTarget = nil
-
-        local function isTargetKicked(target, tRoot, tHum, lockPos)
-            if not target or not target.Parent then return true end
-            if not target.Character then return true end
-            if not tRoot or not tRoot.Parent then return true end
-            if not tHum or tHum.Health <= 0 then return true end
-
-            local head = target.Character:FindFirstChild("Head")
-            if head then
-                local owner = head:FindFirstChild("PartOwner")
-                if not owner or owner.Value == "" then return true end
-            end
-
-            if lockPos and tRoot then
-                local distFromLock = (tRoot.Position - lockPos.Position).Magnitude
-                if distFromLock > 30 then return true end
-            end
-
-            local myChar = getPlayerCharacter()
-            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-            if myRoot then
-                local distFromMe = (tRoot.Position - myRoot.Position).Magnitude
-                if distFromMe > 60 then return true end
-            end
-
-            return false
-        end
-
-        while kickAllEnabled do
-            local players = {}
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Parent == Players and isPlayerValid(player) then
-                    table.insert(players, player)
-                end
-            end
-
-            if #players == 0 then
-                dragging = false
-                grabStartTime = 0
-                draggedTarget = nil
-                task.wait(0.3)
-                continue
-            end
-
-            local myChar = getPlayerCharacter()
-            if not myChar then
-                task.wait(0.1)
-                continue
-            end
-
-            local myRoot = myChar:FindFirstChild("HumanoidRootPart")
-            local myHum = myChar:FindFirstChildOfClass("Humanoid")
-            if not myRoot or not myHum or myHum.Health <= 0 then
-                task.wait(0.1)
-                continue
-            end
-
-            local seat = myHum.SeatPart
-            if not seat or not seat.Parent or seat.Parent.Name ~= "CreatureBlobman" then
-                dragging = false
-                grabStartTime = 0
-                draggedTarget = nil
-                savedPos = myRoot.CFrame
-                pcall(sitOnBlobman)
-                task.wait(0.1)
-                continue
-            end
-
-            if not savedPos then
-                savedPos = myRoot.CFrame
-            end
-
-            if targetIndex > #players then
-                targetIndex = 1
-            end
-
-            local target = players[targetIndex]
-
-            if dragging and draggedTarget and draggedTarget ~= target then
-                dragging = false
-                grabStartTime = 0
-                draggedTarget = nil
-            end
-
-            local tChar = target.Character
-            local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
-            local tHum = tChar and tChar:FindFirstChild("Humanoid")
-
-            if tRoot and tHum and tHum.Health > 0 then
-                tRoot.AssemblyLinearVelocity = Vector3.zero
-                tRoot.Velocity = Vector3.zero
-
-                local blobman = seat.Parent
-                local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
-                local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
-                local drop = remoteFolder and remoteFolder:FindFirstChild("CreatureDrop")
-                local L_Det = blobman:FindFirstChild("LeftDetector")
-                local R_Det = blobman:FindFirstChild("RightDetector")
-                local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
-                local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
-
-                if grab and drop and L_Weld and R_Weld then
-                    pcall(function()
-                        grab:FireServer(L_Det, tRoot, L_Weld)
-                        grab:FireServer(R_Det, tRoot, R_Weld)
-                        drop:FireServer(L_Weld, tRoot)
-                        drop:FireServer(R_Weld, tRoot)
-                    end)
-                end
-
-                if not dragging then
-                    myRoot.CFrame = tRoot.CFrame
-                    myRoot.AssemblyLinearVelocity = Vector3.zero
-                    myRoot.AssemblyAngularVelocity = Vector3.zero
-
-                    if setNet then
-                        pcall(function()
-                            setNet:FireServer(tRoot, myRoot.CFrame)
-                        end)
-                    end
-                    if createLine then
-                        pcall(function()
-                            createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
-                        end)
-                    end
-                    pcall(function()
-                        tHum.PlatformStand = true
-                    end)
-
-                    if grabStartTime == 0 then grabStartTime = tick() end
-                    if tick() - grabStartTime > 0.15 then
-                        dragging = true
-                        grabStartTime = 0
-                        dragHoldStart = tick()
-                        draggedTarget = target
-                    end
-                else
-                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
-                    myRoot.CFrame = savedPos
-                    myRoot.AssemblyLinearVelocity = Vector3.zero
-                    myRoot.AssemblyAngularVelocity = Vector3.zero
-
-                    if setNet then
-                        pcall(function()
-                            setNet:FireServer(tRoot, lockPos)
-                        end)
-                    end
-                    if destroyLine then
-                        pcall(function()
-                            destroyLine:FireServer(tRoot)
-                        end)
-                    end
-                    if createLine then
-                        pcall(function()
-                            createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
-                        end)
-                    end
-
-                    tRoot.CFrame = lockPos
-                    tRoot.AssemblyLinearVelocity = Vector3.zero
-                    tRoot.AssemblyAngularVelocity = Vector3.zero
-                    tRoot.Velocity = Vector3.zero
-                    tRoot.RotVelocity = Vector3.zero
-
-                    pcall(function()
-                        tHum.PlatformStand = true
-                    end)
-
-                    local kicked = isTargetKicked(target, tRoot, tHum, lockPos)
-                    local heldTooLong = tick() - dragHoldStart > 0.6
-
-                    if kicked or heldTooLong then
-                        if destroyLine then
-                            pcall(function()
-                                destroyLine:FireServer(tRoot)
-                            end)
-                        end
-                        if setNet then
-                            pcall(function()
-                                setNet:FireServer(tRoot, tRoot.CFrame)
-                            end)
-                        end
-
-                        dragging = false
-                        grabStartTime = 0
-                        dragHoldStart = 0
-                        draggedTarget = nil
-                        targetIndex = targetIndex + 1
-                        task.wait(0.03)
-                    end
-                end
-            else
-                dragging = false
-                grabStartTime = 0
-                dragHoldStart = 0
-                draggedTarget = nil
-                targetIndex = targetIndex + 1
-            end
-
-            RunService.Heartbeat:Wait()
-        end
-
-        local myChar = getPlayerCharacter()
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if myRoot and savedPos then
-            myRoot.CFrame = savedPos
-        end
-        kickAllEnabled = false
-        undeitedhub.Toggles.kickAll = false
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        kickAllTask = nil
-    end)
-end
-
-local function stopKickAllLoop()
-    kickAllEnabled = false
-    undeitedhub.Toggles.kickAll = false
-    if kickAllTask then
-        task.cancel(kickAllTask)
-        kickAllTask = nil
-    end
-    local blobman = getSeatedBlobman()
-    if blobman then
-        if leftHeldTarget then dropHeldTarget(blobman, "left") end
-        if rightHeldTarget then dropHeldTarget(blobman, "right") end
-    end
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-end
-
 local function bringPlayer(target, dropAfter)
     if not target or target == LocalPlayer then return end
     if not isPlayerValid(target) then return end
@@ -928,20 +693,20 @@ local function bringPlayer(target, dropAfter)
 end
 
 local function bringSelectedPlayer()
-    if not selectedBringPlayer or selectedBringPlayer == "" then return end
-    local target = getPlayerFromDropdownValue(selectedBringPlayer)
-    if target then
-        bringPlayer(target, false)
+    if not selectedBringPlayerObj then
+        SafeNotify({ Title = "Bring Selected", Content = "No player selected.", Duration = 2 })
+        return
     end
-end
-
-local function bringAllPlayers()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and isPlayerValid(player) and not isPlayerInProtectedPlot(player) then
-            bringPlayer(player, true)
-            task.wait(0.3)
-        end
+    if not selectedBringPlayerObj.Parent then
+        selectedBringPlayerObj = nil
+        SafeNotify({ Title = "Bring Selected", Content = "Selected player has left.", Duration = 2 })
+        return
     end
+    if not isPlayerValid(selectedBringPlayerObj) then
+        SafeNotify({ Title = "Bring Selected", Content = "Selected player is not valid.", Duration = 2 })
+        return
+    end
+    bringPlayer(selectedBringPlayerObj, false)
 end
 
 local function refreshDropdowns()
@@ -955,9 +720,12 @@ local function refreshDropdowns()
 
     if bringDropdown then
         bringDropdown:Refresh(displayNames, true)
-        if selectedBringPlayer and selectedBringPlayer ~= "" then
-            if not table.find(displayNames, selectedBringPlayer) then
-                selectedBringPlayer = ""
+        if selectedBringPlayerObj then
+            if not selectedBringPlayerObj.Parent then
+                selectedBringPlayerObj = nil
+                pcall(function() bringDropdown:Set("") end)
+            elseif not table.find(displayNames, getDropdownName(selectedBringPlayerObj)) then
+                selectedBringPlayerObj = nil
                 pcall(function() bringDropdown:Set("") end)
             end
         end
@@ -978,7 +746,9 @@ bringDropdown = BlobmanTab:Dropdown({
     Title = "Select Player to Bring",
     Values = {},
     Value = "",
-    Callback = function(value) selectedBringPlayer = value end
+    Callback = function(value)
+        selectedBringPlayerObj = getPlayerFromDropdownValue(value)
+    end
 })
 
 kickDropdown = BlobmanTab:Dropdown({
@@ -999,11 +769,11 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
     stopHover(player)
-    local formatted = getDropdownName(player)
-    if selectedBringPlayer == formatted or selectedBringPlayer == player.DisplayName or selectedBringPlayer == player.Name then
-        selectedBringPlayer = ""
+    if selectedBringPlayerObj == player then
+        selectedBringPlayerObj = nil
         pcall(function() bringDropdown:Set("") end)
     end
+    local formatted = getDropdownName(player)
     if selectedKickPlayer == formatted or selectedKickPlayer == player.DisplayName or selectedKickPlayer == player.Name then
         selectedKickPlayer = ""
         pcall(function() kickDropdown:Set("") end)
@@ -1022,12 +792,16 @@ refreshDropdowns()
 
 BlobmanTab:Button({
     Title = "Bring Selected Player",
-    Callback = function() pcall(bringSelectedPlayer) end
-})
-
-BlobmanTab:Button({
-    Title = "Bring All",
-    Callback = function() pcall(bringAllPlayers) end
+    Callback = function()
+        local ok, err = pcall(bringSelectedPlayer)
+        if not ok then
+            SafeNotify({
+                Title = "Bring Selected Error",
+                Content = tostring(err):sub(1, 120),
+                Duration = 4,
+            })
+        end
+    end
 })
 
 BlobmanTab:Toggle({
@@ -1038,21 +812,11 @@ BlobmanTab:Toggle({
     end
 })
 
-BlobmanTab:Toggle({
-    Title = "Loop Kick All",
-    Value = kickAllEnabled,
-    Callback = function(state)
-        if state then startKickAllLoop() else stopKickAllLoop() end
-    end
-})
-
 if kickEnabled then startKickLoop() end
-if kickAllEnabled then startKickAllLoop() end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if kickEnabled then stopKickLoop() end
-    if kickAllEnabled then stopKickAllLoop() end
     for target in pairs(hoveringTargets) do stopHover(target) end
     oldDisable()
 end
