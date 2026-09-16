@@ -72,6 +72,7 @@ MiscTab:Button({
 local infReachEnabled = undeitedhub.Toggles.infReachEnabled or false
 local infReachHooked = false
 local INF_REACH_DISTANCE = 1e6
+local INF_GRAB_RANGE = 30
 
 local function SetupInfReach()
     if infReachHooked then return end
@@ -87,14 +88,37 @@ local function SetupInfReach()
     local oldNamecall
     local hookFn = function(self, ...)
         local method = getnamecallmethod()
-        if method == "FireServer"
-            and infReachEnabled
-            and typeof(self) == "Instance"
-            and self.Name == "ExtendGrabLine"
-        then
-            local args = { ... }
-            if type(args[1]) == "number" then
-                return oldNamecall(self, INF_REACH_DISTANCE)
+        if infReachEnabled and method == "FireServer" and typeof(self) == "Instance" then
+
+            -- 1) Infinite visual beam
+            if self.Name == "ExtendGrabLine" then
+                local args = { ... }
+                if type(args[1]) == "number" then
+                    return oldNamecall(self, INF_REACH_DISTANCE)
+                end
+
+            -- 2) Teleport trick so the server accepts the grab
+            elseif self.Name == "SetNetworkOwner" then
+                local args = { ... }
+                local targetPart = args[1]
+                if typeof(targetPart) == "Instance" and targetPart:IsA("BasePart") then
+                    local char = game.Players.LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local dist = (targetPart.Position - hrp.Position).Magnitude
+                        if dist > INF_GRAB_RANGE then
+                            local savedCFrame = hrp.CFrame
+                            hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 5, 0))
+                            task.delay(0.2, function()
+                                local c = game.Players.LocalPlayer.Character
+                                local h = c and c:FindFirstChild("HumanoidRootPart")
+                                if h and h.Parent then
+                                    pcall(function() h.CFrame = savedCFrame end)
+                                end
+                            end)
+                        end
+                    end
+                end
             end
         end
         return oldNamecall(self, ...)
