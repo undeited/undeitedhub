@@ -90,14 +90,12 @@ local function SetupInfReach()
         local method = getnamecallmethod()
         if infReachEnabled and method == "FireServer" and typeof(self) == "Instance" then
 
-            -- 1) Infinite visual beam
             if self.Name == "ExtendGrabLine" then
                 local args = { ... }
                 if type(args[1]) == "number" then
                     return oldNamecall(self, INF_REACH_DISTANCE)
                 end
 
-            -- 2) Teleport trick so the server accepts the grab
             elseif self.Name == "SetNetworkOwner" then
                 local args = { ... }
                 local targetPart = args[1]
