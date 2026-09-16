@@ -27,7 +27,7 @@ local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
-local KICK_HEIGHT = 25
+local KICK_HEIGHT = 30
 
 local INTERACT_KEY = Enum.KeyCode.F
 local leftHeldTarget = nil
@@ -791,7 +791,7 @@ end
 refreshDropdowns()
 
 BlobmanTab:Button({
-    Title = "Bring Selected Player",
+    Title = "Bring Player",
     Callback = function()
         local ok, err = pcall(bringSelectedPlayer)
         if not ok then
