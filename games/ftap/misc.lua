@@ -98,15 +98,19 @@ local function SetupInfReach()
 
     local oldNamecall
     local hookFn = function(self, ...)
-        -- Everything here is isolated so a bug in our logic can
-        -- never break the game's own remote calls.
-        if infReachEnabled then
-            pcall(function()
-                if getnamecallmethod() ~= "FireServer" then return end
-                if typeof(self) ~= "Instance" then return end
-                if self.Name ~= "SetNetworkOwner" then return end
+        local method = getnamecallmethod()
 
-                local args = { ... }
+        if infReachEnabled
+            and method == "FireServer"
+            and typeof(self) == "Instance"
+            and self.Name == "SetNetworkOwner"
+        then
+            -- Capture varargs into a local table so nested closures
+            -- can still access them (varargs aren't available inside
+            -- nested functions).
+            local args = { ... }
+
+            pcall(function()
                 local targetPart = args[1]
                 if typeof(targetPart) ~= "Instance" then return end
                 if not targetPart:IsA("BasePart") then return end
@@ -128,9 +132,6 @@ local function SetupInfReach()
 
                 hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 5, 0))
 
-                -- Restore on a separate thread so the namecall hook
-                -- returns immediately and the game keeps its normal
-                -- call ordering.
                 task.delay(INF_TELEPORT_HOLD, function()
                     local c = game.Players.LocalPlayer.Character
                     local h = c and c:FindFirstChild("HumanoidRootPart")
