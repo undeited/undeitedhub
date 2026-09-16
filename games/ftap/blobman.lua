@@ -7,7 +7,6 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -37,17 +36,6 @@ local selectedBringPlayerObj = nil
 local bringDropdown = nil
 local hoveringTargets = {}
 local hoverConnections = {}
-
-local function isMovingInput()
-    return UserInputService:IsKeyDown(Enum.KeyCode.W)
-        or UserInputService:IsKeyDown(Enum.KeyCode.A)
-        or UserInputService:IsKeyDown(Enum.KeyCode.S)
-        or UserInputService:IsKeyDown(Enum.KeyCode.D)
-        or UserInputService:IsKeyDown(Enum.KeyCode.Up)
-        or UserInputService:IsKeyDown(Enum.KeyCode.Down)
-        or UserInputService:IsKeyDown(Enum.KeyCode.Left)
-        or UserInputService:IsKeyDown(Enum.KeyCode.Right)
-end
 
 local function isPlayerInProtectedPlot(player)
     if not player or not player.Character then return false end
@@ -516,8 +504,10 @@ local function startKickLoop()
                         grabStartTime = 0
                     end
                 else
-                    -- Follow the player's current position so they can still drive the blobman
-                    local lockPos = myRoot.CFrame * CFrame.new(0, KICK_HEIGHT, 0)
+                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
+                    myRoot.CFrame = savedPos
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
 
                     if setNet then
                         pcall(function()
@@ -540,11 +530,6 @@ local function startKickLoop()
                     tRoot.AssemblyAngularVelocity = Vector3.zero
                     tRoot.Velocity = Vector3.zero
                     tRoot.RotVelocity = Vector3.zero
-
-                    if not isMovingInput() then
-                        myRoot.AssemblyLinearVelocity = Vector3.zero
-                        myRoot.AssemblyAngularVelocity = Vector3.zero
-                    end
 
                     pcall(function()
                         tHum.PlatformStand = true
