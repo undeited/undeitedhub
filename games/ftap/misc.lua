@@ -69,8 +69,77 @@ MiscTab:Button({
     end
 })
 
+local infReachEnabled = undeitedhub.Toggles.infReachEnabled or false
+local infReachHooked = false
+local INF_REACH_DISTANCE = 1e6
+
+local function SetupInfReach()
+    if infReachHooked then return end
+    if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function" then
+        SafeNotify({
+            Title = "INF Reach",
+            Content = "Executor does not support hookmetamethod.",
+            Duration = 4,
+        })
+        return
+    end
+
+    local oldNamecall
+    local hookFn = function(self, ...)
+        local method = getnamecallmethod()
+        if method == "FireServer"
+            and infReachEnabled
+            and typeof(self) == "Instance"
+            and self.Name == "ExtendGrabLine"
+        then
+            local args = { ... }
+            if type(args[1]) == "number" then
+                return oldNamecall(self, INF_REACH_DISTANCE)
+            end
+        end
+        return oldNamecall(self, ...)
+    end
+
+    if type(newcclosure) == "function" then
+        hookFn = newcclosure(hookFn)
+    end
+
+    oldNamecall = hookmetamethod(game, "__namecall", hookFn)
+    infReachHooked = true
+end
+
+MiscTab:Toggle({
+    Title = "INF Reach",
+    Value = infReachEnabled,
+    Callback = function(state)
+        infReachEnabled = state
+        undeitedhub.Toggles.infReachEnabled = state
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+
+        if state then
+            SetupInfReach()
+        end
+
+        SafeNotify({
+            Title = "INF Reach",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+if infReachEnabled then
+    task.spawn(function()
+        task.wait(0.5)
+        SetupInfReach()
+    end)
+end
+
 undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
 local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
+    infReachEnabled = false
+    undeitedhub.Toggles.infReachEnabled = false
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end
