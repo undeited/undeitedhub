@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -36,6 +37,17 @@ local selectedBringPlayerObj = nil
 local bringDropdown = nil
 local hoveringTargets = {}
 local hoverConnections = {}
+
+local function isMovingInput()
+    return UserInputService:IsKeyDown(Enum.KeyCode.W)
+        or UserInputService:IsKeyDown(Enum.KeyCode.A)
+        or UserInputService:IsKeyDown(Enum.KeyCode.S)
+        or UserInputService:IsKeyDown(Enum.KeyCode.D)
+        or UserInputService:IsKeyDown(Enum.KeyCode.Up)
+        or UserInputService:IsKeyDown(Enum.KeyCode.Down)
+        or UserInputService:IsKeyDown(Enum.KeyCode.Left)
+        or UserInputService:IsKeyDown(Enum.KeyCode.Right)
+end
 
 local function isPlayerInProtectedPlot(player)
     if not player or not player.Character then return false end
@@ -504,10 +516,8 @@ local function startKickLoop()
                         grabStartTime = 0
                     end
                 else
-                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
-                    myRoot.CFrame = savedPos
-                    myRoot.AssemblyLinearVelocity = Vector3.zero
-                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                    -- Follow the player's current position so they can still drive the blobman
+                    local lockPos = myRoot.CFrame * CFrame.new(0, KICK_HEIGHT, 0)
 
                     if setNet then
                         pcall(function()
@@ -530,6 +540,11 @@ local function startKickLoop()
                     tRoot.AssemblyAngularVelocity = Vector3.zero
                     tRoot.Velocity = Vector3.zero
                     tRoot.RotVelocity = Vector3.zero
+
+                    if not isMovingInput() then
+                        myRoot.AssemblyLinearVelocity = Vector3.zero
+                        myRoot.AssemblyAngularVelocity = Vector3.zero
+                    end
 
                     pcall(function()
                         tHum.PlatformStand = true
@@ -694,16 +709,16 @@ end
 
 local function bringSelectedPlayer()
     if not selectedBringPlayerObj then
-        SafeNotify({ Title = "Bring Selected", Content = "No player selected.", Duration = 2 })
+        SafeNotify({ Title = "Bring Player", Content = "No player selected.", Duration = 2 })
         return
     end
     if not selectedBringPlayerObj.Parent then
         selectedBringPlayerObj = nil
-        SafeNotify({ Title = "Bring Selected", Content = "Selected player has left.", Duration = 2 })
+        SafeNotify({ Title = "Bring Player", Content = "Selected player has left.", Duration = 2 })
         return
     end
     if not isPlayerValid(selectedBringPlayerObj) then
-        SafeNotify({ Title = "Bring Selected", Content = "Selected player is not valid.", Duration = 2 })
+        SafeNotify({ Title = "Bring Player", Content = "Selected player is not valid.", Duration = 2 })
         return
     end
     bringPlayer(selectedBringPlayerObj, false)
@@ -796,7 +811,7 @@ BlobmanTab:Button({
         local ok, err = pcall(bringSelectedPlayer)
         if not ok then
             SafeNotify({
-                Title = "Bring Selected Error",
+                Title = "Bring Player Error",
                 Content = tostring(err):sub(1, 120),
                 Duration = 4,
             })
