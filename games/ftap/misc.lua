@@ -69,16 +69,16 @@ MiscTab:Button({
     end
 })
 
-local infReachEnabled = undeitedhub.Toggles.infReachEnabled or false
-local infReachHooked = false
+local infiniteLineReachEnabled = undeitedhub.Toggles.infiniteLineReachEnabled or false
+local infiniteLineReachHooked = false
 local INF_REACH_DISTANCE = 1e6
 local INF_GRAB_RANGE = 30
 
 local function SetupInfReach()
-    if infReachHooked then return end
+    if infiniteLineReachHooked then return end
     if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function" then
         SafeNotify({
-            Title = "INF Reach",
+            Title = "INF Line Reach",
             Content = "Executor does not support hookmetamethod.",
             Duration = 4,
         })
@@ -88,7 +88,7 @@ local function SetupInfReach()
     local oldNamecall
     local hookFn = function(self, ...)
         local method = getnamecallmethod()
-        if infReachEnabled and method == "FireServer" and typeof(self) == "Instance" then
+        if infiniteLineReachEnabled and method == "FireServer" and typeof(self) == "Instance" then
 
             if self.Name == "ExtendGrabLine" then
                 local args = { ... }
@@ -127,15 +127,15 @@ local function SetupInfReach()
     end
 
     oldNamecall = hookmetamethod(game, "__namecall", hookFn)
-    infReachHooked = true
+    infiniteLineReachHooked = true
 end
 
 MiscTab:Toggle({
-    Title = "INF Reach",
-    Value = infReachEnabled,
+    Title = "INF Line Reach",
+    Value = infiniteLineReachEnabled,
     Callback = function(state)
-        infReachEnabled = state
-        undeitedhub.Toggles.infReachEnabled = state
+        infiniteLineReachEnabled = state
+        undeitedhub.Toggles.infiniteLineReachEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
         if state then
@@ -143,14 +143,14 @@ MiscTab:Toggle({
         end
 
         SafeNotify({
-            Title = "INF Reach",
+            Title = "INF Line Reach",
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
     end
 })
 
-if infReachEnabled then
+if infiniteLineReachEnabled then
     task.spawn(function()
         task.wait(0.5)
         SetupInfReach()
@@ -160,8 +160,8 @@ end
 undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
 local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
-    infReachEnabled = false
-    undeitedhub.Toggles.infReachEnabled = false
+    infiniteLineReachEnabled = false
+    undeitedhub.Toggles.infiniteLineReachEnabled = false
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end
