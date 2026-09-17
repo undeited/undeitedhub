@@ -22,38 +22,14 @@ local function SafeNotify(data)
 end
 
 local antiExplodeEnabled = undeitedhub.Toggles.antiExplodeEnabled or false
-local antiExplodeLoop = nil
-local antiExplodeCharConn = nil
-local isAnchored = false
-local lastBombSeen = 0
-
-local BOMB_RANGE = 32
-local ANCHOR_GRACE = 1.2
-local LOOP_WAIT = 0.03
+local antiExplodeHooked = false
+local antiExplodeOldFire = nil
+local anchorActive = false
+local anchorRestoreToken = 0
 
 local function getHRP()
     local char = LocalPlayer.Character
     return char and char:FindFirstChild("HumanoidRootPart"), char
-end
-
-local function findNearbyBomb()
-    local hrp = getHRP()
-    if not hrp then return nil end
-    local myPos = hrp.Position
-    for _, obj in ipairs(Workspace:GetChildren()) do
-        if obj.Name == "BombMissile" and obj:IsA("Model") then
-            local bombPart = obj.PrimaryPart
-                or obj:FindFirstChild("Body")
-                or obj:FindFirstChild("Main")
-                or obj:FindFirstChildWhichIsA("BasePart")
-            if bombPart then
-                if (bombPart.Position - myPos).Magnitude <= BOMB_RANGE then
-                    return obj
-                end
-            end
-        end
-    end
-    return nil
 end
 
 local function resetRagdollState()
@@ -72,82 +48,114 @@ local function resetRagdollState()
     end)
 end
 
-local function anchorCharacter()
+local function anchorNow()
     local hrp = getHRP()
     if not hrp then return end
-    if isAnchored then return end
+    if anchorActive then return end
     pcall(function() hrp.Anchored = true end)
-    isAnchored = true
+    anchorActive = true
     resetRagdollState()
 end
 
-local function unanchorCharacter()
+local function unanchorNow()
+    if not anchorActive then return end
     local hrp = getHRP()
-    if not hrp then
-        isAnchored = false
+    if hrp then
+        pcall(function() hrp.Anchored = false end)
+    end
+    anchorActive = false
+end
+
+local function scheduleUnanchor(duration)
+    anchorRestoreToken = anchorRestoreToken + 1
+    local myToken = anchorRestoreToken
+    task.delay(duration + 0.35, function()
+        if myToken ~= anchorRestoreToken then return end
+        unanchorNow()
+        resetRagdollState()
+    end)
+end
+
+local function handleExplosionArgs(args)
+    local hrp = getHRP()
+    if not hrp then return end
+
+    local data = args[1]
+    local pos = args[2]
+    if type(data) ~= "table" then return end
+    if typeof(pos) ~= "Vector3" then return end
+
+    local radius = tonumber(data.Radius) or 17.5
+    local duration = tonumber(data.TimeLength) or 0.5
+    local dist = (hrp.Position - pos).Magnitude
+
+    if dist > radius + 4 then return end
+
+    anchorNow()
+    scheduleUnanchor(duration)
+end
+
+local function SetupAntiExplode()
+    if antiExplodeHooked then return end
+
+    local bombEvents = ReplicatedStorage:FindFirstChild("BombEvents")
+    if not bombEvents then
+        bombEvents = ReplicatedStorage:WaitForChild("BombEvents", 5)
+    end
+    if not bombEvents then
+        SafeNotify({ Title = "Anti Explode", Content = "BombEvents folder not found.", Duration = 4 })
         return
     end
-    if not isAnchored then return end
-    pcall(function() hrp.Anchored = false end)
-    isAnchored = false
-end
 
-local function startAntiExplodeLoop()
-    if antiExplodeLoop then return end
-    antiExplodeLoop = task.spawn(function()
-        while antiExplodeEnabled do
-            pcall(function()
-                local bomb = findNearbyBomb()
-                if bomb then
-                    lastBombSeen = tick()
-                    anchorCharacter()
-                    resetRagdollState()
-                else
-                    if isAnchored and tick() - lastBombSeen > ANCHOR_GRACE then
-                        unanchorCharacter()
-                    end
-                end
-            end)
-            task.wait(LOOP_WAIT)
+    local bombExplode = bombEvents:FindFirstChild("BombExplode")
+    if not bombExplode then
+        bombExplode = bombEvents:WaitForChild("BombExplode", 5)
+    end
+    if not bombExplode then
+        SafeNotify({ Title = "Anti Explode", Content = "BombExplode remote not found.", Duration = 4 })
+        return
+    end
+
+    if type(hookfunction) == "function" then
+        local oldFire = bombExplode.FireServer
+        antiExplodeOldFire = oldFire
+        hookfunction(oldFire, function(self, ...)
+            if antiExplodeEnabled then
+                local args = { ... }
+                handleExplosionArgs(args)
+            end
+            return oldFire(self, ...)
+        end)
+        antiExplodeHooked = true
+        return
+    end
+
+    if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function" then
+        SafeNotify({
+            Title = "Anti Explode",
+            Content = "Executor does not support hookfunction or hookmetamethod.",
+            Duration = 4,
+        })
+        return
+    end
+
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        if antiExplodeEnabled
+            and getnamecallmethod() == "FireServer"
+            and self == bombExplode
+        then
+            local args = { ... }
+            handleExplosionArgs(args)
         end
-        if isAnchored then
-            unanchorCharacter()
-        end
-        antiExplodeLoop = nil
+        return oldNamecall(self, ...)
     end)
+    antiExplodeHooked = true
 end
 
-local function stopAntiExplodeLoop()
-    if antiExplodeLoop then
-        task.cancel(antiExplodeLoop)
-        antiExplodeLoop = nil
-    end
-    unanchorCharacter()
-end
-
-local function setupAntiExplode()
-    if antiExplodeCharConn then
-        antiExplodeCharConn:Disconnect()
-        antiExplodeCharConn = nil
-    end
-    antiExplodeCharConn = LocalPlayer.CharacterAdded:Connect(function()
-        isAnchored = false
-        lastBombSeen = 0
-        task.wait(0.2)
-        if antiExplodeEnabled then
-            startAntiExplodeLoop()
-        end
-    end)
-    startAntiExplodeLoop()
-end
-
-local function teardownAntiExplode()
-    stopAntiExplodeLoop()
-    if antiExplodeCharConn then
-        antiExplodeCharConn:Disconnect()
-        antiExplodeCharConn = nil
-    end
-    isAnchored = false
+local function TeardownAntiExplode()
+    unanchorNow()
+    anchorRestoreToken = anchorRestoreToken + 1
 end
 
 AntisTab:Toggle({
@@ -158,9 +166,9 @@ AntisTab:Toggle({
         undeitedhub.Toggles.antiExplodeEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         if state then
-            setupAntiExplode()
+            SetupAntiExplode()
         else
-            teardownAntiExplode()
+            TeardownAntiExplode()
         end
         SafeNotify({
             Title = "Anti Explode",
@@ -173,9 +181,13 @@ AntisTab:Toggle({
 if antiExplodeEnabled then
     task.spawn(function()
         task.wait(0.5)
-        setupAntiExplode()
+        SetupAntiExplode()
     end)
 end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    anchorActive = false
+end)
 
 local antiFireActive = false
 local antiFireTask = nil
@@ -563,7 +575,7 @@ undeitedhub.DisableAll = function()
     if antiExplodeEnabled then
         antiExplodeEnabled = false
         undeitedhub.Toggles.antiExplodeEnabled = false
-        teardownAntiExplode()
+        TeardownAntiExplode()
     end
     if antiFireActive then
         ToggleAntiFire(false)
