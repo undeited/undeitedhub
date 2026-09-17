@@ -22,87 +22,129 @@ local function SafeNotify(data)
 end
 
 local antiExplodeEnabled = undeitedhub.Toggles.antiExplodeEnabled or false
-local antiExplodeHooked = false
-local EXPLODE_SAFETY_BUFFER = 6
+local antiExplodeConns = {}
+local BOMB_RANGE = 30
 
-local function isNearLocalPlayer(pos, radius)
-    if not pos then return false end
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    local dist = (hrp.Position - pos).Magnitude
-    return dist <= (radius + EXPLODE_SAFETY_BUFFER)
+local function getHumanoid(char)
+    if not char then return nil, nil end
+    return char:FindFirstChildOfClass("Humanoid"),
+           char:FindFirstChild("HumanoidRootPart")
 end
 
-local function stabilisePlayer(duration)
-    local endTime = tick() + (duration or 0.5) + 0.35
-    task.spawn(function()
-        while tick() < endTime do
-            pcall(function()
-                local char = LocalPlayer.Character
-                if not char then return end
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if not hrp then return end
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                hrp.AssemblyAngularVelocity = Vector3.zero
-                hrp.Velocity = Vector3.zero
-                hrp.RotVelocity = Vector3.zero
-                if hum then
-                    hum.PlatformStand = false
-                    if hum:GetState() == Enum.HumanoidStateType.Physics then
-                        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-                    end
-                end
-            end)
-            task.wait()
+local function recoverFromRagdoll()
+    local char = LocalPlayer.Character
+    local hum, hrp = getHumanoid(char)
+    if not hum or not hrp then return end
+    pcall(function()
+        hum.PlatformStand = false
+        local state = hum:GetState()
+        if state == Enum.HumanoidStateType.Physics
+            or state == Enum.HumanoidStateType.FallingDown
+            or state == Enum.HumanoidStateType.Ragdoll then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
         end
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        hrp.Velocity = Vector3.zero
+        hrp.RotVelocity = Vector3.zero
     end)
 end
 
-local function SetupAntiExplode()
-    if antiExplodeHooked then return end
-    if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function" then
-        SafeNotify({
-            Title = "Anti Explode",
-            Content = "Executor does not support hookmetamethod.",
-            Duration = 4,
-        })
-        return
+local function hasNearbyBomb()
+    local char = LocalPlayer.Character
+    local _, hrp = getHumanoid(char)
+    if not hrp then return false end
+    local myPos = hrp.Position
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj.Name == "BombMissile" and obj:IsA("Model") then
+            local bombPart = obj.PrimaryPart
+                or obj:FindFirstChild("Body")
+                or obj:FindFirstChild("Main")
+                or obj:FindFirstChildWhichIsA("BasePart")
+            if bombPart then
+                if (bombPart.Position - myPos).Magnitude <= BOMB_RANGE then
+                    return true
+                end
+            end
+        end
     end
+    return false
+end
 
-    local oldNamecall
-    local hookFn = function(self, ...)
-        local method = getnamecallmethod()
+local antiExplodeLoop = nil
 
-        if antiExplodeEnabled
-            and method == "FireServer"
-            and typeof(self) == "Instance"
-            and self.Name == "BombExplode"
-        then
-            local args = { ... }
+local function startAntiExplodeLoop()
+    if antiExplodeLoop then return end
+    antiExplodeLoop = task.spawn(function()
+        while antiExplodeEnabled do
             pcall(function()
-                local data = args[1]
-                local pos = args[2]
-                if type(data) == "table" and typeof(pos) == "Vector3" then
-                    local radius = tonumber(data.Radius) or 17.5
-                    local duration = tonumber(data.TimeLength) or 0.5
-                    if isNearLocalPlayer(pos, radius) then
-                        stabilisePlayer(duration)
-                    end
+                if not hasNearbyBomb() then return end
+                local char = LocalPlayer.Character
+                local hum, hrp = getHumanoid(char)
+                if not hum or not hrp then return end
+                local state = hum:GetState()
+                if state == Enum.HumanoidStateType.Physics
+                    or state == Enum.HumanoidStateType.FallingDown
+                    or state == Enum.HumanoidStateType.Ragdoll then
+                    recoverFromRagdoll()
                 end
             end)
+            task.wait(0.05)
         end
+        antiExplodeLoop = nil
+    end)
+end
 
-        return oldNamecall(self, ...)
+local function stopAntiExplodeLoop()
+    if antiExplodeLoop then
+        task.cancel(antiExplodeLoop)
+        antiExplodeLoop = nil
     end
+end
 
-    if type(newcclosure) == "function" then
-        hookFn = newcclosure(hookFn)
+local function watchCharacter(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then
+        pcall(function()
+            hum = char:WaitForChild("Humanoid", 5)
+        end)
     end
+    if not hum then return end
+    local conn = hum.StateChanged:Connect(function(_, new)
+        if not antiExplodeEnabled then return end
+        if new == Enum.HumanoidStateType.Physics
+            or new == Enum.HumanoidStateType.FallingDown
+            or new == Enum.HumanoidStateType.Ragdoll then
+            task.spawn(recoverFromRagdoll)
+        end
+    end)
+    table.insert(antiExplodeConns, conn)
+end
 
-    oldNamecall = hookmetamethod(game, "__namecall", hookFn)
-    antiExplodeHooked = true
+local function setupAntiExplode()
+    for _, conn in ipairs(antiExplodeConns) do
+        pcall(function() conn:Disconnect() end)
+    end
+    antiExplodeConns = {}
+
+    watchCharacter(LocalPlayer.Character)
+
+    local charConn = LocalPlayer.CharacterAdded:Connect(function(char)
+        task.wait(0.1)
+        watchCharacter(char)
+    end)
+    table.insert(antiExplodeConns, charConn)
+
+    startAntiExplodeLoop()
+end
+
+local function teardownAntiExplode()
+    stopAntiExplodeLoop()
+    for _, conn in ipairs(antiExplodeConns) do
+        pcall(function() conn:Disconnect() end)
+    end
+    antiExplodeConns = {}
 end
 
 AntisTab:Toggle({
@@ -113,7 +155,9 @@ AntisTab:Toggle({
         undeitedhub.Toggles.antiExplodeEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         if state then
-            SetupAntiExplode()
+            setupAntiExplode()
+        else
+            teardownAntiExplode()
         end
         SafeNotify({
             Title = "Anti Explode",
@@ -126,7 +170,7 @@ AntisTab:Toggle({
 if antiExplodeEnabled then
     task.spawn(function()
         task.wait(0.5)
-        SetupAntiExplode()
+        setupAntiExplode()
     end)
 end
 
@@ -401,7 +445,7 @@ local function ToggleAntiGrab(state)
                     local hum = character:FindFirstChildOfClass("Humanoid")
                     if not hum or hum.Health <= 0 then return end
 
-                    local grabbed, grabbedPart, grabbedOwner = isGrabbed(character)
+                    local grabbed = isGrabbed(character)
 
                     if not grabbed then
                         return
@@ -516,6 +560,7 @@ undeitedhub.DisableAll = function()
     if antiExplodeEnabled then
         antiExplodeEnabled = false
         undeitedhub.Toggles.antiExplodeEnabled = false
+        teardownAntiExplode()
     end
     if antiFireActive then
         ToggleAntiFire(false)
