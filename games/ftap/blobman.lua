@@ -36,6 +36,7 @@ local selectedBringPlayerObj = nil
 local bringDropdown = nil
 local hoveringTargets = {}
 local hoverConnections = {}
+local heldHovers = {}
 
 local function isPlayerInProtectedPlot(player)
     if not player or not player.Character then return false end
@@ -63,6 +64,10 @@ local function isPlayerInProtectedPlot(player)
         end
     end
     return false
+end
+
+local function isLocalPlayerInPlot()
+    return isPlayerInProtectedPlot(LocalPlayer)
 end
 
 local function isPlayerValid(player)
@@ -151,21 +156,6 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
-local function setNetworkOwner(part)
-    if not part then return end
-    local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
-    if not grabEvents then return end
-    local remote = grabEvents:FindFirstChild("SetNetworkOwner")
-    if not remote then return end
-    local character = getPlayerCharacter()
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-    if root then
-        pcall(function()
-            remote:FireServer(part, CFrame.lookAt(root.Position, part.Position))
-        end)
-    end
-end
-
 local function getSeatedBlobman()
     local character = getPlayerCharacter()
     if not character then return nil end
@@ -184,6 +174,7 @@ local function getSeatedBlobman()
 end
 
 local function sitOnBlobman()
+    if isLocalPlayerInPlot() then return nil end
     local character = getPlayerCharacter()
     if not character then return nil end
     local hum = character:FindFirstChildOfClass("Humanoid")
@@ -264,11 +255,81 @@ local function startHover(target, blobman)
     hoverConnections[target] = connection
 end
 
+local function stopHeldHover(target)
+    local conn = heldHovers[target]
+    if conn then
+        conn:Disconnect()
+        heldHovers[target] = nil
+    end
+end
+
+local function stopAllHeldHovers()
+    for target, conn in pairs(heldHovers) do
+        pcall(function() conn:Disconnect() end)
+    end
+    heldHovers = {}
+end
+
+local function startHeldHover(target, hand)
+    if not target then return end
+    stopHeldHover(target)
+
+    local conn
+    conn = RunService.Heartbeat:Connect(function()
+        if isLocalPlayerInPlot() then
+            return
+        end
+        if not target.Parent then
+            stopHeldHover(target)
+            return
+        end
+        local char = target.Character
+        if not char then
+            stopHeldHover(target)
+            return
+        end
+        local targetRoot = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not targetRoot or not hum or hum.Health <= 0 then
+            stopHeldHover(target)
+            return
+        end
+
+        local blobman = getSeatedBlobman()
+        if not blobman then return end
+
+        local detectorName = hand == "left" and "LeftDetector" or "RightDetector"
+        local weldName = hand == "left" and "LeftWeld" or "RightWeld"
+        local detector = blobman:FindFirstChild(detectorName)
+        if not detector then
+            stopHeldHover(target)
+            return
+        end
+        local weld = detector:FindFirstChild(weldName)
+        local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+        local grab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
+        if not grab or not weld then
+            return
+        end
+
+        pcall(function()
+            grab:FireServer(detector, targetRoot, weld)
+        end)
+
+        hum.PlatformStand = true
+        targetRoot.CFrame = detector.CFrame
+        targetRoot.AssemblyLinearVelocity = Vector3.zero
+        targetRoot.AssemblyAngularVelocity = Vector3.zero
+    end)
+    heldHovers[target] = conn
+end
+
 local function dropHeldTarget(blobman, side)
     if not blobman then return false end
     local target = side == "left" and leftHeldTarget or rightHeldTarget
     if not target then return false end
     stopHover(target)
+    stopHeldHover(target)
     local character = target.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
     if not root then
@@ -294,6 +355,7 @@ end
 
 local function grabPlayer(blobman, target, hand)
     if not blobman or not target then return false end
+    if isLocalPlayerInPlot() then return false end
     if isPlayerInProtectedPlot(target) then return false end
 
     local leftDetector = blobman:FindFirstChild("LeftDetector")
@@ -326,6 +388,7 @@ local function grabPlayer(blobman, target, hand)
     if not myRoot then return false end
 
     for i = 1, 8 do
+        if isLocalPlayerInPlot() then return false end
         if isPlayerInProtectedPlot(target) then return false end
         if setNet then
             pcall(function()
@@ -341,6 +404,7 @@ local function grabPlayer(blobman, target, hand)
         end)
     end
 
+    if isLocalPlayerInPlot() then return false end
     if isPlayerInProtectedPlot(target) then return false end
 
     targetRoot.CFrame = detector.CFrame
@@ -398,6 +462,13 @@ local function buildDisplayNames()
 end
 
 local function startKickLoop()
+    if isLocalPlayerInPlot() then
+        SafeNotify({ Title = "Kick Player", Content = "You are in a plot — cannot kick.", Duration = 2 })
+        kickEnabled = false
+        undeitedhub.Toggles.kickPlayer = false
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        return
+    end
     if kickTask then return end
     kickEnabled = true
     undeitedhub.Toggles.kickPlayer = true
@@ -415,6 +486,20 @@ local function startKickLoop()
         local target = nil
 
         while kickEnabled do
+            if isLocalPlayerInPlot() then
+                dragging = false
+                grabStartTime = 0
+                if savedPos then
+                    local myChar = getPlayerCharacter()
+                    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                    if myRoot then
+                        myRoot.CFrame = savedPos
+                    end
+                end
+                task.wait(0.2)
+                continue
+            end
+
             if selectedKickPlayer and selectedKickPlayer ~= "" then
                 target = getPlayerFromDropdownValue(selectedKickPlayer)
             else
@@ -568,11 +653,13 @@ local function stopKickLoop()
     for target in pairs(hoveringTargets) do
         stopHover(target)
     end
+    stopAllHeldHovers()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 local function bringPlayer(target, dropAfter)
     if not target or target == LocalPlayer then return end
+    if isLocalPlayerInPlot() then return end
     if not isPlayerValid(target) then return end
 
     local blobman = getSeatedBlobman()
@@ -615,18 +702,34 @@ local function bringPlayer(target, dropAfter)
     localRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
     task.wait(0.2)
 
+    if isLocalPlayerInPlot() then
+        localRoot.CFrame = originalCFrame
+        return
+    end
+
     if not getSeatedBlobman() then
         sitOnBlobman()
         task.wait(0.3)
     end
 
+    if isLocalPlayerInPlot() then
+        localRoot.CFrame = originalCFrame
+        return
+    end
+
     for i = 1, 10 do
+        if isLocalPlayerInPlot() then break end
         pcall(function()
             if setNet then
                 setNet:FireServer(targetRoot, localRoot.CFrame)
             end
         end)
         task.wait(0.01)
+    end
+
+    if isLocalPlayerInPlot() then
+        localRoot.CFrame = originalCFrame
+        return
     end
 
     pcall(function()
@@ -637,6 +740,7 @@ local function bringPlayer(target, dropAfter)
 
     local success = false
     for i = 1, 3 do
+        if isLocalPlayerInPlot() then break end
         if isPlayerInProtectedPlot(target) then break end
         local callSuccess, result = pcall(function()
             return grabPlayer(blobman, target, hand)
@@ -667,6 +771,7 @@ local function bringPlayer(target, dropAfter)
     end
 
     for i = 1, 25 do
+        if isLocalPlayerInPlot() then break end
         if not targetRoot or not targetRoot.Parent or not targetHum.Parent then break end
         if handDet and handDet.Parent then
             pcall(function()
@@ -687,10 +792,16 @@ local function bringPlayer(target, dropAfter)
         if finalBlobman then
             dropHeldTarget(finalBlobman, hand)
         end
+    else
+        startHeldHover(target, hand)
     end
 end
 
 local function bringSelectedPlayer()
+    if isLocalPlayerInPlot() then
+        SafeNotify({ Title = "Bring Player", Content = "You are in a plot — cannot bring.", Duration = 2 })
+        return
+    end
     if not selectedBringPlayerObj then
         SafeNotify({ Title = "Bring Player", Content = "No player selected.", Duration = 2 })
         return
@@ -798,6 +909,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
     stopHover(player)
+    stopHeldHover(player)
     watched[player] = nil
     if selectedBringPlayerObj == player then
         selectedBringPlayerObj = nil
@@ -843,5 +955,6 @@ local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if kickEnabled then stopKickLoop() end
     for target in pairs(hoveringTargets) do stopHover(target) end
+    stopAllHeldHovers()
     oldDisable()
 end
