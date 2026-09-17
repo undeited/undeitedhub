@@ -69,21 +69,10 @@ MiscTab:Button({
     end
 })
 
--- ============================================================
--- INF Reach
--- ExtendGrabLine is only the visual beam. The server validates
--- distance when SetNetworkOwner fires, so we briefly move the
--- player next to the target while that remote is sent, then
--- snap back. We do NOT modify ExtendGrabLine anymore because
--- changing its value corrupts the game's grab state machine
--- and produces "Unable to cast CoordinateFrame to bool".
--- ============================================================
 local infReachEnabled = undeitedhub.Toggles.infReachEnabled or false
 local infReachHooked = false
 local INF_GRAB_RANGE = 30
-local INF_TELEPORT_HOLD = 0.2
-local INF_TELEPORT_COOLDOWN = 0.15
-local lastTeleportTime = 0
+local INF_FAKE_DISTANCE = 5
 
 local function SetupInfReach()
     if infReachHooked then return end
@@ -103,46 +92,23 @@ local function SetupInfReach()
         if infReachEnabled
             and method == "FireServer"
             and typeof(self) == "Instance"
-            and self.Name == "SetNetworkOwner"
+            and (self.Name == "SetNetworkOwner" or self.Name == "CreateGrabLine")
         then
-            -- Capture varargs into a local table so nested closures
-            -- can still access them (varargs aren't available inside
-            -- nested functions).
             local args = { ... }
-
-            pcall(function()
-                local targetPart = args[1]
-                if typeof(targetPart) ~= "Instance" then return end
-                if not targetPart:IsA("BasePart") then return end
-
-                local now = tick()
-                if now - lastTeleportTime < INF_TELEPORT_COOLDOWN then return end
-
+            local hitCFrame = args[2]
+            if typeof(hitCFrame) == "CFrame" then
                 local char = game.Players.LocalPlayer.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if not hrp then return end
-
-                local dist = (targetPart.Position - hrp.Position).Magnitude
-                if dist <= INF_GRAB_RANGE then return end
-
-                lastTeleportTime = now
-
-                local savedCFrame = hrp.CFrame
-                local savedVelocity = hrp.AssemblyLinearVelocity
-
-                hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 5, 0))
-
-                task.delay(INF_TELEPORT_HOLD, function()
-                    local c = game.Players.LocalPlayer.Character
-                    local h = c and c:FindFirstChild("HumanoidRootPart")
-                    if h and h.Parent then
-                        pcall(function()
-                            h.CFrame = savedCFrame
-                            h.AssemblyLinearVelocity = savedVelocity
-                        end)
+                if hrp then
+                    local delta = hitCFrame.Position - hrp.Position
+                    local dist = delta.Magnitude
+                    if dist > INF_GRAB_RANGE and dist > 0.001 then
+                        local fakePos = hrp.Position + delta.Unit * INF_FAKE_DISTANCE
+                        args[2] = CFrame.new(fakePos) * hitCFrame.Rotation
+                        return oldNamecall(self, table.unpack(args))
                     end
-                end)
-            end)
+                end
+            end
         end
 
         return oldNamecall(self, ...)
