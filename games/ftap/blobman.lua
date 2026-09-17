@@ -166,19 +166,6 @@ local function setNetworkOwner(part)
     end
 end
 
-local function snowshipOnce(part)
-    if not part then return false end
-    local owner = part:FindFirstChild("PartOwner")
-    if owner and owner.Value == LocalPlayer.Name then
-        return true
-    end
-    if LocalPlayer:DistanceFromCharacter(part.Position) <= 30 then
-        setNetworkOwner(part)
-        return true
-    end
-    return false
-end
-
 local function getSeatedBlobman()
     local character = getPlayerCharacter()
     if not character then return nil end
@@ -709,7 +696,24 @@ local function bringSelectedPlayer()
     bringPlayer(selectedBringPlayerObj, false)
 end
 
+local lastRefresh = 0
+local REFRESH_COOLDOWN = 0.5
+local refreshQueued = false
+
 local function refreshDropdowns()
+    local now = tick()
+    if now - lastRefresh < REFRESH_COOLDOWN then
+        if not refreshQueued then
+            refreshQueued = true
+            task.delay(REFRESH_COOLDOWN - (now - lastRefresh), function()
+                refreshQueued = false
+                refreshDropdowns()
+            end)
+        end
+        return
+    end
+    lastRefresh = now
+
     local displayNames = {}
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and not isPlayerInProtectedPlot(player) then
@@ -780,13 +784,6 @@ Players.PlayerRemoving:Connect(function(player)
     end
     refreshDropdowns()
 end)
-
-for _, player in ipairs(Players:GetPlayers()) do
-    player.CharacterAdded:Connect(function()
-        task.wait(0.2)
-        refreshDropdowns()
-    end)
-end
 
 refreshDropdowns()
 
