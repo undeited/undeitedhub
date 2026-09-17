@@ -386,6 +386,17 @@ local function getPlayerFromDropdownValue(value)
     return nil
 end
 
+local function buildDisplayNames()
+    local list = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(list, getDropdownName(player))
+        end
+    end
+    table.sort(list)
+    return list
+end
+
 local function startKickLoop()
     if kickTask then return end
     kickEnabled = true
@@ -689,6 +700,10 @@ local function bringSelectedPlayer()
         SafeNotify({ Title = "Bring Player", Content = "Selected player has left.", Duration = 2 })
         return
     end
+    if isPlayerInProtectedPlot(selectedBringPlayerObj) then
+        SafeNotify({ Title = "Bring Player", Content = "Player is in a protected plot.", Duration = 2 })
+        return
+    end
     if not isPlayerValid(selectedBringPlayerObj) then
         SafeNotify({ Title = "Bring Player", Content = "Selected player is not valid.", Duration = 2 })
         return
@@ -700,27 +715,8 @@ local lastRefresh = 0
 local REFRESH_COOLDOWN = 0.5
 local refreshQueued = false
 
-local function refreshDropdowns()
-    local now = tick()
-    if now - lastRefresh < REFRESH_COOLDOWN then
-        if not refreshQueued then
-            refreshQueued = true
-            task.delay(REFRESH_COOLDOWN - (now - lastRefresh), function()
-                refreshQueued = false
-                refreshDropdowns()
-            end)
-        end
-        return
-    end
-    lastRefresh = now
-
-    local displayNames = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and not isPlayerInProtectedPlot(player) then
-            table.insert(displayNames, getDropdownName(player))
-        end
-    end
-    table.sort(displayNames)
+local function refreshDropdownsNow()
+    local displayNames = buildDisplayNames()
 
     if bringDropdown then
         bringDropdown:Refresh(displayNames, true)
@@ -746,9 +742,26 @@ local function refreshDropdowns()
     end
 end
 
+local function refreshDropdowns()
+    local now = tick()
+    if now - lastRefresh < REFRESH_COOLDOWN then
+        if not refreshQueued then
+            refreshQueued = true
+            task.delay(REFRESH_COOLDOWN - (now - lastRefresh), function()
+                refreshQueued = false
+                lastRefresh = tick()
+                refreshDropdownsNow()
+            end)
+        end
+        return
+    end
+    lastRefresh = now
+    refreshDropdownsNow()
+end
+
 bringDropdown = BlobmanTab:Dropdown({
     Title = "Select Player to Bring",
-    Values = {},
+    Values = buildDisplayNames(),
     Value = "",
     Callback = function(value)
         selectedBringPlayerObj = getPlayerFromDropdownValue(value)
@@ -757,22 +770,35 @@ bringDropdown = BlobmanTab:Dropdown({
 
 kickDropdown = BlobmanTab:Dropdown({
     Title = "Select Player to Kick",
-    Values = {},
+    Values = buildDisplayNames(),
     Value = "",
     Callback = function(value) selectedKickPlayer = value end
 })
 
-Players.PlayerAdded:Connect(function(player)
-    task.wait(0.1)
+local watched = setmetatable({}, { __mode = "k" })
+
+local function watchPlayer(player)
+    if not player or watched[player] then return end
+    watched[player] = true
     player.CharacterAdded:Connect(function()
         task.wait(0.2)
         refreshDropdowns()
     end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    watchPlayer(player)
+end
+
+Players.PlayerAdded:Connect(function(player)
+    task.wait(0.1)
+    watchPlayer(player)
     refreshDropdowns()
 end)
 
 Players.PlayerRemoving:Connect(function(player)
     stopHover(player)
+    watched[player] = nil
     if selectedBringPlayerObj == player then
         selectedBringPlayerObj = nil
         pcall(function() bringDropdown:Set("") end)
@@ -785,7 +811,9 @@ Players.PlayerRemoving:Connect(function(player)
     refreshDropdowns()
 end)
 
-refreshDropdowns()
+task.delay(1, function()
+    refreshDropdowns()
+end)
 
 BlobmanTab:Button({
     Title = "Bring Player",
