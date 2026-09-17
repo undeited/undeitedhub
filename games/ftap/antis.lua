@@ -22,38 +22,23 @@ local function SafeNotify(data)
 end
 
 local antiExplodeEnabled = undeitedhub.Toggles.antiExplodeEnabled or false
-local antiExplodeConns = {}
-local BOMB_RANGE = 30
+local antiExplodeLoop = nil
+local antiExplodeCharConn = nil
+local isAnchored = false
+local lastBombSeen = 0
 
-local function getHumanoid(char)
-    if not char then return nil, nil end
-    return char:FindFirstChildOfClass("Humanoid"),
-           char:FindFirstChild("HumanoidRootPart")
+local BOMB_RANGE = 32
+local ANCHOR_GRACE = 1.2
+local LOOP_WAIT = 0.03
+
+local function getHRP()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart"), char
 end
 
-local function recoverFromRagdoll()
-    local char = LocalPlayer.Character
-    local hum, hrp = getHumanoid(char)
-    if not hum or not hrp then return end
-    pcall(function()
-        hum.PlatformStand = false
-        local state = hum:GetState()
-        if state == Enum.HumanoidStateType.Physics
-            or state == Enum.HumanoidStateType.FallingDown
-            or state == Enum.HumanoidStateType.Ragdoll then
-            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-        hrp.Velocity = Vector3.zero
-        hrp.RotVelocity = Vector3.zero
-    end)
-end
-
-local function hasNearbyBomb()
-    local char = LocalPlayer.Character
-    local _, hrp = getHumanoid(char)
-    if not hrp then return false end
+local function findNearbyBomb()
+    local hrp = getHRP()
+    if not hrp then return nil end
     local myPos = hrp.Position
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj.Name == "BombMissile" and obj:IsA("Model") then
@@ -63,33 +48,70 @@ local function hasNearbyBomb()
                 or obj:FindFirstChildWhichIsA("BasePart")
             if bombPart then
                 if (bombPart.Position - myPos).Magnitude <= BOMB_RANGE then
-                    return true
+                    return obj
                 end
             end
         end
     end
-    return false
+    return nil
 end
 
-local antiExplodeLoop = nil
+local function resetRagdollState()
+    local _, char = getHRP()
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    pcall(function()
+        hum.PlatformStand = false
+        local state = hum:GetState()
+        if state == Enum.HumanoidStateType.Physics
+            or state == Enum.HumanoidStateType.FallingDown
+            or state == Enum.HumanoidStateType.Ragdoll then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+    end)
+end
+
+local function anchorCharacter()
+    local hrp = getHRP()
+    if not hrp then return end
+    if isAnchored then return end
+    pcall(function() hrp.Anchored = true end)
+    isAnchored = true
+    resetRagdollState()
+end
+
+local function unanchorCharacter()
+    local hrp = getHRP()
+    if not hrp then
+        isAnchored = false
+        return
+    end
+    if not isAnchored then return end
+    pcall(function() hrp.Anchored = false end)
+    isAnchored = false
+end
 
 local function startAntiExplodeLoop()
     if antiExplodeLoop then return end
     antiExplodeLoop = task.spawn(function()
         while antiExplodeEnabled do
             pcall(function()
-                if not hasNearbyBomb() then return end
-                local char = LocalPlayer.Character
-                local hum, hrp = getHumanoid(char)
-                if not hum or not hrp then return end
-                local state = hum:GetState()
-                if state == Enum.HumanoidStateType.Physics
-                    or state == Enum.HumanoidStateType.FallingDown
-                    or state == Enum.HumanoidStateType.Ragdoll then
-                    recoverFromRagdoll()
+                local bomb = findNearbyBomb()
+                if bomb then
+                    lastBombSeen = tick()
+                    anchorCharacter()
+                    resetRagdollState()
+                else
+                    if isAnchored and tick() - lastBombSeen > ANCHOR_GRACE then
+                        unanchorCharacter()
+                    end
                 end
             end)
-            task.wait(0.05)
+            task.wait(LOOP_WAIT)
+        end
+        if isAnchored then
+            unanchorCharacter()
         end
         antiExplodeLoop = nil
     end)
@@ -100,51 +122,32 @@ local function stopAntiExplodeLoop()
         task.cancel(antiExplodeLoop)
         antiExplodeLoop = nil
     end
-end
-
-local function watchCharacter(char)
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then
-        pcall(function()
-            hum = char:WaitForChild("Humanoid", 5)
-        end)
-    end
-    if not hum then return end
-    local conn = hum.StateChanged:Connect(function(_, new)
-        if not antiExplodeEnabled then return end
-        if new == Enum.HumanoidStateType.Physics
-            or new == Enum.HumanoidStateType.FallingDown
-            or new == Enum.HumanoidStateType.Ragdoll then
-            task.spawn(recoverFromRagdoll)
-        end
-    end)
-    table.insert(antiExplodeConns, conn)
+    unanchorCharacter()
 end
 
 local function setupAntiExplode()
-    for _, conn in ipairs(antiExplodeConns) do
-        pcall(function() conn:Disconnect() end)
+    if antiExplodeCharConn then
+        antiExplodeCharConn:Disconnect()
+        antiExplodeCharConn = nil
     end
-    antiExplodeConns = {}
-
-    watchCharacter(LocalPlayer.Character)
-
-    local charConn = LocalPlayer.CharacterAdded:Connect(function(char)
-        task.wait(0.1)
-        watchCharacter(char)
+    antiExplodeCharConn = LocalPlayer.CharacterAdded:Connect(function()
+        isAnchored = false
+        lastBombSeen = 0
+        task.wait(0.2)
+        if antiExplodeEnabled then
+            startAntiExplodeLoop()
+        end
     end)
-    table.insert(antiExplodeConns, charConn)
-
     startAntiExplodeLoop()
 end
 
 local function teardownAntiExplode()
     stopAntiExplodeLoop()
-    for _, conn in ipairs(antiExplodeConns) do
-        pcall(function() conn:Disconnect() end)
+    if antiExplodeCharConn then
+        antiExplodeCharConn:Disconnect()
+        antiExplodeCharConn = nil
     end
-    antiExplodeConns = {}
+    isAnchored = false
 end
 
 AntisTab:Toggle({
