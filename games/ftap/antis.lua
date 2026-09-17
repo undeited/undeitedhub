@@ -21,6 +21,115 @@ local function SafeNotify(data)
     end
 end
 
+local antiExplodeEnabled = undeitedhub.Toggles.antiExplodeEnabled or false
+local antiExplodeHooked = false
+local EXPLODE_SAFETY_BUFFER = 6
+
+local function isNearLocalPlayer(pos, radius)
+    if not pos then return false end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local dist = (hrp.Position - pos).Magnitude
+    return dist <= (radius + EXPLODE_SAFETY_BUFFER)
+end
+
+local function stabilisePlayer(duration)
+    local endTime = tick() + (duration or 0.5) + 0.35
+    task.spawn(function()
+        while tick() < endTime do
+            pcall(function()
+                local char = LocalPlayer.Character
+                if not char then return end
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if not hrp then return end
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
+                hrp.Velocity = Vector3.zero
+                hrp.RotVelocity = Vector3.zero
+                if hum then
+                    hum.PlatformStand = false
+                    if hum:GetState() == Enum.HumanoidStateType.Physics then
+                        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    end
+                end
+            end)
+            task.wait()
+        end
+    end)
+end
+
+local function SetupAntiExplode()
+    if antiExplodeHooked then return end
+    if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function" then
+        SafeNotify({
+            Title = "Anti Explode",
+            Content = "Executor does not support hookmetamethod.",
+            Duration = 4,
+        })
+        return
+    end
+
+    local oldNamecall
+    local hookFn = function(self, ...)
+        local method = getnamecallmethod()
+
+        if antiExplodeEnabled
+            and method == "FireServer"
+            and typeof(self) == "Instance"
+            and self.Name == "BombExplode"
+        then
+            local args = { ... }
+            pcall(function()
+                local data = args[1]
+                local pos = args[2]
+                if type(data) == "table" and typeof(pos) == "Vector3" then
+                    local radius = tonumber(data.Radius) or 17.5
+                    local duration = tonumber(data.TimeLength) or 0.5
+                    if isNearLocalPlayer(pos, radius) then
+                        stabilisePlayer(duration)
+                    end
+                end
+            end)
+        end
+
+        return oldNamecall(self, ...)
+    end
+
+    if type(newcclosure) == "function" then
+        hookFn = newcclosure(hookFn)
+    end
+
+    oldNamecall = hookmetamethod(game, "__namecall", hookFn)
+    antiExplodeHooked = true
+end
+
+AntisTab:Toggle({
+    Title = "Anti Explode",
+    Value = antiExplodeEnabled,
+    Callback = function(state)
+        antiExplodeEnabled = state
+        undeitedhub.Toggles.antiExplodeEnabled = state
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        if state then
+            SetupAntiExplode()
+        end
+        SafeNotify({
+            Title = "Anti Explode",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+if antiExplodeEnabled then
+    task.spawn(function()
+        task.wait(0.5)
+        SetupAntiExplode()
+    end)
+end
+
 local antiFireActive = false
 local antiFireTask = nil
 local hkFirePart = nil
@@ -62,7 +171,7 @@ local function ToggleAntiFire(state)
                         hkFirePart.CanCollide = not hkFirePart.CanCollide
                     end
                 end)
-                task.wait()
+                task.wait(0.1)
             end
             if hkFirePart then
                 hkFirePart.CFrame = CFrame.new(0, -15, 0)
@@ -349,7 +458,7 @@ local function ToggleAntiGrab(state)
                     end
                 end
 
-                task.wait()
+                task.wait(0.1)
             end
         end)
     else
@@ -404,6 +513,10 @@ end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
+    if antiExplodeEnabled then
+        antiExplodeEnabled = false
+        undeitedhub.Toggles.antiExplodeEnabled = false
+    end
     if antiFireActive then
         ToggleAntiFire(false)
     end
