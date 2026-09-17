@@ -42,48 +42,78 @@ end
 
 checkGamepass()
 
+local frameCounter = 0
+local cachedTargets = {}
+local cachedTargetsDirty = true
+
+local function markTargetsDirty()
+    cachedTargetsDirty = true
+end
+
+local function rebuildTargetCache()
+    cachedTargets = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer then
+            local char = player.Character
+            if char then
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    local parts = {}
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            table.insert(parts, part)
+                        end
+                    end
+                    if #parts > 0 then
+                        table.insert(cachedTargets, parts)
+                    end
+                end
+            end
+        end
+    end
+    cachedTargetsDirty = false
+end
+
 local function updateTarget()
     if not silentAimEnabled then
         targetPosition = nil
         return
     end
 
+    frameCounter = frameCounter + 1
+    if frameCounter % 5 ~= 0 then return end
+
+    if cachedTargetsDirty then
+        rebuildTargetCache()
+    end
+
     local referencePos = UserInputService:GetMouseLocation()
     if not referencePos then return end
 
-    local cameraPos = camera.CFrame.Position
-    local cameraLook = camera.CFrame.LookVector
+    local cameraCFrame = camera.CFrame
+    local cameraPos = cameraCFrame.Position
+    local cameraLook = cameraCFrame.LookVector
 
     local closestPart = nil
     local minScreenDist = math.huge
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == localPlayer then continue end
-        local char = player.Character
-        if not char then continue end
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if not humanoid or humanoid.Health <= 0 then continue end
-
-        local targetParts = {}
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                table.insert(targetParts, part)
-            end
-        end
-
-        for _, part in ipairs(targetParts) do
-            local partPos = part.Position
-            local worldDist = (partPos - cameraPos).Magnitude
-            if worldDist <= AIM_DISTANCE then
-                local dirToPart = (partPos - cameraPos).Unit
-                if dirToPart:Dot(cameraLook) > 0 then
-                    local screenPos, onScreen = camera:WorldToViewportPoint(partPos)
-                    if onScreen then
-                        local screenVec = Vector2.new(screenPos.X, screenPos.Y)
-                        local screenDist = (screenVec - referencePos).Magnitude
-                        if screenDist < minScreenDist then
-                            minScreenDist = screenDist
-                            closestPart = part
+    for _, parts in ipairs(cachedTargets) do
+        for _, part in ipairs(parts) do
+            if part.Parent then
+                local partPos = part.Position
+                local rel = partPos - cameraPos
+                local worldDist = rel.Magnitude
+                if worldDist <= AIM_DISTANCE then
+                    if rel.Unit:Dot(cameraLook) > 0 then
+                        local screenPos, onScreen = camera:WorldToViewportPoint(partPos)
+                        if onScreen then
+                            local dx = screenPos.X - referencePos.X
+                            local dy = screenPos.Y - referencePos.Y
+                            local screenDist = math.sqrt(dx * dx + dy * dy)
+                            if screenDist < minScreenDist then
+                                minScreenDist = screenDist
+                                closestPart = part
+                            end
                         end
                     end
                 end
@@ -112,7 +142,7 @@ local function setupHook()
                 local origin = args[1]
                 local newDir = (targetPosition - origin).Unit * AIM_DISTANCE
                 args[2] = newDir
-                return oldNamecall(self, unpack(args))
+                return oldNamecall(self, table.unpack(args))
             end
         end
         return oldNamecall(self, ...)
@@ -122,6 +152,25 @@ end
 
 local renderConnection = RunService.RenderStepped:Connect(updateTarget)
 
+Players.PlayerAdded:Connect(markTargetsDirty)
+Players.PlayerRemoving:Connect(function(player)
+    if player == localPlayer then return end
+    markTargetsDirty()
+end)
+
+local function watchCharacter(player)
+    if player == localPlayer then return end
+    player.CharacterAdded:Connect(function()
+        task.wait(0.2)
+        markTargetsDirty()
+    end)
+    player.CharacterRemoving:Connect(markTargetsDirty)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    watchCharacter(player)
+end
+
 CombatTab:Toggle({
     Title = "Silent Aim",
     Value = silentAimEnabled,
@@ -130,6 +179,9 @@ CombatTab:Toggle({
         undeitedhub.Toggles.SilentAim = state
         if state and not hookActive then
             setupHook()
+        end
+        if state then
+            markTargetsDirty()
         end
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "Silent Aim", Content = state and "Enabled" or "Disabled", Duration = 2 })
@@ -148,5 +200,6 @@ if silentAimEnabled then
     task.spawn(function()
         task.wait(0.5)
         setupHook()
+        markTargetsDirty()
     end)
 end
