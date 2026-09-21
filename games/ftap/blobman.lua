@@ -43,21 +43,28 @@ local function isPlayerInProtectedPlot(player)
     local plots = Workspace:FindFirstChild("Plots")
     if not plots then return false end
     local character = player.Character
-    for i = 1, 5 do
-        local plot = plots:FindFirstChild("Plot" .. i)
-        if plot and character:IsDescendantOf(plot) then return true end
+    for _, plot in ipairs(plots:GetChildren()) do
+        if character:IsDescendantOf(plot) then return true end
     end
     local root = character:FindFirstChild("HumanoidRootPart")
     if not root then return false end
-    for i = 1, 5 do
-        local plot = plots:FindFirstChild("Plot" .. i)
-        if plot then
-            for _, part in ipairs(plot:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    local relative = part.CFrame:PointToObjectSpace(root.Position)
-                    local halfSize = part.Size / 2
-                    if math.abs(relative.X) <= halfSize.X and math.abs(relative.Y) <= halfSize.Y and math.abs(relative.Z) <= halfSize.Z then
-                        return true
+    local rootPos = root.Position
+    for _, plot in ipairs(plots:GetChildren()) do
+        for _, part in ipairs(plot:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local name = part.Name
+                if not string.find(name, "Barrier")
+                    and not string.find(name, "Border")
+                    and not string.find(name, "AntiFire") then
+                    local size = part.Size
+                    if size.X < 150 and size.Y < 150 and size.Z < 150 then
+                        local relative = part.CFrame:PointToObjectSpace(rootPos)
+                        local halfSize = size / 2
+                        if math.abs(relative.X) <= halfSize.X
+                            and math.abs(relative.Y) <= halfSize.Y
+                            and math.abs(relative.Z) <= halfSize.Z then
+                            return true
+                        end
                     end
                 end
             end
