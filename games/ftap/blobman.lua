@@ -154,15 +154,15 @@ local function sitOnBlobman()
     if seat and (not seat.Occupant or seat.Occupant == hum) then
         local camera = Workspace.CurrentCamera
         hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
-        task.wait(0.05)
+        task.wait(0.03)
         if camera then
             camera.CFrame = CFrame.new(camera.CFrame.Position, seat.Position)
         end
-        task.wait(0.05)
+        task.wait(0.03)
         VirtualInputManager:SendKeyEvent(true, INTERACT_KEY, false, game)
-        task.wait(0.05)
+        task.wait(0.03)
         VirtualInputManager:SendKeyEvent(false, INTERACT_KEY, false, game)
-        task.wait(0.3)
+        task.wait(0.2)
         if hum.SeatPart and hum.SeatPart.Parent == blobman then
             return blobman
         end
@@ -370,13 +370,13 @@ local function grabPlayer(blobman, target, hand)
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return false end
 
-    for i = 1, 8 do
+    for i = 1, 6 do
         if setNet then
             pcall(function()
                 setNet:FireServer(targetRoot, CFrame.lookAt(myRoot.Position, targetRoot.Position))
             end)
         end
-        task.wait(0.02)
+        task.wait(0.015)
     end
 
     if createLine then
@@ -388,14 +388,14 @@ local function grabPlayer(blobman, target, hand)
     targetRoot.CFrame = detector.CFrame
     targetRoot.AssemblyLinearVelocity = Vector3.zero
     targetRoot.AssemblyAngularVelocity = Vector3.zero
-    task.wait(0.08)
+    task.wait(0.06)
 
     local grabSuccess = pcall(function()
         creatureGrab:FireServer(detector, targetRoot, weld)
     end)
     if not grabSuccess then return false end
 
-    task.wait(0.15)
+    task.wait(0.1)
 
     if hand == "left" then
         leftHeldTarget = target
@@ -466,30 +466,31 @@ local function startKickLoop()
             if not target or not target.Parent or not target.Character then
                 dragging = false
                 grabStartTime = 0
-                task.wait(0.2)
+                savedPos = nil
+                task.wait(0.15)
                 continue
             end
 
             local myChar = getPlayerCharacter()
             if not myChar then
-                task.wait(0.1)
+                task.wait(0.05)
                 continue
             end
 
             local myRoot = myChar:FindFirstChild("HumanoidRootPart")
             local myHum = myChar:FindFirstChildOfClass("Humanoid")
             if not myRoot or not myHum or myHum.Health <= 0 then
-                task.wait(0.1)
+                task.wait(0.05)
                 continue
             end
 
             local seat = myHum.SeatPart
             if not seat or not seat.Parent or seat.Parent.Name ~= "CreatureBlobman" then
-                dragging = false
-                grabStartTime = 0
-                savedPos = myRoot.CFrame
+                if not dragging then
+                    savedPos = myRoot.CFrame
+                end
                 pcall(sitOnBlobman)
-                task.wait(0.1)
+                task.wait(0.05)
                 continue
             end
 
@@ -514,16 +515,13 @@ local function startKickLoop()
                 local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
                 local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
 
-                if grab and drop and L_Weld and R_Weld then
-                    pcall(function()
-                        grab:FireServer(L_Det, tRoot, L_Weld)
-                        grab:FireServer(R_Det, tRoot, R_Weld)
-                        drop:FireServer(L_Weld, tRoot)
-                        drop:FireServer(R_Weld, tRoot)
-                    end)
-                end
-
                 if not dragging then
+                    if grab and drop and L_Weld and R_Weld then
+                        pcall(function()
+                            grab:FireServer(L_Det, tRoot, L_Weld)
+                            grab:FireServer(R_Det, tRoot, R_Weld)
+                        end)
+                    end
                     myRoot.CFrame = tRoot.CFrame
                     if setNet then
                         pcall(function()
@@ -538,8 +536,11 @@ local function startKickLoop()
                     pcall(function()
                         tHum.PlatformStand = true
                     end)
-                    if grabStartTime == 0 then grabStartTime = tick() end
-                    if tick() - grabStartTime > 0.3 then
+
+                    if grabStartTime == 0 then
+                        grabStartTime = tick()
+                    end
+                    if tick() - grabStartTime > 0.08 then
                         dragging = true
                         grabStartTime = 0
                     end
@@ -548,6 +549,15 @@ local function startKickLoop()
                     myRoot.CFrame = savedPos
                     myRoot.AssemblyLinearVelocity = Vector3.zero
                     myRoot.AssemblyAngularVelocity = Vector3.zero
+
+                    if grab and drop and L_Weld and R_Weld then
+                        pcall(function()
+                            grab:FireServer(L_Det, tRoot, L_Weld)
+                            grab:FireServer(R_Det, tRoot, R_Weld)
+                            drop:FireServer(L_Weld, tRoot)
+                            drop:FireServer(R_Weld, tRoot)
+                        end)
+                    end
 
                     if setNet then
                         pcall(function()
@@ -655,14 +665,14 @@ local function bringPlayer(target, dropAfter)
     local originalCFrame = localRoot.CFrame
 
     localRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
-    task.wait(0.2)
+    task.wait(0.15)
 
     if not getSeatedBlobman() then
         sitOnBlobman()
-        task.wait(0.3)
+        task.wait(0.2)
     end
 
-    for i = 1, 10 do
+    for i = 1, 8 do
         pcall(function()
             if setNet then
                 setNet:FireServer(targetRoot, localRoot.CFrame)
@@ -686,7 +696,7 @@ local function bringPlayer(target, dropAfter)
             success = true
             break
         end
-        task.wait(0.2)
+        task.wait(0.15)
     end
 
     if not success then
@@ -707,7 +717,7 @@ local function bringPlayer(target, dropAfter)
         end
     end
 
-    for i = 1, 25 do
+    for i = 1, 20 do
         if not targetRoot or not targetRoot.Parent or not targetHum.Parent then break end
         if handDet and handDet.Parent then
             pcall(function()
