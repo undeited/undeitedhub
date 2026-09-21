@@ -32,6 +32,8 @@ local KICK_HEIGHT = 30
 local INTERACT_KEY = Enum.KeyCode.F
 local leftHeldTarget = nil
 local rightHeldTarget = nil
+local leftHeldBlobman = nil
+local rightHeldBlobman = nil
 local selectedBringPlayerObj = nil
 local bringDropdown = nil
 local hoveringTargets = {}
@@ -46,8 +48,14 @@ local function isPlayerValid(player)
 end
 
 local function clearInvalidHeldTargets()
-    if leftHeldTarget and not isPlayerValid(leftHeldTarget) then leftHeldTarget = nil end
-    if rightHeldTarget and not isPlayerValid(rightHeldTarget) then rightHeldTarget = nil end
+    if leftHeldTarget and not isPlayerValid(leftHeldTarget) then
+        leftHeldTarget = nil
+        leftHeldBlobman = nil
+    end
+    if rightHeldTarget and not isPlayerValid(rightHeldTarget) then
+        rightHeldTarget = nil
+        rightHeldBlobman = nil
+    end
 end
 
 local function getPlayerCharacter()
@@ -279,7 +287,10 @@ local function startHeldHover(target, hand)
         end
 
         local blobman = getSeatedBlobman()
-        if not blobman then return end
+        if not blobman then
+            if hand == "left" then blobman = leftHeldBlobman else blobman = rightHeldBlobman end
+        end
+        if not blobman or not blobman.Parent then return end
 
         local detectorName = hand == "left" and "LeftDetector" or "RightDetector"
         local weldName = hand == "left" and "LeftWeld" or "RightWeld"
@@ -310,32 +321,98 @@ local function startHeldHover(target, hand)
 end
 
 local function dropHeldTarget(blobman, side)
-    if not blobman then return false end
     local target = side == "left" and leftHeldTarget or rightHeldTarget
     if not target then return false end
+
+    local storedBlobman = side == "left" and leftHeldBlobman or rightHeldBlobman
+    local useBlobman = blobman or storedBlobman
+    if not useBlobman or not useBlobman.Parent then
+        stopHover(target)
+        stopHeldHover(target)
+        if side == "left" then
+            leftHeldTarget = nil
+            leftHeldBlobman = nil
+        else
+            rightHeldTarget = nil
+            rightHeldBlobman = nil
+        end
+        return false
+    end
+
     stopHover(target)
     stopHeldHover(target)
+
     local character = target.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
     if not root then
-        if side == "left" then leftHeldTarget = nil else rightHeldTarget = nil end
+        if side == "left" then
+            leftHeldTarget = nil
+            leftHeldBlobman = nil
+        else
+            rightHeldTarget = nil
+            rightHeldBlobman = nil
+        end
         return false
     end
-    local leftDetector = blobman:FindFirstChild("LeftDetector")
-    local rightDetector = blobman:FindFirstChild("RightDetector")
+
+    local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
+    local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
+
+    for i = 1, 6 do
+        if setNet and root.Parent then
+            local current = root.CFrame
+            pcall(function()
+                setNet:FireServer(root, current)
+            end)
+        end
+        task.wait()
+    end
+
+    local leftDetector = useBlobman:FindFirstChild("LeftDetector")
+    local rightDetector = useBlobman:FindFirstChild("RightDetector")
     local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
     local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
-    local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+    local ownerScript = useBlobman:FindFirstChild("BlobmanSeatAndOwnerScript")
     local creatureDrop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
     local weld = side == "left" and leftWeld or rightWeld
+
     if creatureDrop and weld then
         pcall(function()
             creatureDrop:FireServer(weld, root)
         end)
-        if side == "left" then leftHeldTarget = nil else rightHeldTarget = nil end
-        return true
     end
-    return false
+
+    local endTime = tick() + 0.5
+    task.spawn(function()
+        while tick() < endTime do
+            if setNet and root and root.Parent then
+                local current = root.CFrame
+                pcall(function()
+                    setNet:FireServer(root, current)
+                end)
+            end
+            task.wait()
+        end
+    end)
+
+    if side == "left" then
+        leftHeldTarget = nil
+        leftHeldBlobman = nil
+    else
+        rightHeldTarget = nil
+        rightHeldBlobman = nil
+    end
+    return true
+end
+
+local function releaseAllHeld()
+    local blobman = getSeatedBlobman()
+    if leftHeldTarget then
+        dropHeldTarget(blobman or leftHeldBlobman, "left")
+    end
+    if rightHeldTarget then
+        dropHeldTarget(blobman or rightHeldBlobman, "right")
+    end
 end
 
 local function grabPlayer(blobman, target, hand)
@@ -399,8 +476,10 @@ local function grabPlayer(blobman, target, hand)
 
     if hand == "left" then
         leftHeldTarget = target
+        leftHeldBlobman = blobman
     else
         rightHeldTarget = target
+        rightHeldBlobman = blobman
     end
     playGrabAnimation(blobman, hand)
     return true
@@ -516,7 +595,7 @@ local function startKickLoop()
                 local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
 
                 if not dragging then
-                    if grab and drop and L_Weld and R_Weld then
+                    if grab and L_Weld and R_Weld then
                         pcall(function()
                             grab:FireServer(L_Det, tRoot, L_Weld)
                             grab:FireServer(R_Det, tRoot, R_Weld)
@@ -612,11 +691,7 @@ local function stopKickLoop()
         task.cancel(kickTask)
         kickTask = nil
     end
-    local blobman = getSeatedBlobman()
-    if blobman then
-        if leftHeldTarget then dropHeldTarget(blobman, "left") end
-        if rightHeldTarget then dropHeldTarget(blobman, "right") end
-    end
+    releaseAllHeld()
     for target in pairs(hoveringTargets) do
         stopHover(target)
     end
@@ -734,10 +809,7 @@ local function bringPlayer(target, dropAfter)
     end
 
     if dropAfter then
-        local finalBlobman = getSeatedBlobman()
-        if finalBlobman then
-            dropHeldTarget(finalBlobman, hand)
-        end
+        dropHeldTarget(blobman, hand)
     else
         startHeldHover(target, hand)
     end
@@ -892,6 +964,7 @@ if kickEnabled then startKickLoop() end
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if kickEnabled then stopKickLoop() end
+    releaseAllHeld()
     for target in pairs(hoveringTargets) do stopHover(target) end
     stopAllHeldHovers()
     oldDisable()
