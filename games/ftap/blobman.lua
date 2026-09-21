@@ -27,7 +27,7 @@ local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
-local KICK_HEIGHT = 30
+local KICK_HEIGHT = 22
 
 local INTERACT_KEY = Enum.KeyCode.F
 local leftHeldTarget = nil
@@ -532,9 +532,7 @@ local function startKickLoop()
 
         local weldedTarget = nil
         local weldedBlobman = nil
-        local weldedDetector = nil
         local weldedWeld = nil
-        local grabStartTime = 0
         local savedPos = nil
 
         local function releaseWeld()
@@ -551,7 +549,6 @@ local function startKickLoop()
             end
             weldedTarget = nil
             weldedBlobman = nil
-            weldedDetector = nil
             weldedWeld = nil
         end
 
@@ -564,14 +561,12 @@ local function startKickLoop()
             if not target or not target.Parent or not target.Character then
                 releaseWeld()
                 savedPos = nil
-                grabStartTime = 0
                 task.wait(0.15)
                 continue
             end
 
             if weldedTarget and weldedTarget ~= target then
                 releaseWeld()
-                grabStartTime = 0
             end
 
             local myChar = getPlayerCharacter()
@@ -606,7 +601,6 @@ local function startKickLoop()
             local tHum = tChar:FindFirstChild("Humanoid")
             if not tRoot or not tHum or tHum.Health <= 0 then
                 releaseWeld()
-                grabStartTime = 0
                 task.wait(0.1)
                 continue
             end
@@ -629,35 +623,27 @@ local function startKickLoop()
             if not weldedTarget then
                 myRoot.CFrame = tRoot.CFrame
                 if setNet then
-                    for i = 1, 4 do
-                        pcall(function()
-                            setNet:FireServer(tRoot, myRoot.CFrame)
-                        end)
-                        task.wait(0.01)
-                    end
+                    pcall(function()
+                        setNet:FireServer(tRoot, myRoot.CFrame)
+                    end)
                 end
                 if createLine then
                     pcall(function()
                         createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
                     end)
                 end
-
                 pcall(function()
                     grab:FireServer(L_Det, tRoot, L_Weld)
                     grab:FireServer(R_Det, tRoot, R_Weld)
                 end)
 
-                task.wait(0.05)
-
                 weldedTarget = target
                 weldedBlobman = blobman
-                weldedDetector = L_Det
                 weldedWeld = L_Weld
 
                 myRoot.CFrame = savedPos
-                grabStartTime = tick()
             end
-
+                
             local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
             myRoot.CFrame = savedPos
             myRoot.AssemblyLinearVelocity = Vector3.zero
@@ -666,6 +652,16 @@ local function startKickLoop()
             if setNet then
                 pcall(function()
                     setNet:FireServer(tRoot, lockPos)
+                end)
+            end
+            if destroyLine then
+                pcall(function()
+                    destroyLine:FireServer(tRoot)
+                end)
+            end
+            if createLine then
+                pcall(function()
+                    createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
                 end)
             end
 
