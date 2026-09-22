@@ -27,13 +27,11 @@ local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
-local KICK_HEIGHT = 22
+local KICK_HEIGHT = 30
 
 local INTERACT_KEY = Enum.KeyCode.F
 local leftHeldTarget = nil
 local rightHeldTarget = nil
-local leftHeldBlobman = nil
-local rightHeldBlobman = nil
 local selectedBringPlayerObj = nil
 local bringDropdown = nil
 local hoveringTargets = {}
@@ -48,14 +46,8 @@ local function isPlayerValid(player)
 end
 
 local function clearInvalidHeldTargets()
-    if leftHeldTarget and not isPlayerValid(leftHeldTarget) then
-        leftHeldTarget = nil
-        leftHeldBlobman = nil
-    end
-    if rightHeldTarget and not isPlayerValid(rightHeldTarget) then
-        rightHeldTarget = nil
-        rightHeldBlobman = nil
-    end
+    if leftHeldTarget and not isPlayerValid(leftHeldTarget) then leftHeldTarget = nil end
+    if rightHeldTarget and not isPlayerValid(rightHeldTarget) then rightHeldTarget = nil end
 end
 
 local function getPlayerCharacter()
@@ -162,15 +154,15 @@ local function sitOnBlobman()
     if seat and (not seat.Occupant or seat.Occupant == hum) then
         local camera = Workspace.CurrentCamera
         hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
-        task.wait(0.03)
+        task.wait(0.05)
         if camera then
             camera.CFrame = CFrame.new(camera.CFrame.Position, seat.Position)
         end
-        task.wait(0.03)
+        task.wait(0.05)
         VirtualInputManager:SendKeyEvent(true, INTERACT_KEY, false, game)
-        task.wait(0.03)
+        task.wait(0.05)
         VirtualInputManager:SendKeyEvent(false, INTERACT_KEY, false, game)
-        task.wait(0.2)
+        task.wait(0.3)
         if hum.SeatPart and hum.SeatPart.Parent == blobman then
             return blobman
         end
@@ -186,24 +178,6 @@ local function playGrabAnimation(blobman, side)
     if not relay or not relay:IsA("RemoteEvent") then return end
     local animName = side == "left" and "LeftGrabAnimation" or "RightGrabAnimation"
     pcall(function() relay:FireServer(animName, true) end)
-end
-
-local function maintainOwnership(targetRoot, detectorCFrame)
-    if not targetRoot or not targetRoot.Parent then return end
-    local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
-    if not GE then return end
-    local setNet = GE:FindFirstChild("SetNetworkOwner")
-    local createLine = GE:FindFirstChild("CreateGrabLine")
-    if setNet then
-        pcall(function()
-            setNet:FireServer(targetRoot, detectorCFrame)
-        end)
-    end
-    if createLine then
-        pcall(function()
-            createLine:FireServer(targetRoot, Vector3.zero, targetRoot.Position, false)
-        end)
-    end
 end
 
 local function stopHover(target)
@@ -240,11 +214,9 @@ local function startHover(target, blobman)
         if not targetRoot or not blobmanRoot then return end
         local position = blobmanRoot.Position + Vector3.new(0, 15, 0)
         local lookDirection = blobmanRoot.CFrame.LookVector
-        local targetCFrame = CFrame.lookAt(position, position + lookDirection)
         targetRoot.AssemblyLinearVelocity = Vector3.zero
         targetRoot.AssemblyAngularVelocity = Vector3.zero
-        targetRoot.CFrame = targetCFrame
-        maintainOwnership(targetRoot, targetCFrame)
+        targetRoot.CFrame = CFrame.lookAt(position, position + lookDirection)
     end)
     hoverConnections[target] = connection
 end
@@ -287,10 +259,7 @@ local function startHeldHover(target, hand)
         end
 
         local blobman = getSeatedBlobman()
-        if not blobman then
-            if hand == "left" then blobman = leftHeldBlobman else blobman = rightHeldBlobman end
-        end
-        if not blobman or not blobman.Parent then return end
+        if not blobman then return end
 
         local detectorName = hand == "left" and "LeftDetector" or "RightDetector"
         local weldName = hand == "left" and "LeftWeld" or "RightWeld"
@@ -314,105 +283,37 @@ local function startHeldHover(target, hand)
         targetRoot.CFrame = detector.CFrame
         targetRoot.AssemblyLinearVelocity = Vector3.zero
         targetRoot.AssemblyAngularVelocity = Vector3.zero
-
-        maintainOwnership(targetRoot, detector.CFrame)
     end)
     heldHovers[target] = conn
 end
 
 local function dropHeldTarget(blobman, side)
+    if not blobman then return false end
     local target = side == "left" and leftHeldTarget or rightHeldTarget
     if not target then return false end
-
-    local storedBlobman = side == "left" and leftHeldBlobman or rightHeldBlobman
-    local useBlobman = blobman or storedBlobman
-    if not useBlobman or not useBlobman.Parent then
-        stopHover(target)
-        stopHeldHover(target)
-        if side == "left" then
-            leftHeldTarget = nil
-            leftHeldBlobman = nil
-        else
-            rightHeldTarget = nil
-            rightHeldBlobman = nil
-        end
-        return false
-    end
-
     stopHover(target)
     stopHeldHover(target)
-
     local character = target.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
     if not root then
-        if side == "left" then
-            leftHeldTarget = nil
-            leftHeldBlobman = nil
-        else
-            rightHeldTarget = nil
-            rightHeldBlobman = nil
-        end
+        if side == "left" then leftHeldTarget = nil else rightHeldTarget = nil end
         return false
     end
-
-    local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
-    local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
-
-    for i = 1, 6 do
-        if setNet and root.Parent then
-            local current = root.CFrame
-            pcall(function()
-                setNet:FireServer(root, current)
-            end)
-        end
-        task.wait()
-    end
-
-    local leftDetector = useBlobman:FindFirstChild("LeftDetector")
-    local rightDetector = useBlobman:FindFirstChild("RightDetector")
+    local leftDetector = blobman:FindFirstChild("LeftDetector")
+    local rightDetector = blobman:FindFirstChild("RightDetector")
     local leftWeld = leftDetector and leftDetector:FindFirstChild("LeftWeld")
     local rightWeld = rightDetector and rightDetector:FindFirstChild("RightWeld")
-    local ownerScript = useBlobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+    local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
     local creatureDrop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
     local weld = side == "left" and leftWeld or rightWeld
-
     if creatureDrop and weld then
         pcall(function()
             creatureDrop:FireServer(weld, root)
         end)
+        if side == "left" then leftHeldTarget = nil else rightHeldTarget = nil end
+        return true
     end
-
-    local endTime = tick() + 0.5
-    task.spawn(function()
-        while tick() < endTime do
-            if setNet and root and root.Parent then
-                local current = root.CFrame
-                pcall(function()
-                    setNet:FireServer(root, current)
-                end)
-            end
-            task.wait()
-        end
-    end)
-
-    if side == "left" then
-        leftHeldTarget = nil
-        leftHeldBlobman = nil
-    else
-        rightHeldTarget = nil
-        rightHeldBlobman = nil
-    end
-    return true
-end
-
-local function releaseAllHeld()
-    local blobman = getSeatedBlobman()
-    if leftHeldTarget then
-        dropHeldTarget(blobman or leftHeldBlobman, "left")
-    end
-    if rightHeldTarget then
-        dropHeldTarget(blobman or rightHeldBlobman, "right")
-    end
+    return false
 end
 
 local function grabPlayer(blobman, target, hand)
@@ -447,13 +348,13 @@ local function grabPlayer(blobman, target, hand)
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return false end
 
-    for i = 1, 6 do
+    for i = 1, 8 do
         if setNet then
             pcall(function()
                 setNet:FireServer(targetRoot, CFrame.lookAt(myRoot.Position, targetRoot.Position))
             end)
         end
-        task.wait(0.015)
+        task.wait(0.02)
     end
 
     if createLine then
@@ -465,21 +366,19 @@ local function grabPlayer(blobman, target, hand)
     targetRoot.CFrame = detector.CFrame
     targetRoot.AssemblyLinearVelocity = Vector3.zero
     targetRoot.AssemblyAngularVelocity = Vector3.zero
-    task.wait(0.06)
+    task.wait(0.08)
 
     local grabSuccess = pcall(function()
         creatureGrab:FireServer(detector, targetRoot, weld)
     end)
     if not grabSuccess then return false end
 
-    task.wait(0.1)
+    task.wait(0.15)
 
     if hand == "left" then
         leftHeldTarget = target
-        leftHeldBlobman = blobman
     else
         rightHeldTarget = target
-        rightHeldBlobman = blobman
     end
     playGrabAnimation(blobman, hand)
     return true
@@ -530,65 +429,45 @@ local function startKickLoop()
         local createLine = GE and GE:FindFirstChild("CreateGrabLine")
         local destroyLine = GE and GE:FindFirstChild("DestroyGrabLine")
 
-        local weldedTarget = nil
-        local weldedBlobman = nil
-        local weldedWeld = nil
+        local dragging = false
+        local grabStartTime = 0
         local savedPos = nil
-
-        local function releaseWeld()
-            if weldedWeld and weldedTarget then
-                local tChar = weldedTarget.Character
-                local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
-                local ownerScript = weldedBlobman and weldedBlobman:FindFirstChild("BlobmanSeatAndOwnerScript")
-                local drop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
-                if drop and tRoot and weldedWeld.Parent then
-                    pcall(function()
-                        drop:FireServer(weldedWeld, tRoot)
-                    end)
-                end
-            end
-            weldedTarget = nil
-            weldedBlobman = nil
-            weldedWeld = nil
-        end
+        local target = nil
 
         while kickEnabled do
-            local target
             if selectedKickPlayer and selectedKickPlayer ~= "" then
                 target = getPlayerFromDropdownValue(selectedKickPlayer)
+            else
+                target = nil
             end
 
             if not target or not target.Parent or not target.Character then
-                releaseWeld()
-                savedPos = nil
-                task.wait(0.15)
+                dragging = false
+                grabStartTime = 0
+                task.wait(0.2)
                 continue
-            end
-
-            if weldedTarget and weldedTarget ~= target then
-                releaseWeld()
             end
 
             local myChar = getPlayerCharacter()
             if not myChar then
-                task.wait(0.05)
+                task.wait(0.1)
                 continue
             end
 
             local myRoot = myChar:FindFirstChild("HumanoidRootPart")
             local myHum = myChar:FindFirstChildOfClass("Humanoid")
             if not myRoot or not myHum or myHum.Health <= 0 then
-                task.wait(0.05)
+                task.wait(0.1)
                 continue
             end
 
             local seat = myHum.SeatPart
             if not seat or not seat.Parent or seat.Parent.Name ~= "CreatureBlobman" then
-                if not weldedTarget then
-                    savedPos = myRoot.CFrame
-                end
+                dragging = false
+                grabStartTime = 0
+                savedPos = myRoot.CFrame
                 pcall(sitOnBlobman)
-                task.wait(0.05)
+                task.wait(0.1)
                 continue
             end
 
@@ -599,91 +478,89 @@ local function startKickLoop()
             local tChar = target.Character
             local tRoot = tChar:FindFirstChild("HumanoidRootPart")
             local tHum = tChar:FindFirstChild("Humanoid")
-            if not tRoot or not tHum or tHum.Health <= 0 then
-                releaseWeld()
-                task.wait(0.1)
-                continue
-            end
 
-            tRoot.AssemblyLinearVelocity = Vector3.zero
-            tRoot.Velocity = Vector3.zero
+            if tRoot and tHum and tHum.Health > 0 then
+                tRoot.AssemblyLinearVelocity = Vector3.zero
+                tRoot.Velocity = Vector3.zero
 
-            local blobman = seat.Parent
-            local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
-            local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
-            local L_Det = blobman:FindFirstChild("LeftDetector")
-            local R_Det = blobman:FindFirstChild("RightDetector")
-            local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
-            local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
-            if not grab or not L_Weld or not R_Weld then
-                task.wait(0.05)
-                continue
-            end
+                local blobman = seat.Parent
+                local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+                local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
+                local drop = remoteFolder and remoteFolder:FindFirstChild("CreatureDrop")
+                local L_Det = blobman:FindFirstChild("LeftDetector")
+                local R_Det = blobman:FindFirstChild("RightDetector")
+                local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
+                local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
 
-            if not weldedTarget then
-                myRoot.CFrame = tRoot.CFrame
-
-                RunService.Heartbeat:Wait()
-                RunService.Heartbeat:Wait()
-
-                if setNet then
+                if grab and drop and L_Weld and R_Weld then
                     pcall(function()
-                        setNet:FireServer(tRoot, myRoot.CFrame)
+                        grab:FireServer(L_Det, tRoot, L_Weld)
+                        grab:FireServer(R_Det, tRoot, R_Weld)
+                        drop:FireServer(L_Weld, tRoot)
+                        drop:FireServer(R_Weld, tRoot)
                     end)
                 end
-                if createLine then
+
+                if not dragging then
+                    myRoot.CFrame = tRoot.CFrame
+                    if setNet then
+                        pcall(function()
+                            setNet:FireServer(tRoot, myRoot.CFrame)
+                        end)
+                    end
+                    if createLine then
+                        pcall(function()
+                            createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
+                        end)
+                    end
                     pcall(function()
-                        createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
+                        tHum.PlatformStand = true
+                    end)
+                    if grabStartTime == 0 then grabStartTime = tick() end
+                    if tick() - grabStartTime > 0.3 then
+                        dragging = true
+                        grabStartTime = 0
+                    end
+                else
+                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
+                    myRoot.CFrame = savedPos
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+
+                    if setNet then
+                        pcall(function()
+                            setNet:FireServer(tRoot, lockPos)
+                        end)
+                    end
+                    if destroyLine then
+                        pcall(function()
+                            destroyLine:FireServer(tRoot)
+                        end)
+                    end
+                    if createLine then
+                        pcall(function()
+                            createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
+                        end)
+                    end
+
+                    tRoot.CFrame = lockPos
+                    tRoot.AssemblyLinearVelocity = Vector3.zero
+                    tRoot.AssemblyAngularVelocity = Vector3.zero
+                    tRoot.Velocity = Vector3.zero
+                    tRoot.RotVelocity = Vector3.zero
+
+                    pcall(function()
+                        tHum.PlatformStand = true
                     end)
                 end
-                pcall(function()
-                    grab:FireServer(L_Det, tRoot, L_Weld)
-                    grab:FireServer(R_Det, tRoot, R_Weld)
-                end)
-
-                RunService.Heartbeat:Wait()
-
-                weldedTarget = target
-                weldedBlobman = blobman
-                weldedWeld = L_Weld
-
-                myRoot.CFrame = savedPos
+            else
+                dragging = false
+                grabStartTime = 0
             end
-
-            local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
-            myRoot.CFrame = savedPos
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
-
-            if setNet then
-                pcall(function()
-                    setNet:FireServer(tRoot, lockPos)
-                end)
-            end
-            if destroyLine then
-                pcall(function()
-                    destroyLine:FireServer(tRoot)
-                end)
-            end
-            if createLine then
-                pcall(function()
-                    createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
-                end)
-            end
-
-            tRoot.CFrame = lockPos
-            tRoot.AssemblyLinearVelocity = Vector3.zero
-            tRoot.AssemblyAngularVelocity = Vector3.zero
-            tRoot.Velocity = Vector3.zero
-            tRoot.RotVelocity = Vector3.zero
-            pcall(function()
-                tHum.PlatformStand = true
-            end)
 
             RunService.Heartbeat:Wait()
         end
 
-        releaseWeld()
         local myChar = getPlayerCharacter()
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if myRoot and savedPos then
@@ -703,7 +580,11 @@ local function stopKickLoop()
         task.cancel(kickTask)
         kickTask = nil
     end
-    releaseAllHeld()
+    local blobman = getSeatedBlobman()
+    if blobman then
+        if leftHeldTarget then dropHeldTarget(blobman, "left") end
+        if rightHeldTarget then dropHeldTarget(blobman, "right") end
+    end
     for target in pairs(hoveringTargets) do
         stopHover(target)
     end
@@ -752,16 +633,14 @@ local function bringPlayer(target, dropAfter)
     local originalCFrame = localRoot.CFrame
 
     localRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
-
-    RunService.Heartbeat:Wait()
-    RunService.Heartbeat:Wait()
+    task.wait(0.2)
 
     if not getSeatedBlobman() then
         sitOnBlobman()
-        task.wait(0.15)
+        task.wait(0.3)
     end
 
-    for i = 1, 6 do
+    for i = 1, 10 do
         pcall(function()
             if setNet then
                 setNet:FireServer(targetRoot, localRoot.CFrame)
@@ -785,7 +664,7 @@ local function bringPlayer(target, dropAfter)
             success = true
             break
         end
-        task.wait(0.15)
+        task.wait(0.2)
     end
 
     if not success then
@@ -806,7 +685,7 @@ local function bringPlayer(target, dropAfter)
         end
     end
 
-    for i = 1, 20 do
+    for i = 1, 25 do
         if not targetRoot or not targetRoot.Parent or not targetHum.Parent then break end
         if handDet and handDet.Parent then
             pcall(function()
@@ -823,7 +702,10 @@ local function bringPlayer(target, dropAfter)
     end
 
     if dropAfter then
-        dropHeldTarget(blobman, hand)
+        local finalBlobman = getSeatedBlobman()
+        if finalBlobman then
+            dropHeldTarget(finalBlobman, hand)
+        end
     else
         startHeldHover(target, hand)
     end
@@ -978,7 +860,6 @@ if kickEnabled then startKickLoop() end
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if kickEnabled then stopKickLoop() end
-    releaseAllHeld()
     for target in pairs(hoveringTargets) do stopHover(target) end
     stopAllHeldHovers()
     oldDisable()
