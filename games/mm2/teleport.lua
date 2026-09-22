@@ -19,7 +19,7 @@ end
 local MAP_NAMES = {
     "House2", "BioLab", "Office3", "Hospital3", "Factory",
     "MilBase", "Bank2", "Hotel2", "Mansion2", "PoliceStation",
-    "ResearchFacility", "Workplace", "Pier", "BeachResort", "Yacht", "Hospital2014"
+    "ResearchFacility", "Workplace", "Pier", "BeachResort", "Yacht", "Hospital2014", "Hotel2014"
 }
 
 local function getCurrentMap()
