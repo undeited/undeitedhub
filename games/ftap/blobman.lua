@@ -27,7 +27,6 @@ local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
-local KICK_HEIGHT = 22
 
 local INTERACT_KEY = Enum.KeyCode.F
 local leftHeldTarget = nil
@@ -528,28 +527,31 @@ local function startKickLoop()
         local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
         local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
         local createLine = GE and GE:FindFirstChild("CreateGrabLine")
-        local destroyLine = GE and GE:FindFirstChild("DestroyGrabLine")
 
-        local weldedTarget = nil
-        local weldedBlobman = nil
-        local weldedWeld = nil
+        local state = "idle"
         local savedPos = nil
+        local currentTarget = nil
+        local currentBlobman = nil
+        local currentWeld = nil
+        local setupStart = 0
 
-        local function releaseWeld()
-            if weldedWeld and weldedTarget then
-                local tChar = weldedTarget.Character
+        local function resetState()
+            if currentWeld and currentTarget then
+                local tChar = currentTarget.Character
                 local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
-                local ownerScript = weldedBlobman and weldedBlobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+                local ownerScript = currentBlobman and currentBlobman:FindFirstChild("BlobmanSeatAndOwnerScript")
                 local drop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
-                if drop and tRoot and weldedWeld.Parent then
+                if drop and tRoot and currentWeld.Parent then
                     pcall(function()
-                        drop:FireServer(weldedWeld, tRoot)
+                        drop:FireServer(currentWeld, tRoot)
                     end)
                 end
             end
-            weldedTarget = nil
-            weldedBlobman = nil
-            weldedWeld = nil
+            state = "idle"
+            savedPos = nil
+            currentBlobman = nil
+            currentWeld = nil
+            setupStart = 0
         end
 
         while kickEnabled do
@@ -559,15 +561,16 @@ local function startKickLoop()
             end
 
             if not target or not target.Parent or not target.Character then
-                releaseWeld()
-                savedPos = nil
+                if state ~= "idle" then resetState() end
+                currentTarget = nil
                 task.wait(0.15)
                 continue
             end
 
-            if weldedTarget and weldedTarget ~= target then
-                releaseWeld()
+            if currentTarget and currentTarget ~= target then
+                resetState()
             end
+            currentTarget = target
 
             local myChar = getPlayerCharacter()
             if not myChar then
@@ -584,7 +587,7 @@ local function startKickLoop()
 
             local seat = myHum.SeatPart
             if not seat or not seat.Parent or seat.Parent.Name ~= "CreatureBlobman" then
-                if not weldedTarget then
+                if state == "idle" then
                     savedPos = myRoot.CFrame
                 end
                 pcall(sitOnBlobman)
@@ -600,13 +603,10 @@ local function startKickLoop()
             local tRoot = tChar:FindFirstChild("HumanoidRootPart")
             local tHum = tChar:FindFirstChild("Humanoid")
             if not tRoot or not tHum or tHum.Health <= 0 then
-                releaseWeld()
+                if state ~= "idle" then resetState() end
                 task.wait(0.1)
                 continue
             end
-
-            tRoot.AssemblyLinearVelocity = Vector3.zero
-            tRoot.Velocity = Vector3.zero
 
             local blobman = seat.Parent
             local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
@@ -620,11 +620,49 @@ local function startKickLoop()
                 continue
             end
 
-            if not weldedTarget then
+            if state == "idle" then
+                currentBlobman = blobman
+                currentWeld = L_Weld
                 myRoot.CFrame = tRoot.CFrame
+                setupStart = tick()
+                state = "teleporting"
+                RunService.Heartbeat:Wait()
+                continue
+            end
+
+            if state == "teleporting" then
+                myRoot.CFrame = tRoot.CFrame
+                if tick() - setupStart >= 0.12 then
+                    if setNet then
+                        pcall(function()
+                            setNet:FireServer(tRoot, myRoot.CFrame)
+                        end)
+                    end
+                    if createLine then
+                        pcall(function()
+                            createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
+                        end)
+                    end
+                    pcall(function()
+                        grab:FireServer(L_Det, tRoot, L_Weld)
+                        grab:FireServer(R_Det, tRoot, R_Weld)
+                    end)
+                    task.wait(0.05)
+                    myRoot.CFrame = savedPos
+                    state = "holding"
+                end
+                RunService.Heartbeat:Wait()
+                continue
+            end
+
+            if state == "holding" then
+                myRoot.CFrame = savedPos
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+                myRoot.AssemblyAngularVelocity = Vector3.zero
+
                 if setNet then
                     pcall(function()
-                        setNet:FireServer(tRoot, myRoot.CFrame)
+                        setNet:FireServer(tRoot, savedPos)
                     end)
                 end
                 if createLine then
@@ -632,52 +670,17 @@ local function startKickLoop()
                         createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
                     end)
                 end
+
                 pcall(function()
-                    grab:FireServer(L_Det, tRoot, L_Weld)
-                    grab:FireServer(R_Det, tRoot, R_Weld)
+                    tHum.PlatformStand = true
                 end)
 
-                weldedTarget = target
-                weldedBlobman = blobman
-                weldedWeld = L_Weld
-
-                myRoot.CFrame = savedPos
+                RunService.Heartbeat:Wait()
+                continue
             end
-                
-            local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
-            myRoot.CFrame = savedPos
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
-
-            if setNet then
-                pcall(function()
-                    setNet:FireServer(tRoot, lockPos)
-                end)
-            end
-            if destroyLine then
-                pcall(function()
-                    destroyLine:FireServer(tRoot)
-                end)
-            end
-            if createLine then
-                pcall(function()
-                    createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
-                end)
-            end
-
-            tRoot.CFrame = lockPos
-            tRoot.AssemblyLinearVelocity = Vector3.zero
-            tRoot.AssemblyAngularVelocity = Vector3.zero
-            tRoot.Velocity = Vector3.zero
-            tRoot.RotVelocity = Vector3.zero
-            pcall(function()
-                tHum.PlatformStand = true
-            end)
-
-            RunService.Heartbeat:Wait()
         end
 
-        releaseWeld()
+        resetState()
         local myChar = getPlayerCharacter()
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if myRoot and savedPos then
