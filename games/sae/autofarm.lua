@@ -23,7 +23,9 @@ end
 local autoTreadmillEnabled = undeitedhub.Toggles.autoTreadmill or false
 local treadmillTask = nil
 local cachedPlot = nil
-local announcedSuccess = false
+
+local LEAVE_THRESHOLD = 8
+local CHECK_INTERVAL = 0.25
 
 local function getModelCenter(model)
     if not model then return nil end
@@ -183,14 +185,7 @@ local function getTreadmillCenter(treadmill)
     return getModelCenter(treadmill)
 end
 
-local function teleportToTreadmill()
-    local char = LocalPlayer.Character
-    if not char then return false, "no character" end
-
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hrp or not hum or hum.Health <= 0 then return false, "no hrp/hum" end
-
+local function resolveTreadmill()
     if not cachedPlot or not cachedPlot.Parent then
         cachedPlot = nil
         local plot = findLocalPlot()
@@ -199,28 +194,41 @@ local function teleportToTreadmill()
         end
     end
     if not cachedPlot then
-        local _, reason = findLocalPlot()
-        return false, reason or "no plot"
+        return nil, nil, "no plot"
     end
 
     local treadmill = findTreadmill(cachedPlot.Name)
     if not treadmill then
-        return false, "no treadmill for plot " .. cachedPlot.Name
+        return nil, nil, "no treadmill for plot " .. cachedPlot.Name
     end
 
     local center = getTreadmillCenter(treadmill)
-    if not center then return false, "no center" end
-
-    local target = center + Vector3.new(0, 3, 0)
-    if (hrp.Position - target).Magnitude > 0.5 then
-        hrp.CFrame = CFrame.new(target)
+    if not center then
+        return nil, nil, "no treadmill center"
     end
 
+    return treadmill, center, nil
+end
+
+local function teleportOnce()
+    local char = LocalPlayer.Character
+    if not char then return false, "no character" end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then return false, "no hrp/hum" end
+
+    local _, center, err = resolveTreadmill()
+    if not center then return false, err end
+
+    local target = center + Vector3.new(0, 3, 0)
+    hrp.CFrame = CFrame.new(target)
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.AssemblyAngularVelocity = Vector3.zero
     hrp.Velocity = Vector3.zero
     hrp.RotVelocity = Vector3.zero
-    return true
+
+    return true, "ok", center
 end
 
 local function startAutoTreadmill()
@@ -228,7 +236,6 @@ local function startAutoTreadmill()
     autoTreadmillEnabled = true
     undeitedhub.Toggles.autoTreadmill = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    announcedSuccess = false
 
     SafeNotify({
         Title = "Auto Treadmill",
@@ -237,41 +244,57 @@ local function startAutoTreadmill()
     })
 
     treadmillTask = task.spawn(function()
+        local anchored = false
+        local anchorCenter = nil
         local failureCount = 0
         local lastReason = ""
 
         while autoTreadmillEnabled do
-            local ok, result = pcall(teleportToTreadmill)
-            if not ok then
-                result = "error: " .. tostring(result)
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+            if not hrp or not hum or hum.Health <= 0 then
+                anchored = false
+                anchorCenter = nil
+                task.wait(CHECK_INTERVAL)
+                continue
             end
 
-            if result == true then
-                failureCount = 0
-                if not announcedSuccess then
-                    announcedSuccess = true
+            if not anchored then
+                local ok, result, center = pcall(teleportOnce)
+                if ok and result == true then
+                    anchored = true
+                    anchorCenter = center
+                    failureCount = 0
                     SafeNotify({
                         Title = "Auto Treadmill",
                         Content = "Active on plot " .. (cachedPlot and cachedPlot.Name or "?"),
                         Duration = 2,
                     })
+                else
+                    failureCount = failureCount + 1
+                    lastReason = tostring(result or "error")
+                    if failureCount == 30 then
+                        SafeNotify({
+                            Title = "Auto Treadmill",
+                            Content = "Waiting: " .. lastReason,
+                            Duration = 3,
+                        })
+                    end
+                    if failureCount >= 60 then
+                        cachedPlot = nil
+                    end
                 end
             else
-                failureCount = failureCount + 1
-                lastReason = result
-                if failureCount == 30 then
-                    SafeNotify({
-                        Title = "Auto Treadmill",
-                        Content = "Waiting: " .. tostring(result),
-                        Duration = 3,
-                    })
-                end
-                if failureCount >= 60 then
-                    cachedPlot = nil
+                local dist = (hrp.Position - anchorCenter).Magnitude
+                if dist > LEAVE_THRESHOLD then
+                    anchored = false
+                    anchorCenter = nil
                 end
             end
 
-            task.wait(0.1)
+            task.wait(CHECK_INTERVAL)
         end
 
         treadmillTask = nil
@@ -301,28 +324,6 @@ AutofarmTab:Toggle({
                 Title = "Auto Treadmill",
                 Content = "Disabled",
                 Duration = 2,
-            })
-        end
-    end
-})
-
-AutofarmTab:Button({
-    Title = "Force Rescan Plot",
-    Callback = function()
-        cachedPlot = nil
-        announcedSuccess = false
-        local plot, reason = findLocalPlot()
-        if plot then
-            SafeNotify({
-                Title = "Rescan",
-                Content = "Found plot: " .. plot.Name .. " (" .. tostring(reason) .. ")",
-                Duration = 3,
-            })
-        else
-            SafeNotify({
-                Title = "Rescan",
-                Content = "Failed: " .. tostring(reason),
-                Duration = 3,
             })
         end
     end
