@@ -861,7 +861,7 @@ AutofarmTab:Toggle({
 })
 
 AutofarmTab:Toggle({
-    Title = "Auto Teleport to Lobby when Bag Full",
+    Title = "Auto Teleport to Lobby when done",
     Value = autoTeleportToLobbyEnabled,
     Callback = function(state)
         autoTeleportToLobbyEnabled = state
