@@ -173,9 +173,88 @@ if autoGiftEnabled then
     startAutoGift()
 end
 
+local autoClaimQuestsEnabled = undeitedhub.Toggles.AutoClaimQuests or false
+local autoClaimQuestsTask = nil
+local QUEST_INTERVAL = 1
+
+local QUEST_TYPES = {
+    "weeklyQuests",
+    "enchantQuests",
+    "storyQuests",
+    "dailyQuests",
+}
+
+local function getQuestsRemote()
+    local rEvents = ReplicatedStorage:FindFirstChild("rEvents")
+    if not rEvents then return nil end
+    return rEvents:FindFirstChild("questsEvent")
+end
+
+local function claimQuest(questType)
+    local remote = getQuestsRemote()
+    if not remote then return false end
+    pcall(function()
+        remote:FireServer("seenQuest", questType)
+    end)
+    return true
+end
+
+local function startAutoClaimQuests()
+    if autoClaimQuestsTask then return end
+    autoClaimQuestsEnabled = true
+    undeitedhub.Toggles.AutoClaimQuests = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+
+    autoClaimQuestsTask = task.spawn(function()
+        while autoClaimQuestsEnabled do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                for _, questType in ipairs(QUEST_TYPES) do
+                    if not autoClaimQuestsEnabled then break end
+                    pcall(claimQuest, questType)
+                    task.wait(0.1)
+                end
+            end
+            task.wait(QUEST_INTERVAL)
+        end
+        autoClaimQuestsTask = nil
+    end)
+end
+
+local function stopAutoClaimQuests()
+    autoClaimQuestsEnabled = false
+    undeitedhub.Toggles.AutoClaimQuests = false
+    if autoClaimQuestsTask then
+        task.cancel(autoClaimQuestsTask)
+        autoClaimQuestsTask = nil
+    end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+end
+
+MiscTab:Toggle({
+    Title = "Auto Claim Quests",
+    Value = autoClaimQuestsEnabled,
+    Callback = function(state)
+        if state then
+            startAutoClaimQuests()
+        else
+            stopAutoClaimQuests()
+        end
+        SafeNotify({
+            Title = "Auto Claim Quests",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+if autoClaimQuestsEnabled then
+    startAutoClaimQuests()
+end
+
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if autoSpinEnabled then stopAutoSpin() end
     if autoGiftEnabled then stopAutoGift() end
+    if autoClaimQuestsEnabled then stopAutoClaimQuests() end
     oldDisable()
 end
