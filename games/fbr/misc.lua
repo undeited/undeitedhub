@@ -9,7 +9,7 @@ MiscTab:Button({
         local player = Players.LocalPlayer
 
         if not player then
-            WindUI:Notify({ Title = "Error", Content = "Local player not found", Duration = 2 })
+            pcall(function() WindUI:Notify({ Title = "Error", Content = "Local player not found", Duration = 2 }) end)
             return
         end
 
@@ -34,9 +34,9 @@ MiscTab:Button({
         end
 
         if removed then
-            WindUI:Notify({ Title = "Unlock Console", Content = "Console unlocked!", Duration = 2 })
+            pcall(function() WindUI:Notify({ Title = "Unlock Console", Content = "Console unlocked!", Duration = 2 }) end)
         else
-            WindUI:Notify({ Title = "Unlock Console", Content = "BlockConsole script not found", Duration = 2 })
+            pcall(function() WindUI:Notify({ Title = "Unlock Console", Content = "BlockConsole script not found", Duration = 2 }) end)
         end
     end
 })

@@ -112,7 +112,10 @@ local MiscTab = undeitedhub.Window:Tab({
 local function SendChatMessage(message)
     local success, result = pcall(function()
         local TextChatService = game:GetService("TextChatService")
-        local generalChatChannel = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
+        local channels = TextChatService:WaitForChild("TextChannels", 5)
+        if not channels then error("TextChannels not available") end
+        local generalChatChannel = channels:WaitForChild("RBXGeneral", 5)
+        if not generalChatChannel then error("RBXGeneral not available") end
         generalChatChannel:SendAsync(message)
         return true
     end)

@@ -22,6 +22,7 @@ local espNamesEnabled = undeitedhub.Toggles.espNamesEnabled or false
 local highlightMap = {}
 local nameMap = {}
 local ESP_COLOR = Color3.fromRGB(255, 0, 0)
+local espLoopTask = nil
 
 local function ClearHighlights()
     for _, highlight in pairs(highlightMap) do
@@ -153,8 +154,19 @@ local function UpdateESP()
     end
 end
 
-local function RefreshESP()
-    pcall(UpdateESP)
+local function anyESPToggleOn()
+    return espEnabled or espNamesEnabled
+end
+
+local function startESPLoop()
+    if espLoopTask then return end
+    espLoopTask = task.spawn(function()
+        while anyESPToggleOn() do
+            pcall(UpdateESP)
+            task.wait(0.5)
+        end
+        espLoopTask = nil
+    end)
 end
 
 VisualTab:Toggle({
@@ -173,7 +185,7 @@ VisualTab:Toggle({
             if not espEnabled then
                 ClearHighlights()
             end
-            RefreshESP()
+            if state then startESPLoop(); pcall(UpdateESP) end
         end)
     end
 })
@@ -194,7 +206,7 @@ VisualTab:Toggle({
             if not espNamesEnabled then
                 ClearNames()
             end
-            RefreshESP()
+            if state then startESPLoop(); pcall(UpdateESP) end
         end)
     end
 })
@@ -203,10 +215,10 @@ local function ConnectPlayer(player)
     if not player then return end
     player.CharacterAdded:Connect(function()
         task.wait(0.2)
-        RefreshESP()
+        if anyESPToggleOn() then UpdateESP() end
     end)
     player.CharacterRemoving:Connect(function()
-        RefreshESP()
+        if anyESPToggleOn() then UpdateESP() end
     end)
 end
 
@@ -227,13 +239,6 @@ game.Players.PlayerRemoving:Connect(function(player)
     end
 end)
 
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        pcall(UpdateESP)
-    end
-end)
-
 undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
 local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
@@ -244,4 +249,12 @@ undeitedhub.DisableAll = function()
     ClearESP()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
+end
+
+if anyESPToggleOn() then
+    task.spawn(function()
+        task.wait(0.5)
+        startESPLoop()
+        UpdateESP()
+    end)
 end

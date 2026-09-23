@@ -176,7 +176,6 @@ if frame then
     frame:GetPropertyChangedSignal("Visible"):Connect(function()
         _G.UNDEITEDHUB_WINDOW_VISIBLE = frame.Visible
     end)
-
     frame.AncestryChanged:Connect(function()
         if not frame.Parent then
             if undeitedhub.DisableAll then
@@ -190,11 +189,20 @@ local function SafeLoad(name)
     local success, err = pcall(LoadScript, name)
     if not success then
         local errMsg = tostring(err):sub(1, 200)
-        WindUI:Notify({
-            Title = "Error: " .. name,
-            Content = errMsg,
-            Duration = 6,
-        })
+        pcall(function()
+            WindUI:Notify({
+                Title = "Error: " .. name,
+                Content = errMsg,
+                Duration = 6,
+            })
+        end)
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Error: " .. name,
+                Text = errMsg,
+                Duration = 6,
+            })
+        end)
     end
 end
 

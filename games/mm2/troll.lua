@@ -425,7 +425,7 @@ local function FlingPlayer(target, silent)
         rootPart.CFrame = flingManager.cFlingOldPos * CFrame.new(0, 0.5, 0)
         character:PivotTo(flingManager.cFlingOldPos * CFrame.new(0, 0.5, 0))
         humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        for _, x in next, character:GetChildren() do
+        for _, x in ipairs(character:GetChildren()) do
             if x:IsA("BasePart") then
                 flingManager.ClearPartVelocity(x)
             end

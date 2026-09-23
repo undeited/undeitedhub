@@ -1,6 +1,4 @@
 local WindUI = undeitedhub.WindUI
-local utils = undeitedhub.Utils
-local config = undeitedhub.Config
 
 local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
 
@@ -40,11 +38,13 @@ CombatTab:Toggle({
         autoSwingEnabled = state
         undeitedhub.Toggles.AutoSwing = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        WindUI:Notify({
-            Title = "Auto Swing",
-            Content = state and "Enabled" or "Disabled",
-            Duration = 2,
-        })
+        pcall(function()
+            WindUI:Notify({
+                Title = "Auto Swing",
+                Content = state and "Enabled" or "Disabled",
+                Duration = 2,
+            })
+        end)
         if state then
             lastSwingTime = tick()
         end

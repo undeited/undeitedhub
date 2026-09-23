@@ -26,7 +26,7 @@ local loopTask = nil
 local childAddedConn = nil
 local isRunning = false
 
-local function refreshPairs()
+local function refreshPairList()
     local scene = Workspace:FindFirstChild("Scene")
     local beach = scene and scene:FindFirstChild("Beach")
     local beachballs = beach and beach:FindFirstChild("Beachballs")
@@ -44,10 +44,10 @@ local function refreshPairs()
     end
     table.sort(balls, function(a,b) return a.Name < b.Name end)
     table.sort(goals, function(a,b) return a.Name < b.Name end)
-    local pairs = {}
+    local pairList = {}
     local count = math.min(#balls, #goals)
-    for i=1,count do table.insert(pairs, { ball=balls[i], goal=goals[i] }) end
-    return pairs
+    for i=1,count do table.insert(pairList, { ball=balls[i], goal=goals[i] }) end
+    return pairList
 end
 
 local function RideAndScore(ball, goalPos)
@@ -90,7 +90,7 @@ local function RideAndScore(ball, goalPos)
 end
 
 local function ScoreAll()
-    for _, pair in ipairs(refreshPairs()) do
+    for _, pair in ipairs(refreshPairList()) do
         if pair.ball and pair.goal then
             local goalPos = getPosition(pair.goal)
             if goalPos then RideAndScore(pair.ball, goalPos) end
@@ -99,7 +99,7 @@ local function ScoreAll()
 end
 
 local function ScoreBallByObject(ball)
-    for _, pair in ipairs(refreshPairs()) do
+    for _, pair in ipairs(refreshPairList()) do
         if pair.ball == ball then
             local goalPos = getPosition(pair.goal)
             if goalPos then task.wait(0.3); RideAndScore(ball, goalPos) end
