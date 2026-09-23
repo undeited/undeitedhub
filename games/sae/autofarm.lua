@@ -26,6 +26,7 @@ local cachedPlot = nil
 
 local LEAVE_THRESHOLD = 8
 local CHECK_INTERVAL = 0.25
+local RESPAWN_SETTLE_TIME = 0.6
 
 local function getModelCenter(model)
     if not model then return nil end
@@ -198,7 +199,7 @@ local function resolveTreadmill()
     end
 
     local treadmill = findTreadmill(cachedPlot.Name)
-    if not treadmill then
+    if not treadmill or not treadmill.Parent then
         return nil, nil, "no treadmill for plot " .. cachedPlot.Name
     end
 
@@ -218,7 +219,7 @@ local function teleportOnce()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum or hum.Health <= 0 then return false, "no hrp/hum" end
 
-    local _, center, err = resolveTreadmill()
+    local treadmill, center, err = resolveTreadmill()
     if not center then return false, err end
 
     local target = center + Vector3.new(0, 3, 0)
@@ -228,7 +229,7 @@ local function teleportOnce()
     hrp.Velocity = Vector3.zero
     hrp.RotVelocity = Vector3.zero
 
-    return true, "ok", center
+    return true, "ok", center, treadmill
 end
 
 local function startAutoTreadmill()
@@ -246,26 +247,80 @@ local function startAutoTreadmill()
     treadmillTask = task.spawn(function()
         local anchored = false
         local anchorCenter = nil
+        local anchorTreadmill = nil
         local failureCount = 0
         local lastReason = ""
+        local lastCharacter = nil
+        local lastHealth = nil
+        local respawnGraceUntil = 0
+        local waitingForRespawn = false
 
         while autoTreadmillEnabled do
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-            if not hrp or not hum or hum.Health <= 0 then
+            if char ~= lastCharacter then
+                lastCharacter = char
                 anchored = false
                 anchorCenter = nil
+                anchorTreadmill = nil
+                failureCount = 0
+                lastHealth = nil
+                waitingForRespawn = false
+                respawnGraceUntil = tick() + RESPAWN_SETTLE_TIME
+            end
+
+            if not hrp or not hum then
+                anchored = false
+                anchorCenter = nil
+                anchorTreadmill = nil
                 task.wait(CHECK_INTERVAL)
                 continue
             end
 
+            local health = hum.Health
+
+            if health <= 0 then
+                if lastHealth and lastHealth > 0 then
+                    anchored = false
+                    anchorCenter = nil
+                    anchorTreadmill = nil
+                    waitingForRespawn = true
+                end
+                lastHealth = health
+                task.wait(CHECK_INTERVAL)
+                continue
+            end
+
+            if waitingForRespawn then
+                waitingForRespawn = false
+                respawnGraceUntil = tick() + RESPAWN_SETTLE_TIME
+                SafeNotify({
+                    Title = "Auto Treadmill",
+                    Content = "Respawned - re-anchoring...",
+                    Duration = 2,
+                })
+            end
+            lastHealth = health
+
+            if tick() < respawnGraceUntil then
+                task.wait(CHECK_INTERVAL)
+                continue
+            end
+
+            if anchorTreadmill and not anchorTreadmill.Parent then
+                anchored = false
+                anchorCenter = nil
+                anchorTreadmill = nil
+            end
+
             if not anchored then
-                local ok, result, center = pcall(teleportOnce)
+                local ok, result, center, treadmill = pcall(teleportOnce)
                 if ok and result == true then
                     anchored = true
                     anchorCenter = center
+                    anchorTreadmill = treadmill
                     failureCount = 0
                     SafeNotify({
                         Title = "Auto Treadmill",
@@ -291,6 +346,7 @@ local function startAutoTreadmill()
                 if dist > LEAVE_THRESHOLD then
                     anchored = false
                     anchorCenter = nil
+                    anchorTreadmill = nil
                 end
             end
 
