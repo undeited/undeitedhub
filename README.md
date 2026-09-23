@@ -1,6 +1,6 @@
 # Undeited Hub
 
-Just a basic script hub with a bunch of upcoming supported games. I made this script hub using [WindUI](https://github.com/Footagesus/WindUI) so full credits goes to [Footagesus](https://github.com/Footagesus) for the UI. Also I am going to try and make this script hub support as many executors as I possibly can.
+Just a basic script hub with a bunch of upcoming supported games. I made this script hub using [WindUI](https://github.com/Footagesus/WindUI) so credits goes to [Footagesus](https://github.com/Footagesus) for making this awesome UI. Also I am going to try and make this script hub support as many executors as I possibly can.
 
 ## Supported Games
 
