@@ -1,4 +1,4 @@
-\local WindUI = undeitedhub.WindUI
+local WindUI = undeitedhub.WindUI
 local AutofarmTab = undeitedhub.Window:Tab({ Title = "Autofarm" })
 
 local Workspace = game:GetService("Workspace")
