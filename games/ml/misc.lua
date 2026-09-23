@@ -47,7 +47,11 @@ local function spinOnce()
     if not chances then return false end
     local choice = chances[math.random(1, #chances)]
     pcall(function()
-        remote:InvokeServer("openFortuneWheel", choice)
+        if remote:IsA("RemoteFunction") then
+            remote:InvokeServer("openFortuneWheel", choice)
+        else
+            remote:FireServer("openFortuneWheel", choice)
+        end
     end)
     return true
 end
@@ -80,7 +84,7 @@ local function stopAutoSpin()
 end
 
 MiscTab:Toggle({
-    Title = "Auto Spin",
+    Title = "Auto Spin Wheel",
     Value = autoSpinEnabled,
     Callback = function(state)
         if state then
@@ -89,7 +93,7 @@ MiscTab:Toggle({
             stopAutoSpin()
         end
         SafeNotify({
-            Title = "Auto Spin",
+            Title = "Auto Spin Wheel",
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
@@ -115,7 +119,11 @@ local function claimGift(index)
     local remote = getGiftRemote()
     if not remote then return false end
     pcall(function()
-        remote:InvokeServer("claimGift", index)
+        if remote:IsA("RemoteFunction") then
+            remote:InvokeServer("claimGift", index)
+        else
+            remote:FireServer("claimGift", index)
+        end
     end)
     return true
 end
@@ -175,7 +183,8 @@ end
 
 local autoClaimQuestsEnabled = undeitedhub.Toggles.AutoClaimQuests or false
 local autoClaimQuestsTask = nil
-local QUEST_INTERVAL = 1
+local QUEST_INTERVAL = 3
+local QUEST_STEP_DELAY = 0.3
 
 local QUEST_TYPES = {
     "weeklyQuests",
@@ -187,16 +196,34 @@ local QUEST_TYPES = {
 local function getQuestsRemote()
     local rEvents = ReplicatedStorage:FindFirstChild("rEvents")
     if not rEvents then return nil end
-    return rEvents:FindFirstChild("questsEvent")
+    local remote = rEvents:FindFirstChild("questsEvent")
+    if not remote then
+        local ok, found = pcall(function()
+            return rEvents:WaitForChild("questsEvent", 2)
+        end)
+        if ok then remote = found end
+    end
+    return remote
 end
 
-local function claimQuest(questType)
-    local remote = getQuestsRemote()
-    if not remote then return false end
+local function fireQuestRemote(remote, questType)
     pcall(function()
-        remote:FireServer("seenQuest", questType)
+        if remote:IsA("RemoteFunction") then
+            remote:InvokeServer("seenQuest", questType)
+        else
+            remote:FireServer("seenQuest", questType)
+        end
     end)
-    return true
+end
+
+local function claimAllQuests()
+    local remote = getQuestsRemote()
+    if not remote then return end
+    for _, questType in ipairs(QUEST_TYPES) do
+        if not autoClaimQuestsEnabled then break end
+        fireQuestRemote(remote, questType)
+        task.wait(QUEST_STEP_DELAY)
+    end
 end
 
 local function startAutoClaimQuests()
@@ -208,11 +235,7 @@ local function startAutoClaimQuests()
     autoClaimQuestsTask = task.spawn(function()
         while autoClaimQuestsEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                for _, questType in ipairs(QUEST_TYPES) do
-                    if not autoClaimQuestsEnabled then break end
-                    pcall(claimQuest, questType)
-                    task.wait(0.1)
-                end
+                pcall(claimAllQuests)
             end
             task.wait(QUEST_INTERVAL)
         end
@@ -244,6 +267,22 @@ MiscTab:Toggle({
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
+    end
+})
+
+MiscTab:Button({
+    Title = "Claim Quests Now",
+    Callback = function()
+        local remote = getQuestsRemote()
+        if not remote then
+            SafeNotify({ Title = "Claim Quests", Content = "questsEvent remote not found", Duration = 2 })
+            return
+        end
+        for _, questType in ipairs(QUEST_TYPES) do
+            fireQuestRemote(remote, questType)
+            task.wait(QUEST_STEP_DELAY)
+        end
+        SafeNotify({ Title = "Claim Quests", Content = "Fired all quest claims", Duration = 2 })
     end
 })
 
