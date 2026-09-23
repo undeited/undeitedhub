@@ -183,14 +183,26 @@ end
 
 local autoClaimQuestsEnabled = undeitedhub.Toggles.AutoClaimQuests or false
 local autoClaimQuestsTask = nil
-local QUEST_INTERVAL = 3
-local QUEST_STEP_DELAY = 0.3
+local QUEST_INTERVAL = 4
+local QUEST_STEP_DELAY = 0.25
+local COLLECT_STEP_DELAY = 0.25
 
-local QUEST_TYPES = {
+local QUEST_CATEGORY_STRINGS = {
     "weeklyQuests",
     "enchantQuests",
     "storyQuests",
     "dailyQuests",
+}
+
+local QUEST_CONTAINER_PATHS = {
+    {"shared", "catalogs", "quests"},
+    {"shared", "catalogs", "Quests"},
+    {"shared", "quests"},
+    {"shared", "Quests"},
+    {"shared", "catalogs", "questCatalog"},
+    {"shared", "catalogs", "QuestCatalog"},
+    {"quests"},
+    {"Quests"},
 }
 
 local function getQuestsRemote()
@@ -206,12 +218,79 @@ local function getQuestsRemote()
     return remote
 end
 
-local function fireQuestRemote(remote, questType)
+local function getQuestFolders()
+    local result = {}
+    local seen = {}
+
+    local function tryPath(path)
+        local node = ReplicatedStorage
+        for _, key in ipairs(path) do
+            if not node then return end
+            node = node:FindFirstChild(key)
+        end
+        if not node then return end
+        for _, child in ipairs(node:GetChildren()) do
+            if child:IsA("Folder") and not seen[child] then
+                seen[child] = true
+                table.insert(result, child)
+            end
+        end
+    end
+
+    for _, path in ipairs(QUEST_CONTAINER_PATHS) do
+        tryPath(path)
+        if #result > 0 then return result end
+    end
+
+    local shared = ReplicatedStorage:FindFirstChild("shared")
+    if shared then
+        for _, container in ipairs(shared:GetChildren()) do
+            if container:IsA("Folder") and string.find(string.lower(container.Name), "quest") then
+                for _, child in ipairs(container:GetChildren()) do
+                    if child:IsA("Folder") and not seen[child] then
+                        seen[child] = true
+                        table.insert(result, child)
+                    end
+                end
+            end
+        end
+    end
+
+    if #result > 0 then return result end
+
+    local catalogs = shared and shared:FindFirstChild("catalogs")
+    if catalogs then
+        for _, container in ipairs(catalogs:GetChildren()) do
+            if container:IsA("Folder") and string.find(string.lower(container.Name), "quest") then
+                for _, child in ipairs(container:GetChildren()) do
+                    if child:IsA("Folder") and not seen[child] then
+                        seen[child] = true
+                        table.insert(result, child)
+                    end
+                end
+            end
+        end
+    end
+
+    return result
+end
+
+local function fireQuestSeen(remote, category)
     pcall(function()
         if remote:IsA("RemoteFunction") then
-            remote:InvokeServer("seenQuest", questType)
+            remote:InvokeServer("seenQuest", category)
         else
-            remote:FireServer("seenQuest", questType)
+            remote:FireServer("seenQuest", category)
+        end
+    end)
+end
+
+local function fireQuestCollect(remote, folder)
+    pcall(function()
+        if remote:IsA("RemoteFunction") then
+            remote:InvokeServer("collectQuest", folder)
+        else
+            remote:FireServer("collectQuest", folder)
         end
     end)
 end
@@ -219,10 +298,18 @@ end
 local function claimAllQuests()
     local remote = getQuestsRemote()
     if not remote then return end
-    for _, questType in ipairs(QUEST_TYPES) do
+
+    for _, category in ipairs(QUEST_CATEGORY_STRINGS) do
         if not autoClaimQuestsEnabled then break end
-        fireQuestRemote(remote, questType)
+        fireQuestSeen(remote, category)
         task.wait(QUEST_STEP_DELAY)
+    end
+
+    local folders = getQuestFolders()
+    for _, folder in ipairs(folders) do
+        if not autoClaimQuestsEnabled then break end
+        fireQuestCollect(remote, folder)
+        task.wait(COLLECT_STEP_DELAY)
     end
 end
 
@@ -278,11 +365,20 @@ MiscTab:Button({
             SafeNotify({ Title = "Claim Quests", Content = "questsEvent remote not found", Duration = 2 })
             return
         end
-        for _, questType in ipairs(QUEST_TYPES) do
-            fireQuestRemote(remote, questType)
+        for _, category in ipairs(QUEST_CATEGORY_STRINGS) do
+            fireQuestSeen(remote, category)
             task.wait(QUEST_STEP_DELAY)
         end
-        SafeNotify({ Title = "Claim Quests", Content = "Fired all quest claims", Duration = 2 })
+        local folders = getQuestFolders()
+        if #folders == 0 then
+            SafeNotify({ Title = "Claim Quests", Content = "No quest folders found", Duration = 2 })
+            return
+        end
+        for _, folder in ipairs(folders) do
+            fireQuestCollect(remote, folder)
+            task.wait(COLLECT_STEP_DELAY)
+        end
+        SafeNotify({ Title = "Claim Quests", Content = "Claimed " .. #folders .. " quests", Duration = 2 })
     end
 })
 
