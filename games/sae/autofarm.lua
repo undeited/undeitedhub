@@ -22,63 +22,93 @@ end
 
 local autoTreadmillEnabled = undeitedhub.Toggles.autoTreadmill or false
 local treadmillTask = nil
+local cachedPlot = nil
+local announcedSuccess = false
 
-local function getCharacter()
-    local char = LocalPlayer.Character
-    if char
-        and char:FindFirstChild("HumanoidRootPart")
-        and char:FindFirstChildOfClass("Humanoid")
-    then
-        return char
+local function getModelCenter(model)
+    if not model then return nil end
+    if model:IsA("BasePart") then return model.Position end
+    local bbox = model:FindFirstChild("BoundingBoxPart", true)
+    if bbox and bbox:IsA("BasePart") then return bbox.Position end
+    if model.PrimaryPart then return model.PrimaryPart.Position end
+    local sum = Vector3.new(0, 0, 0)
+    local count = 0
+    for _, d in ipairs(model:GetDescendants()) do
+        if d:IsA("BasePart") then
+            sum = sum + d.Position
+            count = count + 1
+        end
     end
-    return nil
+    if count == 0 then return nil end
+    return sum / count
 end
 
-local function plotMatchesLocal(plot)
+local function plotHasLocalOwner(plot)
     local playerName = LocalPlayer.Name
     local displayName = LocalPlayer.DisplayName
+    local userId = LocalPlayer.UserId
+    local userIdStr = tostring(userId)
 
-    local ownerAttr = plot:GetAttribute("Owner")
-    if ownerAttr == playerName or ownerAttr == displayName then
+    local attr = plot:GetAttribute("Owner")
+    if attr == playerName or attr == displayName or attr == userId or attr == userIdStr then
+        return true
+    end
+
+    local attr2 = plot:GetAttribute("PlotOwner")
+    if attr2 == playerName or attr2 == displayName or attr2 == userId or attr2 == userIdStr then
         return true
     end
 
     local plotSign = plot:FindFirstChild("PlotSign")
-
     if plotSign then
         local owners = plotSign:FindFirstChild("ThisPlotsOwners")
         if owners then
-            for _, person in ipairs(owners:GetChildren()) do
-                if person.Value == playerName or person.Value == displayName then
+            for _, v in ipairs(owners:GetChildren()) do
+                if v.Value == playerName or v.Value == displayName or v.Value == userId or v.Value == userIdStr then
                     return true
                 end
             end
         end
 
-        for _, child in ipairs(plotSign:GetChildren()) do
-            if child:IsA("StringValue") then
-                if child.Value == playerName or child.Value == displayName then
-                    return true
+        local ownerVal = plotSign:FindFirstChild("Owner") or plotSign:FindFirstChild("PlotOwner")
+        if ownerVal then
+            if ownerVal.Value == playerName or ownerVal.Value == displayName or ownerVal.Value == userId or ownerVal.Value == userIdStr then
+                return true
+            end
+        end
+
+        local sign = plotSign:FindFirstChild("Sign")
+        if sign then
+            local screen = sign:FindFirstChild("Screen")
+            local sg = screen and (screen:FindFirstChild("SurfaceGui") or screen:FindFirstChildOfClass("SurfaceGui"))
+            if sg then
+                local frame = sg:FindFirstChild("Frame")
+                if frame and frame.Visible then
+                    local pdn = frame:FindFirstChild("PlayerDisplayName")
+                    if pdn and (pdn.Text == displayName or pdn.Text == playerName) then
+                        return true
+                    end
                 end
             end
         end
     end
 
-    local sign = plot:FindFirstChild("Sign")
-        or (plotSign and plotSign:FindFirstChild("Sign"))
-    if sign then
-        local screen = sign:FindFirstChild("Screen")
-        local surfaceGui = screen and (
-            screen:FindFirstChild("SurfaceGui")
-            or screen:FindFirstChildOfClass("SurfaceGui")
-        )
-        if surfaceGui then
-            local frame = surfaceGui:FindFirstChild("Frame")
-            if frame and frame.Visible then
-                local pdn = frame:FindFirstChild("PlayerDisplayName")
-                if pdn and (pdn.Text == displayName or pdn.Text == playerName) then
+    for _, desc in ipairs(plot:GetDescendants()) do
+        if desc:IsA("ObjectValue") and desc.Value == LocalPlayer then
+            return true
+        end
+        if desc:IsA("StringValue") then
+            local val = desc.Value
+            if val == playerName or val == displayName or val == userIdStr then
+                local n = string.lower(desc.Name)
+                if n:find("owner") or n:find("player") or n:find("user") or n:find("claim") or n:find("belong") then
                     return true
                 end
+            end
+        end
+        if desc:IsA("BoolValue") and desc.Value then
+            if desc.Name == playerName or desc.Name == displayName then
+                return true
             end
         end
     end
@@ -88,18 +118,42 @@ end
 
 local function findLocalPlot()
     local plots = Workspace:FindFirstChild("Plots")
-    if not plots then return nil end
+    if not plots then return nil, "no Plots folder" end
+
     for _, plot in ipairs(plots:GetChildren()) do
-        if plotMatchesLocal(plot) then
-            return plot
+        if plotHasLocalOwner(plot) then
+            return plot, "owner"
         end
     end
-    return nil
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local nearest, nearestDist = nil, math.huge
+        for _, plot in ipairs(plots:GetChildren()) do
+            local center = getModelCenter(plot)
+            if center then
+                local d = (hrp.Position - center).Magnitude
+                if d < nearestDist then
+                    nearestDist = d
+                    nearest = plot
+                end
+            end
+        end
+        if nearest and nearestDist < 300 then
+            return nearest, "nearest (" .. math.floor(nearestDist) .. " studs)"
+        end
+    end
+
+    return nil, "no owner match, no nearby plot"
 end
 
 local function findTreadmill(plotName)
     local renders = Workspace:FindFirstChild("__ClientTreadmillRenders")
     if not renders then return nil end
+
+    local exact = renders:FindFirstChild("TreadmillRenderer_" .. plotName)
+    if exact then return exact end
 
     local plotNumber = tonumber(string.match(plotName, "%d+"))
     if not plotNumber then return nil end
@@ -116,64 +170,57 @@ end
 
 local function getTreadmillCenter(treadmill)
     if not treadmill then return nil end
-
-    if treadmill:IsA("BasePart") then
-        return treadmill.Position
-    end
+    if treadmill:IsA("BasePart") then return treadmill.Position end
 
     local bbox = treadmill:FindFirstChild("BoundingBoxPart", true)
-    if bbox and bbox:IsA("BasePart") then
-        return bbox.Position
-    end
+    if bbox and bbox:IsA("BasePart") then return bbox.Position end
 
     local root = treadmill:FindFirstChild("Root", true)
-    if root and root:IsA("BasePart") then
-        return root.Position
-    end
+    if root and root:IsA("BasePart") then return root.Position end
 
-    if treadmill.PrimaryPart then
-        return treadmill.PrimaryPart.Position
-    end
+    if treadmill.PrimaryPart then return treadmill.PrimaryPart.Position end
 
-    local sum = Vector3.new(0, 0, 0)
-    local count = 0
-    for _, desc in ipairs(treadmill:GetDescendants()) do
-        if desc:IsA("BasePart") then
-            sum = sum + desc.Position
-            count = count + 1
-        end
-    end
-    if count == 0 then return nil end
-    return sum / count
+    return getModelCenter(treadmill)
 end
 
 local function teleportToTreadmill()
-    local char = getCharacter()
-    if not char then return end
+    local char = LocalPlayer.Character
+    if not char then return false, "no character" end
 
-    local hrp = char.HumanoidRootPart
+    local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hrp or not hum or hum.Health <= 0 then return end
+    if not hrp or not hum or hum.Health <= 0 then return false, "no hrp/hum" end
 
-    local plot = findLocalPlot()
-    if not plot then return end
+    if not cachedPlot or not cachedPlot.Parent then
+        cachedPlot = nil
+        local plot = findLocalPlot()
+        if plot then
+            cachedPlot = plot
+        end
+    end
+    if not cachedPlot then
+        local _, reason = findLocalPlot()
+        return false, reason or "no plot"
+    end
 
-    local treadmill = findTreadmill(plot.Name)
-    if not treadmill then return end
+    local treadmill = findTreadmill(cachedPlot.Name)
+    if not treadmill then
+        return false, "no treadmill for plot " .. cachedPlot.Name
+    end
 
     local center = getTreadmillCenter(treadmill)
-    if not center then return end
+    if not center then return false, "no center" end
 
-    local targetPos = center + Vector3.new(0, 3, 0)
-
-    if (hrp.Position - targetPos).Magnitude > 0.5 then
-        hrp.CFrame = CFrame.new(targetPos)
+    local target = center + Vector3.new(0, 3, 0)
+    if (hrp.Position - target).Magnitude > 0.5 then
+        hrp.CFrame = CFrame.new(target)
     end
 
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.AssemblyAngularVelocity = Vector3.zero
     hrp.Velocity = Vector3.zero
     hrp.RotVelocity = Vector3.zero
+    return true
 end
 
 local function startAutoTreadmill()
@@ -181,16 +228,52 @@ local function startAutoTreadmill()
     autoTreadmillEnabled = true
     undeitedhub.Toggles.autoTreadmill = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+    announcedSuccess = false
+
+    SafeNotify({
+        Title = "Auto Treadmill",
+        Content = "Searching for your plot...",
+        Duration = 2,
+    })
 
     treadmillTask = task.spawn(function()
+        local failureCount = 0
+        local lastReason = ""
+
         while autoTreadmillEnabled do
-            pcall(function()
-                if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                    teleportToTreadmill()
+            local ok, result = pcall(teleportToTreadmill)
+            if not ok then
+                result = "error: " .. tostring(result)
+            end
+
+            if result == true then
+                failureCount = 0
+                if not announcedSuccess then
+                    announcedSuccess = true
+                    SafeNotify({
+                        Title = "Auto Treadmill",
+                        Content = "Active on plot " .. (cachedPlot and cachedPlot.Name or "?"),
+                        Duration = 2,
+                    })
                 end
-            end)
+            else
+                failureCount = failureCount + 1
+                lastReason = result
+                if failureCount == 30 then
+                    SafeNotify({
+                        Title = "Auto Treadmill",
+                        Content = "Waiting: " .. tostring(result),
+                        Duration = 3,
+                    })
+                end
+                if failureCount >= 60 then
+                    cachedPlot = nil
+                end
+            end
+
             task.wait(0.1)
         end
+
         treadmillTask = nil
     end)
 end
@@ -202,6 +285,7 @@ local function stopAutoTreadmill()
         task.cancel(treadmillTask)
         treadmillTask = nil
     end
+    cachedPlot = nil
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
@@ -213,12 +297,34 @@ AutofarmTab:Toggle({
             startAutoTreadmill()
         else
             stopAutoTreadmill()
+            SafeNotify({
+                Title = "Auto Treadmill",
+                Content = "Disabled",
+                Duration = 2,
+            })
         end
-        SafeNotify({
-            Title = "Auto Treadmill",
-            Content = state and "Enabled" or "Disabled",
-            Duration = 2,
-        })
+    end
+})
+
+AutofarmTab:Button({
+    Title = "Force Rescan Plot",
+    Callback = function()
+        cachedPlot = nil
+        announcedSuccess = false
+        local plot, reason = findLocalPlot()
+        if plot then
+            SafeNotify({
+                Title = "Rescan",
+                Content = "Found plot: " .. plot.Name .. " (" .. tostring(reason) .. ")",
+                Duration = 3,
+            })
+        else
+            SafeNotify({
+                Title = "Rescan",
+                Content = "Failed: " .. tostring(reason),
+                Duration = 3,
+            })
+        end
     end
 })
 
