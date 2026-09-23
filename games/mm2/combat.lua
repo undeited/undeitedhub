@@ -286,26 +286,160 @@ CombatTab:Toggle({
 
 local autoShootEnabled = undeitedhub.Toggles.autoShootEnabled or false
 local lastShootTime = 0
-local SHOOT_COOLDOWN = config.cooldowns.autoShoot or 0.3
 local BULLET_SPEED = 1200
-local PREDICTION_MULTIPLIER = 1.5
+
+local pingHistory = {}
+local pingSamples = 0
+
+local function GetPingRaw()
+    local ping = 0
+    pcall(function()
+        local stats = game:GetService("Stats")
+        if stats and stats.Network and stats.Network.ServerStatsItem then
+            local item = stats.Network.ServerStatsItem["Data Ping"]
+            if item then
+                ping = item:GetValue() / 1000
+            end
+        end
+    end)
+    return ping
+end
+
+local function GetSmoothedPing()
+    local raw = GetPingRaw()
+    if raw < 0 then raw = 0 end
+    table.insert(pingHistory, raw)
+    if #pingHistory > 20 then table.remove(pingHistory, 1) end
+    local sum = 0
+    for _, v in ipairs(pingHistory) do sum = sum + v end
+    local avg = sum / #pingHistory
+    if avg > 0.5 then avg = 0.5 end
+    return avg
+end
+
+local function GetPlayerCount()
+    return #game.Players:GetPlayers()
+end
+
+local function AutoTuneConfig()
+    local ping = GetSmoothedPing()
+    local players = GetPlayerCount()
+
+    local iterations = 4
+    if ping > 0.05 then iterations = 5 end
+    if ping > 0.1 then iterations = 6 end
+    if ping > 0.18 then iterations = 7 end
+    if ping > 0.3 then iterations = 8 end
+
+    local maxPrediction = 10
+    if ping > 0.05 then maxPrediction = 12 end
+    if ping > 0.12 then maxPrediction = 15 end
+    if ping > 0.2 then maxPrediction = 18 end
+    if ping > 0.3 then maxPrediction = 22 end
+
+    local cooldown = config.cooldowns.autoShoot or 0.3
+    if players > 8 then
+        cooldown = math.max(cooldown, 0.35)
+    end
+    if players > 12 then
+        cooldown = math.max(cooldown, 0.45)
+    end
+    if ping > 0.25 then
+        cooldown = math.max(cooldown, 0.4)
+    end
+
+    local maxPing = 0.5
+    if players > 10 then
+        maxPing = 0.6
+    end
+
+    return iterations, maxPrediction, cooldown, maxPing
+end
+
+local function AutoTuneHistory()
+    return 6
+end
 
 local murdererHistory = {}
 
 local function GetMurdererVelocity(murderer)
     local history = murdererHistory[murderer]
-    if not history then return Vector3.new(0,0,0) end
-    return MathUtils.SmoothVelocity(history, 3)
+    if not history then return Vector3.new(0, 0, 0), 0 end
+    if MathUtils.SmoothVelocity then
+        local v = MathUtils.SmoothVelocity(history, AutoTuneHistory())
+        return v, v.Magnitude
+    end
+    return Vector3.new(0, 0, 0), 0
 end
 
 local function UpdateMurdererHistory(murderer, pos)
     local history = murdererHistory[murderer]
     if not history then
-        history = {positions = {}, times = {}}
+        history = {}
         murdererHistory[murderer] = history
     end
-    table.insert(history, {pos = pos, time = tick()})
-    if #history > 3 then table.remove(history, 1) end
+    table.insert(history, { pos = pos, time = tick() })
+    local maxHistory = AutoTuneHistory()
+    while #history > maxHistory do
+        table.remove(history, 1)
+    end
+end
+
+local function ComputePredictedPosition(origin, targetPos, velocity, speed)
+    local iterations, maxPrediction = AutoTuneConfig()
+    local ping = GetSmoothedPing()
+    local gravity = Vector3.new(0, -workspace.Gravity, 0)
+
+    local dynamicMax = maxPrediction
+    if speed > 15 then dynamicMax = dynamicMax + 2 end
+    if speed > 25 then dynamicMax = dynamicMax + 4 end
+    if speed > 40 then dynamicMax = dynamicMax + 6 end
+
+    local distance = (targetPos - origin).Magnitude
+    if distance > 80 then dynamicMax = dynamicMax + 3 end
+    if distance > 150 then dynamicMax = dynamicMax + 6 end
+
+    local predicted = nil
+
+    if MathUtils.PredictLinearIntercept then
+        local intercept = MathUtils.PredictLinearIntercept(origin, targetPos, velocity, BULLET_SPEED)
+        if intercept then
+            predicted = intercept
+            local travelTime = 0
+            if MathUtils.SolveTravelTime then
+                travelTime = MathUtils.SolveTravelTime(origin, targetPos, velocity, BULLET_SPEED) or 0
+            end
+            local totalTime = travelTime + ping
+            predicted = predicted + gravity * 0.5 * (totalTime * totalTime)
+        end
+    end
+
+    if not predicted and MathUtils.PredictPositionIterative then
+        predicted = MathUtils.PredictPositionIterative(
+            origin,
+            targetPos,
+            velocity,
+            BULLET_SPEED,
+            gravity,
+            iterations
+        )
+        if ping > 0 then
+            predicted = predicted + gravity * 0.5 * (ping * ping)
+        end
+    end
+
+    if not predicted then
+        predicted = MathUtils.PredictPosition(origin, targetPos, velocity, BULLET_SPEED, gravity)
+        if ping > 0 then
+            predicted = predicted + gravity * 0.5 * (ping * ping)
+        end
+    end
+
+    if MathUtils.ClampMagnitude then
+        predicted = MathUtils.ClampMagnitude(predicted - targetPos, dynamicMax) + targetPos
+    end
+
+    return predicted
 end
 
 local function GetShootRemote()
@@ -316,6 +450,33 @@ local function GetShootRemote()
         return shootRemote
     end
     return nil
+end
+
+local function CheckLineOfSight(origin, predictedPos, murdererChar, localPlayer, murderer)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = { localPlayer.Character }
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local direction = (predictedPos - origin)
+    local rayResult = workspace:Raycast(origin, direction, raycastParams)
+
+    if not rayResult then
+        return true, false
+    end
+
+    local hitPart = rayResult.Instance
+    if hitPart:IsDescendantOf(murdererChar) then
+        return true, false
+    end
+
+    local playerHit = game.Players:GetPlayerFromCharacter(hitPart.Parent)
+    if playerHit and playerHit ~= localPlayer and playerHit ~= murderer then
+        local role = undeitedhub.GetPlayerRole and undeitedhub.GetPlayerRole(playerHit)
+        if role == "Innocent" or role == nil then
+            return false, true
+        end
+    end
+
+    return false, false
 end
 
 local function ShootMurdererOnce()
@@ -369,40 +530,12 @@ local function ShootMurdererOnce()
 
     local currentPos = rootPart.Position
     UpdateMurdererHistory(murderer, currentPos)
-    local velocity = GetMurdererVelocity(murderer)
+    local velocity, speed = GetMurdererVelocity(murderer)
 
-    local predictedPos = MathUtils.PredictPosition(
-        originCFrame.Position,
-        currentPos,
-        velocity,
-        BULLET_SPEED,
-        Vector3.new(0, -workspace.Gravity, 0)
-    )
-    predictedPos = MathUtils.ClampMagnitude(predictedPos - currentPos, 10) + currentPos
+    local predictedPos = ComputePredictedPosition(originCFrame.Position, currentPos, velocity, speed)
 
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {localPlayer.Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     local origin = originCFrame.Position
-    local direction = (predictedPos - origin).Unit * ((predictedPos - origin).Magnitude + 5)
-    local rayResult = workspace:Raycast(origin, direction, raycastParams)
-
-    local visible = false
-    local blockedByInnocent = false
-    if rayResult then
-        local hitPart = rayResult.Instance
-        if hitPart:IsDescendantOf(murdererChar) then
-            visible = true
-        else
-            local playerHit = game.Players:GetPlayerFromCharacter(hitPart.Parent)
-            if playerHit and playerHit ~= localPlayer and playerHit ~= murderer then
-                local role = undeitedhub.GetPlayerRole and undeitedhub.GetPlayerRole(playerHit)
-                if role == "Innocent" or role == nil then
-                    blockedByInnocent = true
-                end
-            end
-        end
-    end
+    local visible, blockedByInnocent = CheckLineOfSight(origin, predictedPos, murdererChar, localPlayer, murderer)
 
     if not visible then
         if blockedByInnocent then
@@ -451,31 +584,12 @@ local function ShootAtMurderer()
 
     local currentPos = rootPart.Position
     UpdateMurdererHistory(murderer, currentPos)
-    local velocity = GetMurdererVelocity(murderer)
+    local velocity, speed = GetMurdererVelocity(murderer)
 
-    local predictedPos = MathUtils.PredictPosition(
-        originCFrame.Position,
-        currentPos,
-        velocity,
-        BULLET_SPEED,
-        Vector3.new(0, -workspace.Gravity, 0)
-    )
-    predictedPos = MathUtils.ClampMagnitude(predictedPos - currentPos, 10) + currentPos
+    local predictedPos = ComputePredictedPosition(originCFrame.Position, currentPos, velocity, speed)
 
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {localPlayer.Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     local origin = originCFrame.Position
-    local direction = (predictedPos - origin).Unit * ((predictedPos - origin).Magnitude + 5)
-    local rayResult = workspace:Raycast(origin, direction, raycastParams)
-
-    local visible = false
-    if rayResult then
-        local hitPart = rayResult.Instance
-        if hitPart:IsDescendantOf(murdererChar) then
-            visible = true
-        end
-    end
+    local visible = CheckLineOfSight(origin, predictedPos, murdererChar, localPlayer, murderer)
 
     if not visible then return end
 
@@ -488,7 +602,8 @@ end
 game:GetService("RunService").Heartbeat:Connect(function()
     if autoShootEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
         local now = tick()
-        if now - lastShootTime >= SHOOT_COOLDOWN then
+        local _, _, cooldown = AutoTuneConfig()
+        if now - lastShootTime >= cooldown then
             lastShootTime = now
             pcall(ShootAtMurderer)
         end
@@ -517,6 +632,7 @@ CombatTab:Toggle({
         if autoShootEnabled then
             lastShootTime = tick()
             murdererHistory = {}
+            pingHistory = {}
         end
     end
 })
@@ -783,4 +899,5 @@ undeitedhub.DisableAll = function()
         gunDropAddedConnection = nil
     end
     murdererHistory = {}
+    pingHistory = {}
 end
