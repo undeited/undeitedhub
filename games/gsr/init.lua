@@ -97,8 +97,6 @@ local function LoadSettings()
                 if data.toggleKey then
                     undeitedhub.ToggleKey = data.toggleKey
                 end
-                if data.walkSpeed then config.walkSpeed = data.walkSpeed end
-                if data.jumpPower then config.jumpPower = data.jumpPower end
                 return
             end
         end
@@ -116,8 +114,6 @@ local function LoadSettings()
             if stored.toggleKey then
                 undeitedhub.ToggleKey = stored.toggleKey
             end
-            if stored.walkSpeed then config.walkSpeed = stored.walkSpeed end
-            if stored.jumpPower then config.jumpPower = stored.jumpPower end
         end
     end)
 end
@@ -128,8 +124,6 @@ local function SaveSettings()
             toggles = undeitedhub.Toggles,
             theme = ResolveThemeName(undeitedhub.CurrentTheme or "Default"),
             toggleKey = undeitedhub.ToggleKey or config.toggleKey or "K",
-            walkSpeed = config.walkSpeed,
-            jumpPower = config.jumpPower,
         }
 
         if writefile and makefolder then
