@@ -6,6 +6,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
+local STAND_OFFSET = 2.0
+
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
     if WindUI and type(WindUI.Notify) == "function" then
@@ -49,14 +51,14 @@ local function getTreadmillSize(treadmill)
         local s = treadmill.Size
         return math.max(s.X, s.Z)
     end
-    local bbox = treadmill:FindFirstChild("BoundingBoxPart", true)
-    if bbox and bbox:IsA("BasePart") then
-        local s = bbox.Size
-        return math.max(s.X, s.Z)
-    end
     local bottom = treadmill:FindFirstChild("Bottom", true)
     if bottom and bottom:IsA("BasePart") then
         local s = bottom.Size
+        return math.max(s.X, s.Z)
+    end
+    local bbox = treadmill:FindFirstChild("BoundingBoxPart", true)
+    if bbox and bbox:IsA("BasePart") then
+        local s = bbox.Size
         return math.max(s.X, s.Z)
     end
     local ok, size = pcall(function() return treadmill:GetExtentsSize() end)
@@ -68,25 +70,25 @@ end
 
 local function surfacePoint(part, extraY)
     if not part or not part:IsA("BasePart") then return nil end
-    local s = part.Size
-    local localTop = part.CFrame.UpVector * (s.Y * 0.5)
-    return part.Position + localTop + Vector3.new(0, extraY or 0, 0)
+    local up = part.CFrame.UpVector
+    local halfHeight = part.Size.Y * 0.5
+    return part.Position + up * (halfHeight + (extraY or 0))
 end
 
 local function getTreadmillStandPoint(treadmill)
-    if not treadmill then return nil, nil end
+    if not treadmill then return nil end
     if treadmill:IsA("BasePart") then
-        return surfacePoint(treadmill, 3), treadmill
+        return surfacePoint(treadmill, STAND_OFFSET)
     end
 
     local bottom = treadmill:FindFirstChild("Bottom", true)
     if bottom and bottom:IsA("BasePart") then
-        return surfacePoint(bottom, 3), bottom
+        return surfacePoint(bottom, STAND_OFFSET)
     end
 
     local bbox = treadmill:FindFirstChild("BoundingBoxPart", true)
     if bbox and bbox:IsA("BasePart") then
-        return surfacePoint(bbox, 3), bbox
+        return surfacePoint(bbox, STAND_OFFSET)
     end
 
     local meshParts = {}
@@ -110,23 +112,23 @@ local function getTreadmillStandPoint(treadmill)
     if #meshParts > 0 then
         local cx = (minX + maxX) / 2
         local cz = (minZ + maxZ) / 2
-        return Vector3.new(cx, topY + 3, cz), meshParts[1]
+        return Vector3.new(cx, topY + STAND_OFFSET, cz)
     end
 
     local root = treadmill:FindFirstChild("Root", true)
     if root and root:IsA("BasePart") then
-        return surfacePoint(root, 3), root
+        return surfacePoint(root, STAND_OFFSET)
     end
 
     if treadmill.PrimaryPart then
-        return surfacePoint(treadmill.PrimaryPart, 3), treadmill.PrimaryPart
+        return surfacePoint(treadmill.PrimaryPart, STAND_OFFSET)
     end
 
     local center = getModelCenter(treadmill)
     if center then
-        return center + Vector3.new(0, 3, 0), treadmill
+        return center + Vector3.new(0, STAND_OFFSET, 0)
     end
-    return nil, nil
+    return nil
 end
 
 local function plotHasLocalOwner(plot)
@@ -290,11 +292,14 @@ local function teleportOnce()
     local treadmill, standPoint, err = resolveTreadmill()
     if not standPoint then return false, err end
 
-    hrp.CFrame = CFrame.new(standPoint)
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-    hrp.Velocity = Vector3.zero
-    hrp.RotVelocity = Vector3.zero
+    char:PivotTo(CFrame.new(standPoint))
+
+    task.defer(function()
+        if hrp and hrp.Parent then
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end
+    end)
 
     return true, standPoint, treadmill
 end
@@ -329,6 +334,8 @@ local function startAutoTreadmill()
         local needsSettle = false
         local settleStart = 0
         local settleLogged = false
+        local reanchorCount = 0
+        local reanchorWindowStart = 0
 
         while autoTreadmillEnabled do
             local char = LocalPlayer.Character
@@ -345,6 +352,8 @@ local function startAutoTreadmill()
                 needsSettle = true
                 settleStart = tick()
                 settleLogged = false
+                reanchorCount = 0
+                reanchorWindowStart = tick()
             end
 
             if not hrp or not hum then
@@ -428,11 +437,20 @@ local function startAutoTreadmill()
                     end
 
                     failureCount = 0
-                    SafeNotify({
-                        Title = "Auto Treadmill",
-                        Content = "Active on plot " .. (cachedPlot and cachedPlot.Name or "?"),
-                        Duration = 2,
-                    })
+
+                    if tick() - reanchorWindowStart > 5 then
+                        reanchorWindowStart = tick()
+                        reanchorCount = 0
+                    end
+                    reanchorCount = reanchorCount + 1
+
+                    if reanchorCount == 1 or reanchorCount % 4 == 0 then
+                        SafeNotify({
+                            Title = "Auto Treadmill",
+                            Content = "Active on plot " .. (cachedPlot and cachedPlot.Name or "?"),
+                            Duration = 2,
+                        })
+                    end
                 else
                     failureCount = failureCount + 1
                     lastReason = tostring(result or "error")
