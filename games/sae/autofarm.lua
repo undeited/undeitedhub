@@ -5,6 +5,9 @@ local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
+local CHECK_INTERVAL = 0.2
+local RESPAWN_SETTLE_TIME = 0.5
+
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
     if WindUI and type(WindUI.Notify) == "function" then
@@ -24,10 +27,6 @@ local autoTreadmillEnabled = undeitedhub.Toggles.autoTreadmill or false
 local treadmillTask = nil
 local cachedPlot = nil
 
-local LEAVE_THRESHOLD = 8
-local CHECK_INTERVAL = 0.25
-local RESPAWN_SETTLE_TIME = 0.6
-
 local function getModelCenter(model)
     if not model then return nil end
     if model:IsA("BasePart") then return model.Position end
@@ -44,6 +43,25 @@ local function getModelCenter(model)
     end
     if count == 0 then return nil end
     return sum / count
+end
+
+local function getTreadmillSize(treadmill)
+    if not treadmill then return nil end
+    if treadmill:IsA("BasePart") then
+        local s = treadmill.Size
+        return math.max(s.X, s.Z)
+    end
+    local bbox = treadmill:FindFirstChild("BoundingBoxPart", true)
+    if bbox and bbox:IsA("BasePart") then
+        local s = bbox.Size
+        return math.max(s.X, s.Z)
+    end
+    local model = treadmill:FindFirstChildWhichIsA("Model", true)
+    local ok, size = pcall(function() return treadmill:GetExtentsSize() end)
+    if ok and size then
+        return math.max(size.X, size.Z)
+    end
+    return nil
 end
 
 local function plotHasLocalOwner(plot)
@@ -229,7 +247,7 @@ local function teleportOnce()
     hrp.Velocity = Vector3.zero
     hrp.RotVelocity = Vector3.zero
 
-    return true, "ok", center, treadmill
+    return true, center, treadmill
 end
 
 local function startAutoTreadmill()
@@ -248,6 +266,7 @@ local function startAutoTreadmill()
         local anchored = false
         local anchorCenter = nil
         local anchorTreadmill = nil
+        local leaveThreshold = 8
         local failureCount = 0
         local lastReason = ""
         local lastCharacter = nil
@@ -321,6 +340,14 @@ local function startAutoTreadmill()
                     anchored = true
                     anchorCenter = center
                     anchorTreadmill = treadmill
+
+                    local size = getTreadmillSize(treadmill)
+                    if size and size > 0 then
+                        leaveThreshold = math.max(6, size * 1.5)
+                    else
+                        leaveThreshold = 8
+                    end
+
                     failureCount = 0
                     SafeNotify({
                         Title = "Auto Treadmill",
@@ -343,7 +370,7 @@ local function startAutoTreadmill()
                 end
             else
                 local dist = (hrp.Position - anchorCenter).Magnitude
-                if dist > LEAVE_THRESHOLD then
+                if dist > leaveThreshold then
                     anchored = false
                     anchorCenter = nil
                     anchorTreadmill = nil
