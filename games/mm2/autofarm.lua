@@ -846,14 +846,14 @@ AutofarmTab:Toggle({
 })
 
 AutofarmTab:Toggle({
-    Title = "Auto Kill All when Bag Full",
+    Title = "Auto Kill All When Done",
     Value = killAfterFullEnabled,
     Callback = function(state)
         killAfterFullEnabled = state
         undeitedhub.Toggles.killAfterFullEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({
-            Title = "Auto Kill All when Bag Full",
+            Title = "Auto Kill All When Done",
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
@@ -861,7 +861,7 @@ AutofarmTab:Toggle({
 })
 
 AutofarmTab:Toggle({
-    Title = "Auto Teleport to Lobby when done",
+    Title = "Auto Teleport To Lobby When Done",
     Value = autoTeleportToLobbyEnabled,
     Callback = function(state)
         autoTeleportToLobbyEnabled = state
