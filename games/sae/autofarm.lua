@@ -3,10 +3,8 @@ local AutofarmTab = undeitedhub.Window:Tab({ Title = "Autofarm" })
 
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-
-local CHECK_INTERVAL = 0.2
-local RESPAWN_SETTLE_TIME = 0.5
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -56,12 +54,55 @@ local function getTreadmillSize(treadmill)
         local s = bbox.Size
         return math.max(s.X, s.Z)
     end
-    local model = treadmill:FindFirstChildWhichIsA("Model", true)
     local ok, size = pcall(function() return treadmill:GetExtentsSize() end)
     if ok and size then
         return math.max(size.X, size.Z)
     end
     return nil
+end
+
+local function getTreadmillCenter(treadmill)
+    if not treadmill then return nil end
+    if treadmill:IsA("BasePart") then return treadmill.Position end
+
+    local bbox = treadmill:FindFirstChild("BoundingBoxPart", true)
+    if bbox and bbox:IsA("BasePart") then
+        return bbox.Position
+    end
+
+    local meshParts = {}
+    local topY = -math.huge
+    local minX, maxX = math.huge, -math.huge
+    local minZ, maxZ = math.huge, -math.huge
+    for _, d in ipairs(treadmill:GetDescendants()) do
+        if d:IsA("BasePart") then
+            local n = d.Name
+            if n:find("Cube") or n:find("Treadmill") or n:find("Mesh") then
+                table.insert(meshParts, d)
+                if d.Position.Y > topY then topY = d.Position.Y end
+                if d.Position.X < minX then minX = d.Position.X end
+                if d.Position.X > maxX then maxX = d.Position.X end
+                if d.Position.Z < minZ then minZ = d.Position.Z end
+                if d.Position.Z > maxZ then maxZ = d.Position.Z end
+            end
+        end
+    end
+    if #meshParts > 0 then
+        local cx = (minX + maxX) / 2
+        local cz = (minZ + maxZ) / 2
+        return Vector3.new(cx, topY, cz)
+    end
+
+    local root = treadmill:FindFirstChild("Root", true)
+    if root and root:IsA("BasePart") then
+        return root.Position
+    end
+
+    if treadmill.PrimaryPart then
+        return treadmill.PrimaryPart.Position
+    end
+
+    return getModelCenter(treadmill)
 end
 
 local function plotHasLocalOwner(plot)
@@ -189,21 +230,6 @@ local function findTreadmill(plotName)
     return nil
 end
 
-local function getTreadmillCenter(treadmill)
-    if not treadmill then return nil end
-    if treadmill:IsA("BasePart") then return treadmill.Position end
-
-    local bbox = treadmill:FindFirstChild("BoundingBoxPart", true)
-    if bbox and bbox:IsA("BasePart") then return bbox.Position end
-
-    local root = treadmill:FindFirstChild("Root", true)
-    if root and root:IsA("BasePart") then return root.Position end
-
-    if treadmill.PrimaryPart then return treadmill.PrimaryPart.Position end
-
-    return getModelCenter(treadmill)
-end
-
 local function resolveTreadmill()
     if not cachedPlot or not cachedPlot.Parent then
         cachedPlot = nil
@@ -250,6 +276,12 @@ local function teleportOnce()
     return true, center, treadmill
 end
 
+local function isCharacterSettled(hrp, hum)
+    if not hrp or not hum or hum.Health <= 0 then return false end
+    return hrp.AssemblyLinearVelocity.Magnitude < 3
+        and hrp.AssemblyAngularVelocity.Magnitude < 3
+end
+
 local function startAutoTreadmill()
     if treadmillTask then return end
     autoTreadmillEnabled = true
@@ -271,8 +303,9 @@ local function startAutoTreadmill()
         local lastReason = ""
         local lastCharacter = nil
         local lastHealth = nil
-        local respawnGraceUntil = 0
-        local waitingForRespawn = false
+        local needsSettle = false
+        local settleStart = 0
+        local settleLogged = false
 
         while autoTreadmillEnabled do
             local char = LocalPlayer.Character
@@ -286,15 +319,19 @@ local function startAutoTreadmill()
                 anchorTreadmill = nil
                 failureCount = 0
                 lastHealth = nil
-                waitingForRespawn = false
-                respawnGraceUntil = tick() + RESPAWN_SETTLE_TIME
+                needsSettle = true
+                settleStart = tick()
+                settleLogged = false
             end
 
             if not hrp or not hum then
                 anchored = false
                 anchorCenter = nil
                 anchorTreadmill = nil
-                task.wait(CHECK_INTERVAL)
+                needsSettle = true
+                settleStart = tick()
+                settleLogged = false
+                RunService.Heartbeat:Wait()
                 continue
             end
 
@@ -305,27 +342,46 @@ local function startAutoTreadmill()
                     anchored = false
                     anchorCenter = nil
                     anchorTreadmill = nil
-                    waitingForRespawn = true
                 end
                 lastHealth = health
-                task.wait(CHECK_INTERVAL)
+                needsSettle = true
+                settleStart = tick()
+                settleLogged = false
+                RunService.Heartbeat:Wait()
                 continue
             end
 
-            if waitingForRespawn then
-                waitingForRespawn = false
-                respawnGraceUntil = tick() + RESPAWN_SETTLE_TIME
-                SafeNotify({
-                    Title = "Auto Treadmill",
-                    Content = "Respawned - re-anchoring...",
-                    Duration = 2,
-                })
-            end
             lastHealth = health
 
-            if tick() < respawnGraceUntil then
-                task.wait(CHECK_INTERVAL)
-                continue
+            if needsSettle then
+                local elapsed = tick() - settleStart
+                local settled = isCharacterSettled(hrp, hum)
+
+                if elapsed < 0.15 or not settled then
+                    if elapsed > 3 then
+                        needsSettle = false
+                    else
+                        if not settleLogged and elapsed > 0.3 then
+                            settleLogged = true
+                            SafeNotify({
+                                Title = "Auto Treadmill",
+                                Content = "Waiting for character to settle...",
+                                Duration = 1.5,
+                            })
+                        end
+                        RunService.Heartbeat:Wait()
+                        continue
+                    end
+                end
+
+                if needsSettle then
+                    needsSettle = false
+                    SafeNotify({
+                        Title = "Auto Treadmill",
+                        Content = "Respawned - re-anchoring...",
+                        Duration = 2,
+                    })
+                end
             end
 
             if anchorTreadmill and not anchorTreadmill.Parent then
@@ -377,7 +433,7 @@ local function startAutoTreadmill()
                 end
             end
 
-            task.wait(CHECK_INTERVAL)
+            RunService.Heartbeat:Wait()
         end
 
         treadmillTask = nil
