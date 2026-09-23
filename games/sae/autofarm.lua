@@ -54,6 +54,11 @@ local function getTreadmillSize(treadmill)
         local s = bbox.Size
         return math.max(s.X, s.Z)
     end
+    local bottom = treadmill:FindFirstChild("Bottom", true)
+    if bottom and bottom:IsA("BasePart") then
+        local s = bottom.Size
+        return math.max(s.X, s.Z)
+    end
     local ok, size = pcall(function() return treadmill:GetExtentsSize() end)
     if ok and size then
         return math.max(size.X, size.Z)
@@ -61,48 +66,67 @@ local function getTreadmillSize(treadmill)
     return nil
 end
 
-local function getTreadmillCenter(treadmill)
-    if not treadmill then return nil end
-    if treadmill:IsA("BasePart") then return treadmill.Position end
+local function surfacePoint(part, extraY)
+    if not part or not part:IsA("BasePart") then return nil end
+    local s = part.Size
+    local localTop = part.CFrame.UpVector * (s.Y * 0.5)
+    return part.Position + localTop + Vector3.new(0, extraY or 0, 0)
+end
+
+local function getTreadmillStandPoint(treadmill)
+    if not treadmill then return nil, nil end
+    if treadmill:IsA("BasePart") then
+        return surfacePoint(treadmill, 3), treadmill
+    end
+
+    local bottom = treadmill:FindFirstChild("Bottom", true)
+    if bottom and bottom:IsA("BasePart") then
+        return surfacePoint(bottom, 3), bottom
+    end
 
     local bbox = treadmill:FindFirstChild("BoundingBoxPart", true)
     if bbox and bbox:IsA("BasePart") then
-        return bbox.Position
+        return surfacePoint(bbox, 3), bbox
     end
 
     local meshParts = {}
-    local topY = -math.huge
     local minX, maxX = math.huge, -math.huge
     local minZ, maxZ = math.huge, -math.huge
+    local topY = -math.huge
     for _, d in ipairs(treadmill:GetDescendants()) do
         if d:IsA("BasePart") then
             local n = d.Name
             if n:find("Cube") or n:find("Treadmill") or n:find("Mesh") then
                 table.insert(meshParts, d)
-                if d.Position.Y > topY then topY = d.Position.Y end
                 if d.Position.X < minX then minX = d.Position.X end
                 if d.Position.X > maxX then maxX = d.Position.X end
                 if d.Position.Z < minZ then minZ = d.Position.Z end
                 if d.Position.Z > maxZ then maxZ = d.Position.Z end
+                local top = d.Position.Y + d.Size.Y * 0.5
+                if top > topY then topY = top end
             end
         end
     end
     if #meshParts > 0 then
         local cx = (minX + maxX) / 2
         local cz = (minZ + maxZ) / 2
-        return Vector3.new(cx, topY, cz)
+        return Vector3.new(cx, topY + 3, cz), meshParts[1]
     end
 
     local root = treadmill:FindFirstChild("Root", true)
     if root and root:IsA("BasePart") then
-        return root.Position
+        return surfacePoint(root, 3), root
     end
 
     if treadmill.PrimaryPart then
-        return treadmill.PrimaryPart.Position
+        return surfacePoint(treadmill.PrimaryPart, 3), treadmill.PrimaryPart
     end
 
-    return getModelCenter(treadmill)
+    local center = getModelCenter(treadmill)
+    if center then
+        return center + Vector3.new(0, 3, 0), treadmill
+    end
+    return nil, nil
 end
 
 local function plotHasLocalOwner(plot)
@@ -247,12 +271,12 @@ local function resolveTreadmill()
         return nil, nil, "no treadmill for plot " .. cachedPlot.Name
     end
 
-    local center = getTreadmillCenter(treadmill)
-    if not center then
-        return nil, nil, "no treadmill center"
+    local standPoint = getTreadmillStandPoint(treadmill)
+    if not standPoint then
+        return nil, nil, "no treadmill stand point"
     end
 
-    return treadmill, center, nil
+    return treadmill, standPoint, nil
 end
 
 local function teleportOnce()
@@ -263,17 +287,16 @@ local function teleportOnce()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum or hum.Health <= 0 then return false, "no hrp/hum" end
 
-    local treadmill, center, err = resolveTreadmill()
-    if not center then return false, err end
+    local treadmill, standPoint, err = resolveTreadmill()
+    if not standPoint then return false, err end
 
-    local target = center + Vector3.new(0, 3, 0)
-    hrp.CFrame = CFrame.new(target)
+    hrp.CFrame = CFrame.new(standPoint)
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.AssemblyAngularVelocity = Vector3.zero
     hrp.Velocity = Vector3.zero
     hrp.RotVelocity = Vector3.zero
 
-    return true, center, treadmill
+    return true, standPoint, treadmill
 end
 
 local function isCharacterSettled(hrp, hum)
@@ -296,7 +319,7 @@ local function startAutoTreadmill()
 
     treadmillTask = task.spawn(function()
         local anchored = false
-        local anchorCenter = nil
+        local anchorPoint = nil
         local anchorTreadmill = nil
         local leaveThreshold = 8
         local failureCount = 0
@@ -315,7 +338,7 @@ local function startAutoTreadmill()
             if char ~= lastCharacter then
                 lastCharacter = char
                 anchored = false
-                anchorCenter = nil
+                anchorPoint = nil
                 anchorTreadmill = nil
                 failureCount = 0
                 lastHealth = nil
@@ -326,7 +349,7 @@ local function startAutoTreadmill()
 
             if not hrp or not hum then
                 anchored = false
-                anchorCenter = nil
+                anchorPoint = nil
                 anchorTreadmill = nil
                 needsSettle = true
                 settleStart = tick()
@@ -340,7 +363,7 @@ local function startAutoTreadmill()
             if health <= 0 then
                 if lastHealth and lastHealth > 0 then
                     anchored = false
-                    anchorCenter = nil
+                    anchorPoint = nil
                     anchorTreadmill = nil
                 end
                 lastHealth = health
@@ -386,15 +409,15 @@ local function startAutoTreadmill()
 
             if anchorTreadmill and not anchorTreadmill.Parent then
                 anchored = false
-                anchorCenter = nil
+                anchorPoint = nil
                 anchorTreadmill = nil
             end
 
             if not anchored then
-                local ok, result, center, treadmill = pcall(teleportOnce)
+                local ok, result, standPoint, treadmill = pcall(teleportOnce)
                 if ok and result == true then
                     anchored = true
-                    anchorCenter = center
+                    anchorPoint = standPoint
                     anchorTreadmill = treadmill
 
                     local size = getTreadmillSize(treadmill)
@@ -425,10 +448,10 @@ local function startAutoTreadmill()
                     end
                 end
             else
-                local dist = (hrp.Position - anchorCenter).Magnitude
+                local dist = (hrp.Position - anchorPoint).Magnitude
                 if dist > leaveThreshold then
                     anchored = false
-                    anchorCenter = nil
+                    anchorPoint = nil
                     anchorTreadmill = nil
                 end
             end
