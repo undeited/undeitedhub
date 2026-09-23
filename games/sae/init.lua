@@ -198,6 +198,7 @@ local function SafeLoad(name)
 end
 
 SafeLoad("games/sae/esp.lua")
+SafeLoad("games/sae/autofarm.lua")
 SafeLoad("shared/settings.lua")
 
 if _G.UNDEITEDHUB_STATES then
