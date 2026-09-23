@@ -153,7 +153,7 @@ local function stopAutoGift()
 end
 
 MiscTab:Toggle({
-    Title = "Auto Gift",
+    Title = "Auto Claim Gifts",
     Value = autoGiftEnabled,
     Callback = function(state)
         if state then
@@ -162,7 +162,7 @@ MiscTab:Toggle({
             stopAutoGift()
         end
         SafeNotify({
-            Title = "Auto Gift",
+            Title = "Auto Claim Gifts",
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
