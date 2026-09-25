@@ -490,39 +490,42 @@ local function KeepOnFloor(character)
     if not character then return end
     local root = character:FindFirstChild("HumanoidRootPart")
     if not root then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+
+    local state = humanoid:GetState()
+    if state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall then
+        return
+    end
 
     local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = { character }
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.IgnoreWater = true
+    raycastParams.RespectCanCollide = true
 
-    local origin = root.Position
-    local direction = Vector3.new(0, -50, 0)
+    local origin = root.Position + Vector3.new(0, 4, 0)
+    local direction = Vector3.new(0, -300, 0)
     local result = workspace:Raycast(origin, direction, raycastParams)
 
-    if result then
-        local floorY = result.Position.Y
-        local currentY = root.Position.Y
-        local offset = 1.5
-        if currentY < floorY + offset then
-            local newPos = Vector3.new(root.Position.X, floorY + offset, root.Position.Z)
-            root.CFrame = CFrame.new(newPos)
-            root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
-            root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
-        end
-    end
-end
+    if not result then return end
 
-local function SetNoclipCollision(state)
-    local localPlayer = game.Players.LocalPlayer
-    if not localPlayer then return end
-    local character = localPlayer.Character
-    if not character then return end
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            pcall(function()
-                part.CanCollide = not state
-            end)
-        end
+    local hitPart = result.Instance
+    if hitPart and hitPart.Transparency >= 0.95 and hitPart.Name ~= "Baseplate" then
+        return
+    end
+
+    local rootHalfHeight = root.Size.Y * 0.5
+    local targetY = result.Position.Y + rootHalfHeight + 2
+
+    local diff = targetY - root.Position.Y
+
+    if diff > 0.75 then
+        local newCFrame = CFrame.new(root.Position.X, targetY, root.Position.Z)
+        local rot = root.CFrame - root.CFrame.Position
+        root.CFrame = newCFrame * rot
+        local vel = root.AssemblyLinearVelocity
+        root.AssemblyLinearVelocity = Vector3.new(vel.X, 0, vel.Z)
     end
 end
 
