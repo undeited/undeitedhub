@@ -486,86 +486,71 @@ SetupAntiFling()
 local noclipEnabled = undeitedhub.Toggles.noclipEnabled or false
 local noclipLoopTask = nil
 
-local noclipFloorY = nil
-local noclipFloorTime = 0
-local NOCLIP_FLOOR_MEMORY = 3
-local NOCLIP_FALL_MARGIN = 6
-
-local function UpdateNoclipFloor(character)
+local function ApplyNoclip(character)
     if not character then return end
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = { character }
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    raycastParams.IgnoreWater = true
-    raycastParams.RespectCanCollide = true
-
-    local origin = root.Position
-    local direction = Vector3.new(0, -50, 0)
-    local result = workspace:Raycast(origin, direction, raycastParams)
-
-    if result and result.Instance then
-        local part = result.Instance
-        local isSolidVisual = part.Transparency < 0.95
-        local isNamedFloor = part.Name == "Baseplate" or part.Name:lower():find("floor")
-        if isSolidVisual or isNamedFloor then
-            noclipFloorY = result.Position.Y
-            noclipFloorTime = tick()
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        pcall(function()
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        end)
+    end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            pcall(function()
+                part.CanCollide = false
+                part.CanTouch = false
+                part.CanQuery = false
+            end)
         end
     end
 end
 
-local function KeepFromFallingThroughWorld(character)
+local function RestoreNoclip(character)
     if not character then return end
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
-
-    if not noclipFloorY then return end
-    if tick() - noclipFloorTime > NOCLIP_FLOOR_MEMORY then
-        noclipFloorY = nil
-        return
+    if humanoid then
+        pcall(function()
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+        end)
     end
-
-    local vel = root.AssemblyLinearVelocity
-    local falling = vel.Y < -20
-
-    if not falling then return end
-
-    local rootHalfHeight = root.Size.Y * 0.5
-    local targetY = noclipFloorY + rootHalfHeight + 2
-
-    if root.Position.Y < targetY - NOCLIP_FALL_MARGIN then
-        local rot = root.CFrame - root.CFrame.Position
-        root.CFrame = CFrame.new(root.Position.X, targetY, root.Position.Z) * rot
-        root.AssemblyLinearVelocity = Vector3.new(vel.X, 0, vel.Z)
-        noclipFloorTime = tick()
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            pcall(function()
+                part.CanCollide = true
+                part.CanTouch = true
+                part.CanQuery = true
+            end)
+        end
     end
 end
 
+local noclipCharacterConn = nil
+
 local function StartNoclipLoop()
     if noclipLoopTask then return end
+
+    local localPlayer = game.Players.LocalPlayer
+    if localPlayer then
+        noclipCharacterConn = localPlayer.CharacterAdded:Connect(function(char)
+            task.wait(0.1)
+            if noclipEnabled then
+                ApplyNoclip(char)
+            end
+        end)
+    end
+
     noclipLoopTask = task.spawn(function()
         while noclipEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local localPlayer = game.Players.LocalPlayer
-                local character = localPlayer and localPlayer.Character
+                local player = game.Players.LocalPlayer
+                local character = player and player.Character
                 if character then
-                    for _, part in ipairs(character:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            pcall(function()
-                                part.CanCollide = false
-                            end)
-                        end
-                    end
-                    pcall(UpdateNoclipFloor, character)
-                    pcall(KeepFromFallingThroughWorld, character)
+                    ApplyNoclip(character)
                 end
             end
-            task.wait(0.08)
+            task.wait(0.05)
         end
         noclipLoopTask = nil
     end)
@@ -576,18 +561,14 @@ local function StopNoclipLoop()
         task.cancel(noclipLoopTask)
         noclipLoopTask = nil
     end
-    noclipFloorY = nil
-    noclipFloorTime = 0
+    if noclipCharacterConn then
+        noclipCharacterConn:Disconnect()
+        noclipCharacterConn = nil
+    end
     local localPlayer = game.Players.LocalPlayer
     local character = localPlayer and localPlayer.Character
     if character then
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                pcall(function()
-                    part.CanCollide = true
-                end)
-            end
-        end
+        RestoreNoclip(character)
     end
 end
 
