@@ -484,52 +484,29 @@ MiscTab:Toggle({
 SetupAntiFling()
 
 local noclipEnabled = undeitedhub.Toggles.noclipEnabled or false
-local noclipLoopTask = nil
+local noclipConnection = nil
+local noclipCharacterConn = nil
+
+local function DisablePartCollision(part)
+    if not part or not part:IsA("BasePart") then return end
+    pcall(function()
+        part.CanCollide = false
+    end)
+end
 
 local function ApplyNoclip(character)
     if not character then return end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        pcall(function()
-            humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
-            humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-        end)
-    end
     for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            pcall(function()
-                part.CanCollide = false
-                part.CanTouch = false
-                part.CanQuery = false
-            end)
-        end
+        DisablePartCollision(part)
+    end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if root then
+        DisablePartCollision(root)
     end
 end
-
-local function RestoreNoclip(character)
-    if not character then return end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        pcall(function()
-            humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
-            humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-        end)
-    end
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            pcall(function()
-                part.CanCollide = true
-                part.CanTouch = true
-                part.CanQuery = true
-            end)
-        end
-    end
-end
-
-local noclipCharacterConn = nil
 
 local function StartNoclipLoop()
-    if noclipLoopTask then return end
+    if noclipConnection then return end
 
     local localPlayer = game.Players.LocalPlayer
     if localPlayer then
@@ -541,25 +518,22 @@ local function StartNoclipLoop()
         end)
     end
 
-    noclipLoopTask = task.spawn(function()
-        while noclipEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local player = game.Players.LocalPlayer
-                local character = player and player.Character
-                if character then
-                    ApplyNoclip(character)
-                end
-            end
-            task.wait(0.05)
+    local RunService = game:GetService("RunService")
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not noclipEnabled then return end
+        if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+        local player = game.Players.LocalPlayer
+        local character = player and player.Character
+        if character then
+            ApplyNoclip(character)
         end
-        noclipLoopTask = nil
     end)
 end
 
 local function StopNoclipLoop()
-    if noclipLoopTask then
-        task.cancel(noclipLoopTask)
-        noclipLoopTask = nil
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
     end
     if noclipCharacterConn then
         noclipCharacterConn:Disconnect()
@@ -568,7 +542,13 @@ local function StopNoclipLoop()
     local localPlayer = game.Players.LocalPlayer
     local character = localPlayer and localPlayer.Character
     if character then
-        RestoreNoclip(character)
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                pcall(function()
+                    part.CanCollide = true
+                end)
+            end
+        end
     end
 end
 
