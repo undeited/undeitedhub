@@ -585,13 +585,13 @@ VisualTab:Toggle({
 })
 
 VisualTab:Toggle({
-    Title = "Gun Highlight",
+    Title = "Gun Drop Highlight",
     Value = gunHighlightEnabled,
     Callback = function(state)
         gunHighlightEnabled = state
         undeitedhub.Toggles.gunHighlightEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Gun Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
+        SafeNotify({ Title = "Gun Drop Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
         if not gunHighlightEnabled then ClearGunHighlights() end
         markGunsDirty()
         scheduleRefresh()
