@@ -86,6 +86,10 @@ local function refreshTuning()
     Tuning.explodeBuffer = clamp(6 * (1 + pingFactor * 0.6), 4, 20)
     Tuning.explodeLookahead = clamp(0.5 * (1 + pingFactor * 0.75), 0.3, 1.5)
     Tuning.explodeDetectionCooldown = clamp(2 + playerFactor, 1.5, 5)
+
+    Tuning.explodeLaunchThreshold = clamp(280 * gravityFactor * (1 + pingFactor * 0.4), 180, 900)
+    Tuning.explodeSafeSpeed = clamp(60 * gravityFactor, 40, 180)
+    Tuning.explodeRecoveryCooldown = clamp(0.25 * (1 + pingFactor * 0.5), 0.15, 0.6)
 end
 
 refreshTuning()
@@ -875,12 +879,16 @@ local DEFAULT_BOMB_RADIUS = 17.5
 
 local antiExplodeActive = false
 local antiExplodeTask = nil
+local antiExplodeHeartbeat = nil
 local detectedRadius = DEFAULT_BOMB_RADIUS
 local detectedPositionParts = { "Body", "PositionPart", "Main", "Part", "VisualBody" }
 local lastDetection = 0
 local toyFolderConnections = {}
 local activeBombs = {}
 local bombFolders = {}
+local explodeLastRecovery = 0
+local explodeSafeCFrame = nil
+local explodeSafeUpdated = 0
 
 local function looksLikeBomb(model)
     if not model or not model:IsA("Model") then return false end
@@ -1007,6 +1015,76 @@ local function isBombThreat(bomb, hrp)
     return false
 end
 
+local function neutralizeExplosionLaunch(character, hum, hrp, reason)
+    local now = tick()
+    if now - explodeLastRecovery < Tuning.explodeRecoveryCooldown then return end
+    explodeLastRecovery = now
+
+    for _, part in ipairs(getCharacterParts(character)) do
+        zeroVelocity(part)
+    end
+
+    for _, child in ipairs(character:GetChildren()) do
+        if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") or
+           child:IsA("BodyForce") or child:IsA("BodyGyro") or
+           child:IsA("BodyPosition") or child:IsA("BodyThrust") then
+            pcall(function() child:Destroy() end)
+        end
+    end
+
+    if explodeSafeCFrame then
+        pcall(function() character:PivotTo(explodeSafeCFrame) end)
+    end
+
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+        hum.AutoRotate = true
+        if hum.Sit then hum.Sit = false end
+        hum.PlatformStand = false
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end)
+
+    fireRecovery(character, hum)
+
+    SafeNotify({
+        Title = "Anti Explode",
+        Content = reason or "Neutralized explosion launch",
+        Duration = 1.5,
+    })
+end
+
+local function onExplodeHeartbeat()
+    if not antiExplodeActive then return end
+    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+
+    local character = LocalPlayer.Character
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    local hum = character:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then return end
+
+    local vel = hrp.AssemblyLinearVelocity
+    local speed = vel.Magnitude
+    local barrierY = getDeathBarrierHeight()
+    local pos = hrp.Position
+
+    if speed < Tuning.explodeSafeSpeed and pos.Y > barrierY + 100 then
+        explodeSafeCFrame = hrp.CFrame
+        explodeSafeUpdated = tick()
+    end
+
+    local threshold = Tuning.explodeLaunchThreshold
+    local isUpwardLaunch = vel.Y > 100 and speed > threshold * 0.5
+    local isHighSpeed = speed > threshold
+
+    if isHighSpeed or isUpwardLaunch then
+        neutralizeExplosionLaunch(character, hum, hrp, isUpwardLaunch and "Caught upward launch" or "Caught high-speed launch")
+    end
+end
+
 local function attachBombWatcher(folder)
     if folder.Name ~= ownFolderName then
         for _, toy in ipairs(folder:GetChildren()) do
@@ -1058,6 +1136,9 @@ local function ToggleAntiExplode(state)
         lastDetection = 0
         detectedRadius = DEFAULT_BOMB_RADIUS
         detectedPositionParts = { "Body", "PositionPart", "Main", "Part", "VisualBody" }
+        explodeLastRecovery = 0
+        explodeSafeCFrame = nil
+        explodeSafeUpdated = 0
 
         stopBombWatchers()
         bombFolders = getToyFolders()
@@ -1072,6 +1153,8 @@ local function ToggleAntiExplode(state)
                 attachBombWatcher(child)
             end
         end))
+
+        antiExplodeHeartbeat = RunService.Heartbeat:Connect(onExplodeHeartbeat)
 
         antiExplodeTask = task.spawn(function()
             while antiExplodeActive do
@@ -1129,8 +1212,13 @@ local function ToggleAntiExplode(state)
             task.cancel(antiExplodeTask)
             antiExplodeTask = nil
         end
+        if antiExplodeHeartbeat then
+            antiExplodeHeartbeat:Disconnect()
+            antiExplodeHeartbeat = nil
+        end
         stopBombWatchers()
         bombFolders = {}
+        explodeSafeCFrame = nil
     end
 end
 
