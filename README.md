@@ -12,6 +12,17 @@ Just a basic script hub with a bunch of upcoming supported games. I made this sc
 - [Muscle Legends](https://www.roblox.com/games/3623096087/Muscle-Legends)
 - [Steal An Egg](https://www.roblox.com/games/107778070777162/Steal-An-Egg)
 
+### Executor Requirements
+
+- loadstring
+- isfile
+- readfile
+- writefile
+- makefolder
+- hookmetamethod
+- getnamecallmethod
+- newcclosure
+
 ### Loadstring
 
 ```lua
