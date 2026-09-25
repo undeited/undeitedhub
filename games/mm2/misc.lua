@@ -486,17 +486,15 @@ SetupAntiFling()
 local noclipEnabled = undeitedhub.Toggles.noclipEnabled or false
 local noclipLoopTask = nil
 
-local function KeepOnFloor(character)
+local noclipFloorY = nil
+local noclipFloorTime = 0
+local NOCLIP_FLOOR_MEMORY = 3
+local NOCLIP_FALL_MARGIN = 6
+
+local function UpdateNoclipFloor(character)
     if not character then return end
     local root = character:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
-
-    local state = humanoid:GetState()
-    if state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall then
-        return
-    end
 
     local raycastParams = RaycastParams.new()
     raycastParams.FilterDescendantsInstances = { character }
@@ -504,28 +502,47 @@ local function KeepOnFloor(character)
     raycastParams.IgnoreWater = true
     raycastParams.RespectCanCollide = true
 
-    local origin = root.Position + Vector3.new(0, 4, 0)
-    local direction = Vector3.new(0, -300, 0)
+    local origin = root.Position
+    local direction = Vector3.new(0, -50, 0)
     local result = workspace:Raycast(origin, direction, raycastParams)
 
-    if not result then return end
+    if result and result.Instance then
+        local part = result.Instance
+        local isSolidVisual = part.Transparency < 0.95
+        local isNamedFloor = part.Name == "Baseplate" or part.Name:lower():find("floor")
+        if isSolidVisual or isNamedFloor then
+            noclipFloorY = result.Position.Y
+            noclipFloorTime = tick()
+        end
+    end
+end
 
-    local hitPart = result.Instance
-    if hitPart and hitPart.Transparency >= 0.95 and hitPart.Name ~= "Baseplate" then
+local function KeepFromFallingThroughWorld(character)
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+
+    if not noclipFloorY then return end
+    if tick() - noclipFloorTime > NOCLIP_FLOOR_MEMORY then
+        noclipFloorY = nil
         return
     end
 
+    local vel = root.AssemblyLinearVelocity
+    local falling = vel.Y < -20
+
+    if not falling then return end
+
     local rootHalfHeight = root.Size.Y * 0.5
-    local targetY = result.Position.Y + rootHalfHeight + 2
+    local targetY = noclipFloorY + rootHalfHeight + 2
 
-    local diff = targetY - root.Position.Y
-
-    if diff > 0.75 then
-        local newCFrame = CFrame.new(root.Position.X, targetY, root.Position.Z)
+    if root.Position.Y < targetY - NOCLIP_FALL_MARGIN then
         local rot = root.CFrame - root.CFrame.Position
-        root.CFrame = newCFrame * rot
-        local vel = root.AssemblyLinearVelocity
+        root.CFrame = CFrame.new(root.Position.X, targetY, root.Position.Z) * rot
         root.AssemblyLinearVelocity = Vector3.new(vel.X, 0, vel.Z)
+        noclipFloorTime = tick()
     end
 end
 
@@ -544,7 +561,8 @@ local function StartNoclipLoop()
                             end)
                         end
                     end
-                    pcall(KeepOnFloor, character)
+                    pcall(UpdateNoclipFloor, character)
+                    pcall(KeepFromFallingThroughWorld, character)
                 end
             end
             task.wait(0.08)
@@ -558,6 +576,8 @@ local function StopNoclipLoop()
         task.cancel(noclipLoopTask)
         noclipLoopTask = nil
     end
+    noclipFloorY = nil
+    noclipFloorTime = 0
     local localPlayer = game.Players.LocalPlayer
     local character = localPlayer and localPlayer.Character
     if character then
