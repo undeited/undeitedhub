@@ -513,6 +513,115 @@ if undeitedhub.Toggles.antiVoid then
     ToggleAntiVoid(true)
 end
 
+local ANTI_EXPLODE_RADIUS = 22
+local ANTI_EXPLODE_CHECK_INTERVAL = 0.03
+local BOMB_MODEL_NAME = "BombMissile"
+
+local antiExplodeActive = false
+local antiExplodeTask = nil
+
+local function getAllBombs()
+    local bombs = {}
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child.Name:find("SpawnedInToys") then
+            for _, toy in ipairs(child:GetChildren()) do
+                if toy.Name == BOMB_MODEL_NAME then
+                    table.insert(bombs, toy)
+                end
+            end
+        end
+    end
+    return bombs
+end
+
+local function getBombPosition(bomb)
+    if not bomb then return nil end
+    local body = bomb:FindFirstChild("Body")
+        or bomb:FindFirstChild("PositionPart")
+        or bomb:FindFirstChild("Main")
+    if body and body:IsA("BasePart") then
+        return body.Position
+    end
+    if bomb.PrimaryPart then return bomb.PrimaryPart.Position end
+    for _, part in ipairs(bomb:GetDescendants()) do
+        if part:IsA("BasePart") then return part.Position end
+    end
+    return nil
+end
+
+local function destroyBomb(bomb)
+    if not bomb then return end
+    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
+    local destroyToy = menuToys and menuToys:FindFirstChild("DestroyToy")
+    if destroyToy then
+        pcall(function() destroyToy:FireServer(bomb) end)
+    end
+    pcall(function() bomb:Destroy() end)
+end
+
+local function ToggleAntiExplode(state)
+    antiExplodeActive = state
+
+    if state then
+        if antiExplodeTask then return end
+
+        antiExplodeTask = task.spawn(function()
+            while antiExplodeActive do
+                pcall(function()
+                    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+
+                    local char = LocalPlayer.Character
+                    if not char then return end
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if not hrp or not hum or hum.Health <= 0 then return end
+
+                    local bombs = getAllBombs()
+                    for _, bomb in ipairs(bombs) do
+                        if bomb.Parent then
+                            local pos = getBombPosition(bomb)
+                            if pos then
+                                local dist = (pos - hrp.Position).Magnitude
+                                if dist <= ANTI_EXPLODE_RADIUS then
+                                    destroyBomb(bomb)
+                                end
+                            end
+                        end
+                    end
+                end)
+                task.wait(ANTI_EXPLODE_CHECK_INTERVAL)
+            end
+            antiExplodeTask = nil
+        end)
+    else
+        if antiExplodeTask then
+            task.cancel(antiExplodeTask)
+            antiExplodeTask = nil
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Explode",
+    Value = antiExplodeActive,
+    Callback = function(state)
+        ToggleAntiExplode(state)
+        undeitedhub.Toggles.antiExplode = state
+        if undeitedhub.SaveSettings then
+            undeitedhub.SaveSettings()
+        end
+        SafeNotify({
+            Title = "Anti Explode",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+if undeitedhub.Toggles.antiExplode then
+    ToggleAntiExplode(true)
+end
+
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if antiFireActive then
@@ -530,6 +639,9 @@ undeitedhub.DisableAll = function()
     end
     if antiVoidActive then
         ToggleAntiVoid(false)
+    end
+    if antiExplodeActive then
+        ToggleAntiExplode(false)
     end
     oldDisable()
 end
