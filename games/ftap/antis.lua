@@ -90,6 +90,8 @@ end
 
 refreshTuning()
 
+local ownFolderName = LocalPlayer.Name .. "SpawnedInToys"
+
 local function getCharacterParts(character)
     if not character then return {} end
     local list = {}
@@ -970,7 +972,14 @@ local function destroyBomb(bomb)
     pcall(function() bomb:Destroy() end)
 end
 
+local function isOwnBomb(bomb)
+    if not bomb or not bomb.Parent then return false end
+    return bomb.Parent.Name == ownFolderName
+end
+
 local function isBombThreat(bomb, hrp)
+    if isOwnBomb(bomb) then return false end
+
     local body = getBombBodyPart(bomb)
     if not body then return false end
     local pos = body.Position
@@ -999,15 +1008,18 @@ local function isBombThreat(bomb, hrp)
 end
 
 local function attachBombWatcher(folder)
-    for _, toy in ipairs(folder:GetChildren()) do
-        if looksLikeBomb(toy) then
-            activeBombs[toy] = true
+    if folder.Name ~= ownFolderName then
+        for _, toy in ipairs(folder:GetChildren()) do
+            if looksLikeBomb(toy) then
+                activeBombs[toy] = true
+            end
         end
     end
 
     local addConn = folder.ChildAdded:Connect(function(toy)
         if not antiExplodeActive then return end
         if not looksLikeBomb(toy) then return end
+        if folder.Name == ownFolderName then return end
         activeBombs[toy] = true
         task.defer(function()
             local char = LocalPlayer.Character
