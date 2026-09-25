@@ -89,10 +89,21 @@ local function getSpawnRemote()
     return menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
 end
 
-local function findHamburger()
+local function findAllHamburgers()
     local folder = getToysFolder()
-    if not folder then return nil end
-    return folder:FindFirstChild(HAMBURGER_TOY_NAME)
+    if not folder then return {} end
+    local list = {}
+    for _, child in ipairs(folder:GetChildren()) do
+        if child.Name == HAMBURGER_TOY_NAME then
+            table.insert(list, child)
+        end
+    end
+    return list
+end
+
+local function findExistingHamburger()
+    local list = findAllHamburgers()
+    return list[1]
 end
 
 local function getHoldDropRemotes(hamburger)
@@ -120,10 +131,16 @@ local function spawnHamburger()
 
     for i = 1, 20 do
         task.wait()
-        local h = findHamburger()
+        local h = findExistingHamburger()
         if h then return h end
     end
     return nil
+end
+
+local function getOrCreateHamburger()
+    local existing = findExistingHamburger()
+    if existing then return existing end
+    return spawnHamburger()
 end
 
 local function spamGrabDrop(hamburger)
@@ -154,24 +171,27 @@ local function startHamburgerSpam()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     hamburgerSpamTask = task.spawn(function()
-        activeHamburger = spawnHamburger()
-        if not activeHamburger then
-            SafeNotify({ Title = "Hamburger Spam", Content = "Failed to spawn hamburger", Duration = 2 })
-            hamburgerSpamEnabled = false
-            undeitedhub.Toggles.hamburgerSpam = false
-            hamburgerSpamTask = nil
-            return
+        local existing = findExistingHamburger()
+        if existing then
+            activeHamburger = existing
+            SafeNotify({ Title = "Hamburger Spam", Content = "Using existing hamburger", Duration = 2 })
+        else
+            activeHamburger = spawnHamburger()
+            if not activeHamburger then
+                SafeNotify({ Title = "Hamburger Spam", Content = "Failed to spawn hamburger", Duration = 2 })
+                hamburgerSpamEnabled = false
+                undeitedhub.Toggles.hamburgerSpam = false
+                hamburgerSpamTask = nil
+                return
+            end
         end
 
         while hamburgerSpamEnabled do
             if not activeHamburger or not activeHamburger.Parent then
-                activeHamburger = findHamburger()
+                activeHamburger = getOrCreateHamburger()
                 if not activeHamburger then
-                    activeHamburger = spawnHamburger()
-                    if not activeHamburger then
-                        task.wait(0.5)
-                        continue
-                    end
+                    task.wait(0.5)
+                    continue
                 end
             end
 
