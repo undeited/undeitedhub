@@ -123,19 +123,6 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
-local function ensureBlobman()
-    local blobman = getSeatedBlobman and getSeatedBlobman() or nil
-    if blobman then return blobman end
-
-    local blobmen = getBlobmen()
-    if #blobmen > 0 then return blobmen[1] end
-
-    spawnBlobman()
-    task.wait(0.4)
-    blobmen = getBlobmen()
-    return blobmen[1]
-end
-
 local function getSeatedBlobman()
     local character = getPlayerCharacter()
     if not character then return nil end
@@ -444,6 +431,7 @@ local function startKickLoop()
 
         local dragging = false
         local grabStartTime = 0
+        local savedPos = nil
         local target = nil
 
         while kickEnabled do
@@ -473,10 +461,18 @@ local function startKickLoop()
                 continue
             end
 
-            local blobman = ensureBlobman()
-            if not blobman then
-                task.wait(0.3)
+            local seat = myHum.SeatPart
+            if not seat or not seat.Parent or seat.Parent.Name ~= "CreatureBlobman" then
+                dragging = false
+                grabStartTime = 0
+                savedPos = myRoot.CFrame
+                pcall(sitOnBlobman)
+                task.wait(0.1)
                 continue
+            end
+
+            if not savedPos then
+                savedPos = myRoot.CFrame
             end
 
             local tChar = target.Character
@@ -487,6 +483,7 @@ local function startKickLoop()
                 tRoot.AssemblyLinearVelocity = Vector3.zero
                 tRoot.Velocity = Vector3.zero
 
+                local blobman = seat.Parent
                 local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
                 local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
                 local drop = remoteFolder and remoteFolder:FindFirstChild("CreatureDrop")
@@ -505,6 +502,7 @@ local function startKickLoop()
                 end
 
                 if not dragging then
+                    myRoot.CFrame = tRoot.CFrame
                     if setNet then
                         pcall(function()
                             setNet:FireServer(tRoot, myRoot.CFrame)
@@ -524,7 +522,10 @@ local function startKickLoop()
                         grabStartTime = 0
                     end
                 else
-                    local lockPos = myRoot.CFrame * CFrame.new(0, KICK_HEIGHT, 0)
+                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
+                    myRoot.CFrame = savedPos
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
 
                     if setNet then
                         pcall(function()
@@ -559,6 +560,16 @@ local function startKickLoop()
 
             RunService.Heartbeat:Wait()
         end
+
+        local myChar = getPlayerCharacter()
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if myRoot and savedPos then
+            myRoot.CFrame = savedPos
+        end
+        kickEnabled = false
+        undeitedhub.Toggles.kickPlayer = false
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        kickTask = nil
     end)
 end
 
