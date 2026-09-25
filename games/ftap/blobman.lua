@@ -501,16 +501,13 @@ local function startKickLoop()
                     end)
                 end
 
-                if setNet then
-                    for i = 1, 8 do
+                if not dragging then
+                    myRoot.CFrame = tRoot.CFrame
+                    if setNet then
                         pcall(function()
                             setNet:FireServer(tRoot, myRoot.CFrame)
                         end)
                     end
-                end
-
-                if not dragging then
-                    myRoot.CFrame = tRoot.CFrame
                     if createLine then
                         pcall(function()
                             createLine:FireServer(tRoot, Vector3.zero, tRoot.Position, false)
@@ -530,6 +527,11 @@ local function startKickLoop()
                     myRoot.AssemblyLinearVelocity = Vector3.zero
                     myRoot.AssemblyAngularVelocity = Vector3.zero
 
+                    if setNet then
+                        pcall(function()
+                            setNet:FireServer(tRoot, lockPos)
+                        end)
+                    end
                     if destroyLine then
                         pcall(function()
                             destroyLine:FireServer(tRoot)
