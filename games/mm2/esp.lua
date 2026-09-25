@@ -42,7 +42,65 @@ local cachedCoinContainer = nil
 
 local trackedGunDrops = setmetatable({}, { __mode = "k" })
 
-local INVISIBLE_THRESHOLD = 0.5
+local invisibleThreshold = 0.5
+
+local function computeInvisibleThreshold()
+    local values = {}
+
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        local char = player.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    local t = math.max(part.Transparency, part.LocalTransparencyModifier or 0)
+                    table.insert(values, t)
+                end
+            end
+        end
+    end
+
+    if #values < 2 then
+        return 0.5
+    end
+
+    table.sort(values)
+
+    local maxGap = 0
+    local gapMid = 0.5
+    for i = 2, #values do
+        local gap = values[i] - values[i - 1]
+        if gap > maxGap then
+            maxGap = gap
+            gapMid = (values[i] + values[i - 1]) / 2
+        end
+    end
+
+    if maxGap < 0.1 then
+        local sum = 0
+        for _, v in ipairs(values) do sum = sum + v end
+        local mean = sum / #values
+        if mean > 0.5 then
+            return mean * 0.75
+        end
+        return 0.5
+    end
+
+    if gapMid < 0.15 then
+        return 0.5
+    end
+
+    return gapMid
+end
+
+task.spawn(function()
+    while true do
+        local ok, result = pcall(computeInvisibleThreshold)
+        if ok and type(result) == "number" then
+            invisibleThreshold = result
+        end
+        task.wait(3)
+    end
+end)
 
 local function markPlayersDirty() dirtyPlayers = true end
 local function markGunsDirty() dirtyGuns = true end
@@ -229,7 +287,7 @@ local function isCharacterInvisible(character)
             total = total + 1
             local t = part.Transparency
             local ltm = part.LocalTransparencyModifier or 0
-            if t >= INVISIBLE_THRESHOLD or ltm >= INVISIBLE_THRESHOLD then
+            if t >= invisibleThreshold or ltm >= invisibleThreshold then
                 hidden = hidden + 1
             end
         end
