@@ -27,7 +27,7 @@ local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
-local KICK_HEIGHT = 500
+local KICK_HEIGHT = 30
 
 local INTERACT_KEY = Enum.KeyCode.F
 local leftHeldTarget = nil
@@ -522,21 +522,14 @@ local function startKickLoop()
                         grabStartTime = 0
                     end
                 else
-                    -- [KICK CHANGE] Teleport ME really high up first, then bring the grabbed player.
-                    -- The sudden massive displacement on the grabbed character is what kicks them.
-                    local highPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
-
-                    -- Step 1: Teleport self (on the blobman) very high up.
-                    myRoot.CFrame = highPos
+                    local lockPos = savedPos * CFrame.new(0, KICK_HEIGHT, 0)
+                    myRoot.CFrame = savedPos
                     myRoot.AssemblyLinearVelocity = Vector3.zero
                     myRoot.AssemblyAngularVelocity = Vector3.zero
-                    myRoot.Velocity = Vector3.zero
-                    myRoot.RotVelocity = Vector3.zero
 
-                    -- Step 2: Bring the grabbed player to us at the high position.
                     if setNet then
                         pcall(function()
-                            setNet:FireServer(tRoot, highPos)
+                            setNet:FireServer(tRoot, lockPos)
                         end)
                     end
                     if destroyLine then
@@ -550,10 +543,7 @@ local function startKickLoop()
                         end)
                     end
 
-                    -- Offset the target slightly so they don't perfectly overlap us.
-                    local targetHighPos = highPos * CFrame.new(0, 3, 0)
-
-                    tRoot.CFrame = targetHighPos
+                    tRoot.CFrame = lockPos
                     tRoot.AssemblyLinearVelocity = Vector3.zero
                     tRoot.AssemblyAngularVelocity = Vector3.zero
                     tRoot.Velocity = Vector3.zero
