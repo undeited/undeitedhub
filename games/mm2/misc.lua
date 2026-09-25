@@ -1,21 +1,6 @@
 local WindUI = undeitedhub.WindUI
 local utils = undeitedhub.Utils
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 local function IsInLobby()
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return false end
@@ -110,7 +95,7 @@ local MiscTab = undeitedhub.Window:Tab({
 })
 
 local function SendChatMessage(message)
-    local success, result = pcall(function()
+    pcall(function()
         local TextChatService = game:GetService("TextChatService")
         local channels = TextChatService:WaitForChild("TextChannels", 5)
         if not channels then error("TextChannels not available") end
@@ -119,9 +104,6 @@ local function SendChatMessage(message)
         generalChatChannel:SendAsync(message)
         return true
     end)
-    if not success then
-        SafeNotify({ Title = "Error", Content = "Failed to send chat message", Duration = 2 })
-    end
 end
 
 MiscTab:Button({
@@ -130,9 +112,6 @@ MiscTab:Button({
         local murderer = undeitedhub.GetCurrentMurderer()
         if murderer then
             SendChatMessage("Murderer is " .. murderer.Name)
-            SafeNotify({ Title = "Expose", Content = "Murderer exposed in chat", Duration = 2 })
-        else
-            SafeNotify({ Title = "Expose", Content = "No murderer found", Duration = 2 })
         end
     end
 })
@@ -143,45 +122,23 @@ MiscTab:Button({
         local sheriff = undeitedhub.GetCurrentSheriff()
         if sheriff then
             SendChatMessage("Sheriff is " .. sheriff.Name)
-            SafeNotify({ Title = "Expose", Content = "Sheriff exposed in chat", Duration = 2 })
-        else
-            SafeNotify({ Title = "Expose", Content = "No sheriff found", Duration = 2 })
         end
     end
 })
 
 local function TeleportToPlayer(target)
-    if not target then
-        SafeNotify({ Title = "Error", Content = "Target not found", Duration = 2 })
-        return
-    end
+    if not target then return end
     local localPlayer = game.Players.LocalPlayer
-    if not localPlayer then
-        SafeNotify({ Title = "Error", Content = "Local player not found", Duration = 2 })
-        return
-    end
+    if not localPlayer then return end
     local targetCharacter = target.Character
-    if not targetCharacter then
-        SafeNotify({ Title = "Error", Content = "Target has no character", Duration = 2 })
-        return
-    end
+    if not targetCharacter then return end
     local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then
-        SafeNotify({ Title = "Error", Content = "Target has no HumanoidRootPart", Duration = 2 })
-        return
-    end
+    if not targetRoot then return end
     local localCharacter = localPlayer.Character
-    if not localCharacter then
-        SafeNotify({ Title = "Error", Content = "Your character not found", Duration = 2 })
-        return
-    end
+    if not localCharacter then return end
     local localRoot = localCharacter:FindFirstChild("HumanoidRootPart")
-    if not localRoot then
-        SafeNotify({ Title = "Error", Content = "Your HumanoidRootPart not found", Duration = 2 })
-        return
-    end
+    if not localRoot then return end
     localRoot.CFrame = targetRoot.CFrame
-    SafeNotify({ Title = "Misc", Content = "Teleported to " .. target.Name, Duration = 2 })
 end
 
 MiscTab:Button({
@@ -202,10 +159,7 @@ MiscTab:Button({
     Title = "Server Hop",
     Callback = function()
         local placeId = game.PlaceId
-        if not placeId then
-            SafeNotify({ Title = "Error", Content = "Could not get PlaceId", Duration = 2 })
-            return
-        end
+        if not placeId then return end
 
         local HttpService = game:GetService("HttpService")
         local TeleportService = game:GetService("TeleportService")
@@ -260,7 +214,6 @@ MiscTab:Button({
         end
 
         if #candidates == 0 then
-            SafeNotify({ Title = "Server Hop", Content = "No available servers found", Duration = 2 })
             return
         end
 
@@ -280,10 +233,8 @@ MiscTab:Button({
         end
 
         if #targetServers == 0 then
-            SafeNotify({ Title = "Server Hop", Content = "No servers with " .. minPlayers .. "+ players, trying any...", Duration = 2 })
             targetServers = fallbackServers
             if #targetServers == 0 then
-                SafeNotify({ Title = "Server Hop", Content = "No suitable servers found", Duration = 2 })
                 return
             end
         end
@@ -298,29 +249,20 @@ MiscTab:Button({
                 TeleportService:TeleportToPlaceInstance(placeId, targetServer, game.Players.LocalPlayer)
             end)
             if success then
-                SafeNotify({ Title = "Server Hop", Content = "Teleporting to new server...", Duration = 2 })
                 return
             else
                 local errStr = tostring(err)
                 if errStr:find("772") or string.lower(errStr):find("full") then
-                    SafeNotify({ Title = "Server Hop", Content = "Server full, trying another... (" .. attempts .. "/" .. maxAttempts .. ")", Duration = 2 })
                     task.wait(0.5)
                 else
-                    SafeNotify({ Title = "Error", Content = "Failed to teleport: " .. errStr, Duration = 3 })
                     return
                 end
             end
         end
 
-        SafeNotify({ Title = "Server Hop", Content = "All attempts failed. Trying fallback teleport...", Duration = 2 })
-        local success, err = pcall(function()
+        pcall(function()
             TeleportService:Teleport(placeId)
         end)
-        if success then
-            SafeNotify({ Title = "Server Hop", Content = "Teleporting via fallback...", Duration = 2 })
-        else
-            SafeNotify({ Title = "Error", Content = "Fallback failed: " .. tostring(err), Duration = 3 })
-        end
     end
 })
 
@@ -329,19 +271,11 @@ MiscTab:Button({
     Callback = function()
         local placeId = game.PlaceId
         local jobId = game.JobId
-        if not placeId or not jobId then
-            SafeNotify({ Title = "Error", Content = "Could not get PlaceId or JobId", Duration = 2 })
-            return
-        end
+        if not placeId or not jobId then return end
         local TeleportService = game:GetService("TeleportService")
-        local success, err = pcall(function()
+        pcall(function()
             TeleportService:TeleportToPlaceInstance(placeId, jobId, game.Players.LocalPlayer)
         end)
-        if success then
-            SafeNotify({ Title = "Rejoin", Content = "Rejoining server...", Duration = 2 })
-        else
-            SafeNotify({ Title = "Error", Content = "Failed to rejoin: " .. tostring(err), Duration = 3 })
-        end
     end
 })
 
@@ -354,7 +288,6 @@ local flingDetected = false
 local recoveryMode = false
 local recoveryStartTime = 0
 local flingStartTime = 0
-local lastNotificationTime = 0
 
 local function CleanBodyMovers(character)
     if not character then return end
@@ -384,15 +317,18 @@ local function CleanWeldsAndConstraints(character)
     end
 end
 
-local function FreezeCharacter(humanoid, freeze)
-    if not humanoid then return end
-    humanoid.PlatformStand = freeze
-    if freeze then
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-    else
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
+local function ZeroCharacterVelocity(character, exceptRoot)
+    if not character then return end
+    local zero = Vector3.new(0, 0, 0)
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part ~= exceptRoot then
+            pcall(function()
+                part.Velocity = zero
+                part.RotVelocity = zero
+                part.AssemblyLinearVelocity = zero
+                part.AssemblyAngularVelocity = zero
+            end)
+        end
     end
 end
 
@@ -438,7 +374,6 @@ local function StrongAntiFling()
         lastSafePosition = currentPos
         CleanBodyMovers(character)
         CleanWeldsAndConstraints(character)
-        FreezeCharacter(humanoid, false)
         return
     end
 
@@ -469,27 +404,26 @@ local function StrongAntiFling()
             flingStartTime = tick()
             recoveryMode = true
             recoveryStartTime = tick()
-            if tick() - lastNotificationTime > 2 then
-                lastNotificationTime = tick()
-                WindUI:Notify({ Title = "Anti Fling", Content = "Fling detected! Freezing and neutralizing.", Duration = 2 })
-            end
         end
-
-        FreezeCharacter(humanoid, true)
 
         root.Velocity = Vector3.new(0, 0, 0)
         root.RotVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+
         if lastSafePosition then
-            root.CFrame = CFrame.new(lastSafePosition + Vector3.new(0, 0.5, 0))
-        end
-        CleanBodyMovers(character)
-        CleanWeldsAndConstraints(character)
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") and part ~= root then
-                part.Velocity = Vector3.new(0, 0, 0)
-                part.RotVelocity = Vector3.new(0, 0, 0)
+            local ok = pcall(function()
+                character:PivotTo(CFrame.new(lastSafePosition + Vector3.new(0, 0.5, 0)))
+            end)
+            if not ok then
+                root.CFrame = CFrame.new(lastSafePosition + Vector3.new(0, 0.5, 0))
             end
         end
+
+        CleanBodyMovers(character)
+        CleanWeldsAndConstraints(character)
+        ZeroCharacterVelocity(character, root)
+
         pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end)
 
         return
@@ -500,17 +434,17 @@ local function StrongAntiFling()
         recoveryMode = false
         lastSafePosition = currentPos
         positionHistory = {}
-        FreezeCharacter(humanoid, false)
-        if tick() - lastNotificationTime > 2 then
-            lastNotificationTime = tick()
-            WindUI:Notify({ Title = "Anti Fling", Content = "Recovered from fling.", Duration = 2 })
-        end
         return
     end
 
     if recoveryMode and tick() - recoveryStartTime > 2 then
         if lastSafePosition then
-            root.CFrame = CFrame.new(lastSafePosition + Vector3.new(0, 0.5, 0))
+            local ok = pcall(function()
+                character:PivotTo(CFrame.new(lastSafePosition + Vector3.new(0, 0.5, 0)))
+            end)
+            if not ok then
+                root.CFrame = CFrame.new(lastSafePosition + Vector3.new(0, 0.5, 0))
+            end
             root.Velocity = Vector3.new(0, 0, 0)
             root.RotVelocity = Vector3.new(0, 0, 0)
             CleanBodyMovers(character)
@@ -518,11 +452,6 @@ local function StrongAntiFling()
             recoveryMode = false
             flingDetected = false
             positionHistory = {}
-            FreezeCharacter(humanoid, false)
-            if tick() - lastNotificationTime > 2 then
-                lastNotificationTime = tick()
-                WindUI:Notify({ Title = "Anti Fling", Content = "Forced recovery from fling.", Duration = 2 })
-            end
         end
     end
 end
@@ -537,7 +466,6 @@ local function SetupAntiFling()
         recoveryMode = false
         lastSafePosition = nil
         positionHistory = {}
-        lastNotificationTime = 0
         antiFlingHeartbeat = game:GetService("RunService").Heartbeat:Connect(StrongAntiFling)
     end
 end
@@ -549,11 +477,6 @@ MiscTab:Toggle({
         antiFlingEnabled = state
         undeitedhub.Toggles.antiFlingEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        WindUI:Notify({
-            Title = "Anti Fling",
-            Content = antiFlingEnabled and "Enabled" or "Disabled",
-            Duration = 2,
-        })
         SetupAntiFling()
     end
 })
@@ -586,7 +509,6 @@ local function KeepOnFloor(character)
             root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
             root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
         end
-    else
     end
 end
 
@@ -652,10 +574,8 @@ local function ToggleNoclip(state)
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     if state then
         StartNoclipLoop()
-        WindUI:Notify({ Title = "Noclip", Content = "Enabled", Duration = 2 })
     else
         StopNoclipLoop()
-        WindUI:Notify({ Title = "Noclip", Content = "Disabled", Duration = 2 })
     end
 end
 
@@ -678,6 +598,7 @@ undeitedhub.DisableAll = function()
     recoveryMode = false
     lastSafePosition = nil
     positionHistory = {}
+
     local localPlayer = game.Players.LocalPlayer
     if localPlayer and localPlayer.Character then
         local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
