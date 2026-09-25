@@ -417,11 +417,57 @@ local function buildDisplayNames()
     return list
 end
 
+local function getBlobmanWeldParts(blobman)
+    if not blobman then return nil end
+    local L_Det = blobman:FindFirstChild("LeftDetector")
+    local R_Det = blobman:FindFirstChild("RightDetector")
+    local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
+    local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
+    if not L_Det or not R_Det or not L_Weld or not R_Weld then return nil end
+    local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+    local grab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
+    local drop = ownerScript and ownerScript:FindFirstChild("CreatureDrop")
+    return L_Det, R_Det, L_Weld, R_Weld, grab, drop
+end
+
+local function serverGrabTarget(targetRoot, blobman)
+    if not targetRoot or not blobman then return false end
+    local L_Det, R_Det, L_Weld, R_Weld, grab = getBlobmanWeldParts(blobman)
+    if not grab then return false end
+    for i = 1, 8 do
+        pcall(function()
+            grab:FireServer(L_Det, targetRoot, L_Weld)
+            grab:FireServer(R_Det, targetRoot, R_Weld)
+        end)
+        task.wait(0.02)
+    end
+    return true
+end
+
+local function serverDropTarget(targetRoot, blobman)
+    if not targetRoot or not blobman then return end
+    local L_Det, R_Det, L_Weld, R_Weld, grab, drop = getBlobmanWeldParts(blobman)
+    if not drop then return end
+    if L_Weld then
+        pcall(function() drop:FireServer(L_Weld, targetRoot) end)
+    end
+    if R_Weld then
+        pcall(function() drop:FireServer(R_Weld, targetRoot) end)
+    end
+end
+
+local serverGrabTargetPlayer = nil
+local serverGrabLastRefresh = 0
+local SERVER_GRAB_REFRESH = 0.8
+
 local function startKickLoop()
     if kickTask then return end
     kickEnabled = true
     undeitedhub.Toggles.kickPlayer = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+
+    serverGrabTargetPlayer = nil
+    serverGrabLastRefresh = 0
 
     kickTask = task.spawn(function()
         local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
@@ -444,6 +490,7 @@ local function startKickLoop()
             if not target or not target.Parent or not target.Character then
                 dragging = false
                 grabStartTime = 0
+                serverGrabTargetPlayer = nil
                 task.wait(0.2)
                 continue
             end
@@ -466,6 +513,7 @@ local function startKickLoop()
                 dragging = false
                 grabStartTime = 0
                 savedPos = myRoot.CFrame
+                serverGrabTargetPlayer = nil
                 pcall(sitOnBlobman)
                 task.wait(0.1)
                 continue
@@ -476,29 +524,32 @@ local function startKickLoop()
             end
 
             local tChar = target.Character
-            local tRoot = tChar:FindFirstChild("HumanoidRootPart")
-            local tHum = tChar:FindFirstChild("Humanoid")
+            local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+            local tHum = tChar and tChar:FindFirstChild("Humanoid")
 
             if tRoot and tHum and tHum.Health > 0 then
                 tRoot.AssemblyLinearVelocity = Vector3.zero
                 tRoot.Velocity = Vector3.zero
 
                 local blobman = seat.Parent
-                local remoteFolder = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
-                local grab = remoteFolder and remoteFolder:FindFirstChild("CreatureGrab")
-                local drop = remoteFolder and remoteFolder:FindFirstChild("CreatureDrop")
-                local L_Det = blobman:FindFirstChild("LeftDetector")
-                local R_Det = blobman:FindFirstChild("RightDetector")
-                local L_Weld = L_Det and (L_Det:FindFirstChild("LeftWeld") or L_Det:FindFirstChild("RigidConstraint"))
-                local R_Weld = R_Det and (R_Det:FindFirstChild("RightWeld") or R_Det:FindFirstChild("RigidConstraint"))
 
-                if grab and drop and L_Weld and R_Weld then
-                    pcall(function()
-                        grab:FireServer(L_Det, tRoot, L_Weld)
-                        grab:FireServer(R_Det, tRoot, R_Weld)
-                        drop:FireServer(L_Weld, tRoot)
-                        drop:FireServer(R_Weld, tRoot)
-                    end)
+                if serverGrabTargetPlayer ~= target then
+                    if serverGrabTargetPlayer and serverGrabTargetPlayer.Character then
+                        local oldRoot = serverGrabTargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        if oldRoot then
+                            serverDropTarget(oldRoot, blobman)
+                        end
+                    end
+                    serverGrabTargetPlayer = target
+                    serverGrabLastRefresh = 0
+                    dragging = false
+                    grabStartTime = 0
+                end
+
+                local now = tick()
+                if now - serverGrabLastRefresh > SERVER_GRAB_REFRESH then
+                    serverGrabLastRefresh = now
+                    serverGrabTarget(tRoot, blobman)
                 end
 
                 if not dragging then
@@ -556,6 +607,14 @@ local function startKickLoop()
             else
                 dragging = false
                 grabStartTime = 0
+                if serverGrabTargetPlayer and serverGrabTargetPlayer.Character then
+                    local oldRoot = serverGrabTargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    local blobman = seat and seat.Parent
+                    if oldRoot and blobman then
+                        serverDropTarget(oldRoot, blobman)
+                    end
+                end
+                serverGrabTargetPlayer = nil
             end
 
             RunService.Heartbeat:Wait()
@@ -581,6 +640,13 @@ local function stopKickLoop()
         kickTask = nil
     end
     local blobman = getSeatedBlobman()
+    if blobman and serverGrabTargetPlayer and serverGrabTargetPlayer.Character then
+        local root = serverGrabTargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            serverDropTarget(root, blobman)
+        end
+    end
+    serverGrabTargetPlayer = nil
     if blobman then
         if leftHeldTarget then dropHeldTarget(blobman, "left") end
         if rightHeldTarget then dropHeldTarget(blobman, "right") end
