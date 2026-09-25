@@ -144,43 +144,85 @@ if undeitedhub.Toggles.antiLag then
 end
 
 local antiGrabActive = false
-local antiGrabTask = nil
+local antiGrabConn = nil
+
+local GRAB_ANIM_IDS = {
+    ["rbxassetid://7047322890"] = true,
+    ["http://www.roblox.com/asset/?id=7047322890"] = true,
+}
 
 local function getCharacterEvents()
     return ReplicatedStorage:FindFirstChild("CharacterEvents")
 end
 
-local function fireRecovery(character, hum)
-    local characterEvents = getCharacterEvents()
-    if characterEvents then
-        local struggle = characterEvents:FindFirstChild("Struggle")
-        if struggle then
-            pcall(function() struggle:FireServer(LocalPlayer) end)
-        end
-
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        local ragdollRemote = characterEvents:FindFirstChild("RagdollRemote")
-        if hrp and ragdollRemote then
-            pcall(function() ragdollRemote:FireServer(hrp, 0.00000000001) end)
-        end
-    end
-
-    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
-        if track.Animation and track.Animation.AnimationId == "rbxassetid://7047322890" then
-            pcall(function() track:Stop() end)
-        end
-    end
-
-    pcall(function()
-        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-        hum.AutoRotate = true
-        if hum.Sit then hum.Sit = false end
-        hum.PlatformStand = false
-    end)
+local function getGrabEvents()
+    return ReplicatedStorage:FindFirstChild("GrabEvents")
 end
 
-local function clearPartOwnersDeep(character)
+local function isGrabSource(part)
+    if not part then return false end
+    local current = part
+    while current do
+        local name = current.Name
+        if name == "CreatureBlobman" or name == "LeftDetector" or name == "RightDetector" then
+            return true
+        end
+        current = current.Parent
+    end
+    return false
+end
+
+local function findExternalConstraints(character)
+    local constraints = {}
+    for _, child in ipairs(character:GetDescendants()) do
+        local class = child.ClassName
+        if class == "Weld" or class == "WeldConstraint" or class == "RigidConstraint"
+            or class == "Motor6D" or class == "Snap" or class == "RopeConstraint"
+            or class == "BallSocketConstraint" or class == "HingeConstraint" then
+            local p0 = child.Part0 or child.Attachment0 and child.Attachment0.Parent
+            local p1 = child.Part1 or child.Attachment1 and child.Attachment1.Parent
+            local outside = nil
+            if p0 and p1 then
+                if p0:IsDescendantOf(character) and not p1:IsDescendantOf(character) then
+                    outside = p1
+                elseif p1:IsDescendantOf(character) and not p0:IsDescendantOf(character) then
+                    outside = p0
+                end
+                if outside and isGrabSource(outside) then
+                    table.insert(constraints, child)
+                end
+            end
+        end
+    end
+    return constraints
+end
+
+local function isGrabbedNow(character, hum)
+    if not character or not hum then return false end
+    if hum.PlatformStand then return true end
+    if hum:GetState() == Enum.HumanoidStateType.Physics then return true end
+    if hum:GetState() == Enum.HumanoidStateType.Ragdoll then return true end
+    if hum.Sit then return true end
+
+    for _, child in ipairs(character:GetDescendants()) do
+        local partOwner = child:FindFirstChild("PartOwner")
+        if partOwner and partOwner.Value ~= "" then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function breakExternalConstraints(character)
+    local constraints = findExternalConstraints(character)
+    for _, constraint in ipairs(constraints) do
+        pcall(function() constraint:Destroy() end)
+    end
+    return #constraints
+end
+
+local function clearPartOwners(character)
     local found = false
     for _, prt in ipairs(character:GetDescendants()) do
         local partOwner = prt:FindFirstChild("PartOwner")
@@ -192,33 +234,122 @@ local function clearPartOwnersDeep(character)
     return found
 end
 
+local function reclaimOwnership(hrp)
+    local GE = getGrabEvents()
+    if not GE then return end
+    local setNet = GE:FindFirstChild("SetNetworkOwner")
+    if not setNet then return end
+    pcall(function()
+        setNet:FireServer(hrp, hrp.CFrame)
+    end)
+end
+
+local function fireStruggle()
+    local characterEvents = getCharacterEvents()
+    if not characterEvents then return end
+    local struggle = characterEvents:FindFirstChild("Struggle")
+    if struggle then
+        pcall(function() struggle:FireServer(LocalPlayer) end)
+    end
+end
+
+local function fireRagdollReset(hrp)
+    local characterEvents = getCharacterEvents()
+    if not characterEvents then return end
+    local ragdollRemote = characterEvents:FindFirstChild("RagdollRemote")
+    if ragdollRemote and hrp then
+        pcall(function() ragdollRemote:FireServer(hrp, 0.00000000001) end)
+    end
+end
+
+local function stopGrabAnimations(hum)
+    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+        local anim = track.Animation
+        if anim and GRAB_ANIM_IDS[anim.AnimationId] then
+            pcall(function() track:Stop(0) end)
+            pcall(function() track:Destroy() end)
+        end
+    end
+end
+
+local function resetHumanoidState(hum)
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    end)
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    end)
+    pcall(function()
+        if hum:GetState() == Enum.HumanoidStateType.Physics then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        elseif hum:GetState() == Enum.HumanoidStateType.Ragdoll then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+    end)
+    pcall(function()
+        hum.PlatformStand = false
+        hum.AutoRotate = true
+        if hum.Sit then hum.Sit = false end
+    end)
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
+    end)
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+    end)
+end
+
 local function ToggleAntiGrab(state)
     antiGrabActive = state
 
     if state then
-        if antiGrabTask then return end
+        if antiGrabConn then return end
 
-        antiGrabTask = task.spawn(function()
-            while antiGrabActive do
-                pcall(function()
-                    local character = LocalPlayer.Character
-                    if not character then return end
-                    local hum = character:FindFirstChildOfClass("Humanoid")
-                    if not hum or hum.Health <= 0 then return end
+        local strugglingThisFrame = false
 
-                    local grabbed = clearPartOwnersDeep(character)
-                    if grabbed then
-                        fireRecovery(character, hum)
-                    end
-                end)
-                task.wait(0.05)
+        antiGrabConn = RunService.Heartbeat:Connect(function()
+            if not antiGrabActive then return end
+            if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+
+            local character = LocalPlayer.Character
+            if not character then return end
+            local hum = character:FindFirstChildOfClass("Humanoid")
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            if not hum or not hrp or hum.Health <= 0 then return end
+
+            local grabbed = isGrabbedNow(character, hum)
+            if not grabbed then
+                strugglingThisFrame = false
+                return
             end
-            antiGrabTask = nil
+
+            local broken = breakExternalConstraints(character)
+            local cleared = clearPartOwners(character)
+
+            if broken > 0 or cleared or grabbed then
+                if not strugglingThisFrame then
+                    strugglingThisFrame = true
+                    fireStruggle()
+                    fireRagdollReset(hrp)
+                    reclaimOwnership(hrp)
+                else
+                    fireStruggle()
+                end
+
+                stopGrabAnimations(hum)
+                resetHumanoidState(hum)
+            end
         end)
     else
-        if antiGrabTask then
-            task.cancel(antiGrabTask)
-            antiGrabTask = nil
+        if antiGrabConn then
+            antiGrabConn:Disconnect()
+            antiGrabConn = nil
         end
     end
 end
@@ -302,10 +433,16 @@ local function ToggleAntiBlobman(state)
                     if not hum or hum.Health <= 0 then return end
 
                     local broken = breakBlobmanWelds(character)
-                    local clearedOwners = clearPartOwnersDeep(character)
+                    local clearedOwners = clearPartOwners(character)
 
                     if broken > 0 or clearedOwners then
-                        fireRecovery(character, hum)
+                        fireStruggle()
+                        local hrp = character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            fireRagdollReset(hrp)
+                        end
+                        stopGrabAnimations(hum)
+                        resetHumanoidState(hum)
                     end
                 end)
                 task.wait(0.03)
@@ -424,11 +561,7 @@ local function restoreCharacterState(character, hum, hrp, targetCFrame)
         hum.PlatformStand = false
     end)
 
-    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
-        if track.Animation and (track.Animation.AnimationId == "rbxassetid://7047322890") then
-            pcall(function() track:Stop() end)
-        end
-    end
+    stopGrabAnimations(hum)
 
     local characterEvents = getCharacterEvents()
     if characterEvents then
@@ -513,21 +646,92 @@ if undeitedhub.Toggles.antiVoid then
     ToggleAntiVoid(true)
 end
 
-local ANTI_EXPLODE_RADIUS = 22
+local ANTI_EXPLODE_BUFFER = 5
 local ANTI_EXPLODE_CHECK_INTERVAL = 0.03
-local BOMB_MODEL_NAME = "BombMissile"
+local ANTI_EXPLODE_DETECTION_COOLDOWN = 2
+local DEFAULT_BOMB_RADIUS = 17.5
 
 local antiExplodeActive = false
 local antiExplodeTask = nil
+local detectedBombName = nil
+local detectedRadius = DEFAULT_BOMB_RADIUS
+local detectedPositionParts = { "Body", "PositionPart", "Main", "Part", "VisualBody" }
+local lastDetection = 0
+
+local function looksLikeBomb(model)
+    if not model or not model:IsA("Model") then return false end
+    return model:FindFirstChild("MissileScript") ~= nil
+end
+
+local function getToyFolders()
+    local folders = {}
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child.Name:find("SpawnedInToys") then
+            table.insert(folders, child)
+        end
+    end
+    return folders
+end
+
+local function getMissileRadiusConstant(missileScript)
+    if not missileScript then return nil end
+    if type(debug) ~= "table" or type(debug.getconstants) ~= "function" then
+        return nil
+    end
+
+    local ok, constants = pcall(debug.getconstants, missileScript)
+    if not ok or type(constants) ~= "table" then return nil end
+
+    local candidates = {}
+    for _, v in ipairs(constants) do
+        if type(v) == "number" and v >= 5 and v <= 50 then
+            local rounded = math.floor(v * 10) / 10
+            if math.abs(rounded - v) < 0.01 then
+                table.insert(candidates, v)
+            end
+        end
+    end
+
+    if #candidates == 0 then return nil end
+    table.sort(candidates)
+    return candidates[1]
+end
+
+local function detectBombSettings()
+    for _, folder in ipairs(getToyFolders()) do
+        for _, toy in ipairs(folder:GetChildren()) do
+            if looksLikeBomb(toy) then
+                detectedBombName = toy.Name
+
+                local parts = {}
+                for _, candidate in ipairs({ "Body", "PositionPart", "Main", "Part", "VisualBody" }) do
+                    if toy:FindFirstChild(candidate) then
+                        table.insert(parts, candidate)
+                    end
+                end
+                if #parts > 0 then
+                    detectedPositionParts = parts
+                end
+
+                local missileScript = toy:FindFirstChild("MissileScript")
+                local radius = getMissileRadiusConstant(missileScript)
+                if radius then
+                    detectedRadius = radius
+                end
+
+                return true
+            end
+        end
+    end
+    return false
+end
 
 local function getAllBombs()
     local bombs = {}
-    for _, child in ipairs(Workspace:GetChildren()) do
-        if child.Name:find("SpawnedInToys") then
-            for _, toy in ipairs(child:GetChildren()) do
-                if toy.Name == BOMB_MODEL_NAME then
-                    table.insert(bombs, toy)
-                end
+    for _, folder in ipairs(getToyFolders()) do
+        for _, toy in ipairs(folder:GetChildren()) do
+            if looksLikeBomb(toy) then
+                table.insert(bombs, toy)
             end
         end
     end
@@ -536,15 +740,19 @@ end
 
 local function getBombPosition(bomb)
     if not bomb then return nil end
-    local body = bomb:FindFirstChild("Body")
-        or bomb:FindFirstChild("PositionPart")
-        or bomb:FindFirstChild("Main")
-    if body and body:IsA("BasePart") then
-        return body.Position
+    for _, name in ipairs(detectedPositionParts) do
+        local part = bomb:FindFirstChild(name)
+        if part and part:IsA("BasePart") then
+            return part.Position
+        end
     end
-    if bomb.PrimaryPart then return bomb.PrimaryPart.Position end
+    if bomb.PrimaryPart then
+        return bomb.PrimaryPart.Position
+    end
     for _, part in ipairs(bomb:GetDescendants()) do
-        if part:IsA("BasePart") then return part.Position end
+        if part:IsA("BasePart") then
+            return part.Position
+        end
     end
     return nil
 end
@@ -565,10 +773,21 @@ local function ToggleAntiExplode(state)
     if state then
         if antiExplodeTask then return end
 
+        lastDetection = 0
+        detectedBombName = nil
+        detectedRadius = DEFAULT_BOMB_RADIUS
+        detectedPositionParts = { "Body", "PositionPart", "Main", "Part", "VisualBody" }
+
         antiExplodeTask = task.spawn(function()
             while antiExplodeActive do
                 pcall(function()
                     if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+
+                    local now = tick()
+                    if now - lastDetection > ANTI_EXPLODE_DETECTION_COOLDOWN then
+                        lastDetection = now
+                        pcall(detectBombSettings)
+                    end
 
                     local char = LocalPlayer.Character
                     if not char then return end
@@ -576,13 +795,14 @@ local function ToggleAntiExplode(state)
                     local hum = char:FindFirstChildOfClass("Humanoid")
                     if not hrp or not hum or hum.Health <= 0 then return end
 
+                    local threshold = detectedRadius + ANTI_EXPLODE_BUFFER
                     local bombs = getAllBombs()
                     for _, bomb in ipairs(bombs) do
                         if bomb.Parent then
                             local pos = getBombPosition(bomb)
                             if pos then
                                 local dist = (pos - hrp.Position).Magnitude
-                                if dist <= ANTI_EXPLODE_RADIUS then
+                                if dist <= threshold then
                                     destroyBomb(bomb)
                                 end
                             end
