@@ -25,6 +25,7 @@ local coinHighlightEnabled = undeitedhub.Toggles.coinHighlightEnabled or false
 local highlightMap = {}
 local gunHighlightMap = {}
 local coinHighlightMap = {}
+local adornmentMap = {}
 
 local lastRefreshAt = 0
 local pendingRefresh = false
@@ -40,6 +41,8 @@ local cachedMapModel = nil
 local cachedCoinContainer = nil
 
 local trackedGunDrops = setmetatable({}, { __mode = "k" })
+
+local INVISIBLE_THRESHOLD = 0.5
 
 local function markPlayersDirty() dirtyPlayers = true end
 local function markGunsDirty() dirtyGuns = true end
@@ -217,6 +220,71 @@ local function GetPlayerRoleColor(player)
     end
 end
 
+local function isCharacterInvisible(character)
+    if not character then return false end
+    local total = 0
+    local hidden = 0
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            total = total + 1
+            local t = part.Transparency
+            local ltm = part.LocalTransparencyModifier or 0
+            if t >= INVISIBLE_THRESHOLD or ltm >= INVISIBLE_THRESHOLD then
+                hidden = hidden + 1
+            end
+        end
+    end
+    if total == 0 then return false end
+    return hidden == total
+end
+
+local function removeAdornment(player)
+    local adorn = adornmentMap[player]
+    if adorn then
+        pcall(adorn.Destroy, adorn)
+        adornmentMap[player] = nil
+    end
+end
+
+local function updateAdornment(player, character, roleColor)
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    local adorn = adornmentMap[player]
+
+    if not hrp then
+        removeAdornment(player)
+        return
+    end
+
+    if adorn and adorn.Parent ~= hrp then
+        pcall(adorn.Destroy, adorn)
+        adornmentMap[player] = nil
+        adorn = nil
+    end
+
+    local invisible = isCharacterInvisible(character)
+
+    if invisible then
+        if not adorn then
+            adorn = Instance.new("BoxHandleAdornment")
+            adorn.Name = "UndeitedSPAdorn"
+            adorn.Size = Vector3.new(3, 6, 3)
+            adorn.AlwaysOnTop = true
+            adorn.ZIndex = 5
+            adorn.Transparency = 0.35
+            adorn.Adornee = hrp
+            adorn.Parent = hrp
+            adornmentMap[player] = adorn
+        end
+        adorn.Color3 = roleColor
+        adorn.Adornee = hrp
+    else
+        if adorn then
+            pcall(adorn.Destroy, adorn)
+            adornmentMap[player] = nil
+        end
+    end
+end
+
 local function ClearHighlights()
     for _, highlight in pairs(highlightMap) do
         if highlight and highlight.Parent then
@@ -224,6 +292,10 @@ local function ClearHighlights()
         end
     end
     highlightMap = {}
+
+    for player in pairs(adornmentMap) do
+        removeAdornment(player)
+    end
 end
 
 local function ClearGunHighlights()
@@ -273,6 +345,7 @@ function UpdateESP()
         if not humanoid or humanoid.Health <= 0 then continue end
 
         local roleColor = GetPlayerRoleColor(player)
+
         local highlight = highlightMap[player]
         if not highlight then
             highlight = Instance.new("Highlight")
@@ -290,6 +363,8 @@ function UpdateESP()
         highlight.OutlineColor = roleColor
         highlight.Enabled = true
 
+        updateAdornment(player, character, roleColor)
+
         seen[player] = true
     end
 
@@ -297,6 +372,12 @@ function UpdateESP()
         if not seen[player] and highlight and highlight.Parent then
             pcall(highlight.Destroy, highlight)
             highlightMap[player] = nil
+        end
+    end
+
+    for player in pairs(adornmentMap) do
+        if not seen[player] then
+            removeAdornment(player)
         end
     end
 end
@@ -497,6 +578,7 @@ game.Players.PlayerRemoving:Connect(function(player)
         pcall(highlightMap[player].Destroy, highlightMap[player])
         highlightMap[player] = nil
     end
+    removeAdornment(player)
 end)
 
 workspace.DescendantAdded:Connect(function(obj)
