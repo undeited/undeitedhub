@@ -78,6 +78,7 @@ local HAMBURGER_DROP_VECTOR = Vector3.new(0, 170.93299865722656, 0)
 
 local hamburgerSpamEnabled = undeitedhub.Toggles.hamburgerSpam or false
 local hamburgerSpamTask = nil
+local activeHamburger = nil
 
 local function getToysFolder()
     return Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
@@ -88,15 +89,10 @@ local function getSpawnRemote()
     return menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
 end
 
-local function findNewHamburger(beforeSet)
+local function findHamburger()
     local folder = getToysFolder()
     if not folder then return nil end
-    for _, child in ipairs(folder:GetChildren()) do
-        if child.Name == HAMBURGER_TOY_NAME and not beforeSet[child] then
-            return child
-        end
-    end
-    return nil
+    return folder:FindFirstChild(HAMBURGER_TOY_NAME)
 end
 
 local function getHoldDropRemotes(hamburger)
@@ -108,33 +104,33 @@ local function getHoldDropRemotes(hamburger)
     return holdRemote, dropRemote
 end
 
-local function performHamburgerSpam()
+local function spawnHamburger()
     local char = LocalPlayer.Character
-    if not char then return end
+    if not char then return nil end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    if not hrp then return nil end
 
     local spawnRemote = getSpawnRemote()
-    if not spawnRemote then return end
-
-    local folder = getToysFolder()
-    local beforeSet = {}
-    if folder then
-        for _, c in ipairs(folder:GetChildren()) do
-            beforeSet[c] = true
-        end
-    end
+    if not spawnRemote then return nil end
 
     local spawnCFrame = hrp.CFrame * CFrame.new(0, 1.5, -3)
-
     pcall(function()
         spawnRemote:InvokeServer(HAMBURGER_TOY_NAME, spawnCFrame, HAMBURGER_SPAWN_VECTOR)
     end)
 
-    task.wait()
+    for i = 1, 20 do
+        task.wait()
+        local h = findHamburger()
+        if h then return h end
+    end
+    return nil
+end
 
-    local hamburger = findNewHamburger(beforeSet)
-    if not hamburger then return end
+local function spamGrabDrop(hamburger)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
     local holdRemote, dropRemote = getHoldDropRemotes(hamburger)
     if not holdRemote then return end
@@ -142,8 +138,6 @@ local function performHamburgerSpam()
     pcall(function()
         holdRemote:InvokeServer(hamburger, char)
     end)
-
-    task.wait()
 
     if dropRemote then
         local dropCFrame = hrp.CFrame * CFrame.new(0, 1.5, -4)
@@ -160,12 +154,35 @@ local function startHamburgerSpam()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     hamburgerSpamTask = task.spawn(function()
+        activeHamburger = spawnHamburger()
+        if not activeHamburger then
+            SafeNotify({ Title = "Hamburger Spam", Content = "Failed to spawn hamburger", Duration = 2 })
+            hamburgerSpamEnabled = false
+            undeitedhub.Toggles.hamburgerSpam = false
+            hamburgerSpamTask = nil
+            return
+        end
+
         while hamburgerSpamEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                pcall(performHamburgerSpam)
+            if not activeHamburger or not activeHamburger.Parent then
+                activeHamburger = findHamburger()
+                if not activeHamburger then
+                    activeHamburger = spawnHamburger()
+                    if not activeHamburger then
+                        task.wait(0.5)
+                        continue
+                    end
+                end
             end
+
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                pcall(spamGrabDrop, activeHamburger)
+            end
+
             task.wait(HAMBURGER_SPAM_INTERVAL)
         end
+
+        activeHamburger = nil
         hamburgerSpamTask = nil
     end)
 end
@@ -177,6 +194,7 @@ local function stopHamburgerSpam()
         task.cancel(hamburgerSpamTask)
         hamburgerSpamTask = nil
     end
+    activeHamburger = nil
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
