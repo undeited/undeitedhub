@@ -144,239 +144,80 @@ end
 
 local antiGrabActive = false
 local antiGrabTask = nil
-local antiGrabSpawnTick = nil
-local antiGrabCurrentPlot = nil
-local antiGrabPlotScanTick = 0
 
-local function destroyOcarina(ocarina)
-    if not ocarina then return end
-    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-    local destroyToy = menuToys and menuToys:FindFirstChild("DestroyToy")
-    if destroyToy then
-        pcall(function() destroyToy:FireServer(ocarina) end)
-    end
+local function getCharacterEvents()
+    return ReplicatedStorage:FindFirstChild("CharacterEvents")
 end
 
-local function findCurrentPlot(plr)
-    local plots = Workspace:FindFirstChild("Plots")
-    if not plots then return nil end
-    for _, home in pairs(plots:GetChildren()) do
-        local plotSign = home:FindFirstChild("PlotSign")
-        if plotSign then
-            local owners = plotSign:FindFirstChild("ThisPlotsOwners")
-            if owners then
-                for _, person in pairs(owners:GetChildren()) do
-                    if person.Value == plr.Name then
-                        return home.Name
-                    end
-                end
-            end
-            local sign = plotSign:FindFirstChild("Sign")
-            if sign then
-                local screen = sign:FindFirstChild("Screen")
-                local surfaceGui = screen and screen:FindFirstChild("SurfaceGui")
-                local frame = surfaceGui and surfaceGui:FindFirstChild("Frame")
-                if frame and frame.Visible then
-                    local pdn = frame:FindFirstChild("PlayerDisplayName")
-                    if pdn and pdn.Text == plr.DisplayName then
-                        return home.Name
-                    end
-                end
-            end
+local function fireRecovery(character, hum)
+    local characterEvents = getCharacterEvents()
+    if characterEvents then
+        local struggle = characterEvents:FindFirstChild("Struggle")
+        if struggle then
+            pcall(function() struggle:FireServer(LocalPlayer) end)
         end
-    end
-    return nil
-end
 
-local function isGrabbed(character)
-    if not character then return false end
-    for _, prt in pairs(character:GetChildren()) do
-        local partOwner = prt:FindFirstChild("PartOwner")
-        if partOwner and partOwner.Value ~= "" then
-            return true, prt, partOwner
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        local ragdollRemote = characterEvents:FindFirstChild("RagdollRemote")
+        if hrp and ragdollRemote then
+            pcall(function() ragdollRemote:FireServer(hrp, 0.00000000001) end)
         end
-    end
-    return false, nil, nil
-end
-
-local function findOcarina(plr, plot)
-    local toysFolder = Workspace:FindFirstChild(plr.Name .. "SpawnedInToys")
-    local ocarina = toysFolder and toysFolder:FindFirstChild("InstrumentWoodwindOcarina")
-    if ocarina then return ocarina end
-    if plot then
-        local plotItems = Workspace:FindFirstChild("PlotItems")
-        local plotFolder = plotItems and plotItems:FindFirstChild(plot)
-        ocarina = plotFolder and plotFolder:FindFirstChild("InstrumentWoodwindOcarina")
-    end
-    return ocarina
-end
-
-local function spawnOcarina(plr)
-    local canSpawn = plr:FindFirstChild("CanSpawnToy")
-    if not canSpawn or not canSpawn.Value then return false end
-    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-    local spawnToy = menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
-    if not spawnToy then return false end
-    task.spawn(function()
-        pcall(function()
-            spawnToy:InvokeServer(
-                "InstrumentWoodwindOcarina",
-                CFrame.new(1e5, 1e5, 1e5),
-                Vector3.new(0, 0, 0)
-            )
-        end)
-    end)
-    return true
-end
-
-local function useOcarina(ocarina, character)
-    local holdPart = ocarina:FindFirstChild("HoldPart")
-    local holdRemote = holdPart and holdPart:FindFirstChild("HoldItemRemoteFunction")
-    if not holdRemote then return false end
-    pcall(function()
-        holdRemote:InvokeServer(ocarina, character)
-    end)
-    return true
-end
-
-local function clearPartOwners(character)
-    for _, prt in pairs(character:GetChildren()) do
-        local partOwner = prt:FindFirstChild("PartOwner")
-        if partOwner and partOwner.Value ~= "" then
-            pcall(function() partOwner.Value = "" end)
-        end
-    end
-end
-
-local function fireRecovery(plr, character, hum)
-    local characterEvents = ReplicatedStorage:FindFirstChild("CharacterEvents")
-    if not characterEvents then return end
-
-    local struggle = characterEvents:FindFirstChild("Struggle")
-    if struggle then
-        pcall(function() struggle:FireServer(plr) end)
-    end
-
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    local ragdollRemote = characterEvents:FindFirstChild("RagdollRemote")
-    if hrp and ragdollRemote then
-        pcall(function() ragdollRemote:FireServer(hrp, 0.00000000001) end)
     end
 
     for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
         if track.Animation and track.Animation.AnimationId == "rbxassetid://7047322890" then
-            track:Stop()
+            pcall(function() track:Stop() end)
         end
     end
+
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+        hum.AutoRotate = true
+        if hum.Sit then hum.Sit = false end
+        hum.PlatformStand = false
+    end)
+end
+
+local function clearPartOwnersDeep(character)
+    local found = false
+    for _, prt in ipairs(character:GetDescendants()) do
+        local partOwner = prt:FindFirstChild("PartOwner")
+        if partOwner and partOwner.Value ~= "" then
+            found = true
+            pcall(function() partOwner.Value = "" end)
+        end
+    end
+    return found
 end
 
 local function ToggleAntiGrab(state)
     antiGrabActive = state
 
     if state then
-        antiGrabSpawnTick = nil
-        antiGrabCurrentPlot = nil
-        antiGrabPlotScanTick = 0
+        if antiGrabTask then return end
 
         antiGrabTask = task.spawn(function()
-            local plr = LocalPlayer
-            local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-            if not menuToys then return end
-            local destroyToy = menuToys:FindFirstChild("DestroyToy")
-
             while antiGrabActive do
                 pcall(function()
-                    local character = plr.Character
+                    local character = LocalPlayer.Character
                     if not character then return end
-
                     local hum = character:FindFirstChildOfClass("Humanoid")
                     if not hum or hum.Health <= 0 then return end
 
-                    local grabbed = isGrabbed(character)
-
-                    if not grabbed then
-                        return
+                    local grabbed = clearPartOwnersDeep(character)
+                    if grabbed then
+                        fireRecovery(character, hum)
                     end
-
-                    local now = tick()
-
-                    if now - antiGrabPlotScanTick > 1.5 then
-                        antiGrabPlotScanTick = now
-                        antiGrabCurrentPlot = findCurrentPlot(plr)
-                    end
-
-                    local ocarina = findOcarina(plr, antiGrabCurrentPlot)
-
-                    if ocarina then
-                        local used = useOcarina(ocarina, character)
-                        if used then
-                            if destroyToy then
-                                pcall(function() destroyToy:FireServer(ocarina) end)
-                            end
-                            antiGrabSpawnTick = nil
-                            hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-                            hum.AutoRotate = true
-                            if hum.Sit then
-                                hum.Sit = false
-                            end
-                            clearPartOwners(character)
-                        end
-                    else
-                        if not antiGrabSpawnTick then
-                            local spawned = spawnOcarina(plr)
-                            if spawned then
-                                antiGrabSpawnTick = now
-                            end
-                        elseif now - antiGrabSpawnTick > 0.3 then
-                            local toysFolder = Workspace:FindFirstChild(plr.Name .. "SpawnedInToys")
-                            if not toysFolder or not toysFolder:FindFirstChild("InstrumentWoodwindOcarina") then
-                                antiGrabSpawnTick = nil
-                            end
-                        end
-                    end
-
-                    fireRecovery(plr, character, hum)
                 end)
-
-                if antiGrabActive and LocalPlayer.Character then
-                    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
-                            if track.Animation and track.Animation.AnimationId == "rbxassetid://7047322890" then
-                                track:Stop()
-                            end
-                        end
-                    end
-                end
-
-                task.wait(0.1)
+                task.wait(0.05)
             end
+            antiGrabTask = nil
         end)
     else
         if antiGrabTask then
             task.cancel(antiGrabTask)
             antiGrabTask = nil
-        end
-        antiGrabSpawnTick = nil
-        antiGrabCurrentPlot = nil
-
-        local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-        if toysFolder then
-            local ocarina = toysFolder:FindFirstChild("InstrumentWoodwindOcarina")
-            if ocarina then
-                destroyOcarina(ocarina)
-            end
-        end
-        local plot = antiGrabCurrentPlot
-        if plot then
-            local plotItems = Workspace:FindFirstChild("PlotItems")
-            local plotFolder = plotItems and plotItems:FindFirstChild(plot)
-            if plotFolder then
-                local ocarina = plotFolder:FindFirstChild("InstrumentWoodwindOcarina")
-                if ocarina then
-                    destroyOcarina(ocarina)
-                end
-            end
         end
     end
 end
