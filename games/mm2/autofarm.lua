@@ -741,7 +741,7 @@ local function StartAutoCollect()
     if characterAddedConnection then characterAddedConnection:Disconnect() end
     characterAddedConnection = localPlayer.CharacterAdded:Connect(onCharacterAdded)
     StartMonitoring()
-    SafeNotify({ Title = "Autofarm", Content = "Enabled", Duration = 2 })
+    SafeNotify({ Title = "Auto Collect Coins", Content = "Enabled", Duration = 2 })
     collectTask = task.spawn(function()
         while collectRunning do
             while collectRunning and (IsInLobby() or not IsRoundActive() or not IsPlayerAlive() or waitingForRoundStart or not _G.UNDEITEDHUB_WINDOW_VISIBLE) do
@@ -868,7 +868,7 @@ AutofarmTab:Toggle({
         undeitedhub.Toggles.autoTeleportToLobbyEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({
-            Title = "Auto Teleport to Lobby",
+            Title = "Auto Teleport To Lobby When Done",
             Content = state and "Enabled" or "Disabled",
             Duration = 2,
         })
