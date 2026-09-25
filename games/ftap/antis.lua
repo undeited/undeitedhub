@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local function SafeNotify(data)
     if type(data) ~= "table" then return end
@@ -340,6 +341,178 @@ if undeitedhub.Toggles.antiBlobman then
     ToggleAntiBlobman(true)
 end
 
+local ANTI_VOID_THRESHOLD = 50
+local ANTI_VOID_OFFSET = Vector3.new(0, 3, 0)
+local ANTI_VOID_RESTORE_COOLDOWN = 0.5
+
+local antiVoidActive = false
+local antiVoidTask = nil
+local lastVoidRestore = 0
+
+local function getDeathBarrierHeight()
+    local h = Workspace.FallenPartsDestroyHeight
+    if type(h) == "number" and h == h and h ~= math.huge and h ~= -math.huge then
+        return h
+    end
+    return -500
+end
+
+local function getRespawnTarget()
+    local spawnLocation = Workspace:FindFirstChild("SpawnLocation")
+    if spawnLocation and spawnLocation:IsA("BasePart") then
+        return spawnLocation.CFrame + ANTI_VOID_OFFSET
+    end
+
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum and hum.Health > 0 then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                return hrp.CFrame + ANTI_VOID_OFFSET
+            end
+        end
+    end
+
+    return nil
+end
+
+local function restoreCharacterState(character, hum, hrp, targetCFrame)
+    if not character or not hum or not hrp then return end
+
+    pcall(function()
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        hrp.Velocity = Vector3.zero
+        hrp.RotVelocity = Vector3.zero
+    end)
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            pcall(function()
+                part.AssemblyLinearVelocity = Vector3.zero
+                part.AssemblyAngularVelocity = Vector3.zero
+                part.Velocity = Vector3.zero
+                part.RotVelocity = Vector3.zero
+            end)
+        end
+    end
+
+    for _, child in ipairs(character:GetDescendants()) do
+        if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") or
+           child:IsA("BodyForce") or child:IsA("BodyGyro") or
+           child:IsA("BodyPosition") or child:IsA("BodyThrust") then
+            pcall(function() child:Destroy() end)
+        end
+    end
+
+    pcall(function()
+        if targetCFrame then
+            character:PivotTo(targetCFrame)
+        else
+            hrp.CFrame = CFrame.new(hrp.Position + ANTI_VOID_OFFSET)
+        end
+    end)
+
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+        hum.AutoRotate = true
+        if hum.Sit then hum.Sit = false end
+        hum.PlatformStand = false
+    end)
+
+    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+        if track.Animation and (track.Animation.AnimationId == "rbxassetid://7047322890") then
+            pcall(function() track:Stop() end)
+        end
+    end
+
+    local characterEvents = getCharacterEvents()
+    if characterEvents then
+        local struggle = characterEvents:FindFirstChild("Struggle")
+        if struggle then
+            pcall(function() struggle:FireServer(LocalPlayer) end)
+        end
+
+        local ragdollRemote = characterEvents:FindFirstChild("RagdollRemote")
+        if ragdollRemote then
+            pcall(function() ragdollRemote:FireServer(hrp, 0.00000000001) end)
+        end
+    end
+end
+
+local function ToggleAntiVoid(state)
+    antiVoidActive = state
+
+    if state then
+        if antiVoidTask then return end
+
+        antiVoidTask = task.spawn(function()
+            while antiVoidActive do
+                pcall(function()
+                    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+
+                    local character = LocalPlayer.Character
+                    if not character then return end
+                    local hum = character:FindFirstChildOfClass("Humanoid")
+                    local hrp = character:FindFirstChild("HumanoidRootPart")
+                    if not hum or not hrp or hum.Health <= 0 then return end
+
+                    local barrierHeight = getDeathBarrierHeight()
+                    local thresholdY = barrierHeight + ANTI_VOID_THRESHOLD
+
+                    if hrp.Position.Y <= thresholdY then
+                        local now = tick()
+                        if now - lastVoidRestore > ANTI_VOID_RESTORE_COOLDOWN then
+                            lastVoidRestore = now
+
+                            local target = getRespawnTarget()
+                            restoreCharacterState(character, hum, hrp, target)
+
+                            SafeNotify({
+                                Title = "Anti Void",
+                                Content = "Pulled you back from the void",
+                                Duration = 1.5,
+                            })
+                        end
+                    end
+                end)
+                RunService.Heartbeat:Wait()
+            end
+            antiVoidTask = nil
+        end)
+    else
+        if antiVoidTask then
+            task.cancel(antiVoidTask)
+            antiVoidTask = nil
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Void",
+    Value = antiVoidActive,
+    Callback = function(state)
+        ToggleAntiVoid(state)
+        undeitedhub.Toggles.antiVoid = state
+        if undeitedhub.SaveSettings then
+            undeitedhub.SaveSettings()
+        end
+        SafeNotify({
+            Title = "Anti Void",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+if undeitedhub.Toggles.antiVoid then
+    ToggleAntiVoid(true)
+end
+
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if antiFireActive then
@@ -354,6 +527,9 @@ undeitedhub.DisableAll = function()
     end
     if antiBlobmanActive then
         ToggleAntiBlobman(false)
+    end
+    if antiVoidActive then
+        ToggleAntiVoid(false)
     end
     oldDisable()
 end
