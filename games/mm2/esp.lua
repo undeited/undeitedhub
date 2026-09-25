@@ -26,7 +26,47 @@ local highlightMap = {}
 local gunHighlightMap = {}
 local coinHighlightMap = {}
 
+local lastRefreshAt = 0
+local pendingRefresh = false
+local MIN_REFRESH_INTERVAL = 0.4
+
+local dirtyPlayers = true
+local dirtyGuns = true
+local dirtyCoins = true
+
 local roundTimer = workspace:FindFirstChild("RoundTimerPart")
+
+local cachedMapModel = nil
+local cachedCoinContainer = nil
+
+local trackedGunDrops = setmetatable({}, { __mode = "k" })
+
+local function markPlayersDirty() dirtyPlayers = true end
+local function markGunsDirty() dirtyGuns = true end
+local function markCoinsDirty() dirtyCoins = true end
+
+local function scheduleRefresh()
+    if pendingRefresh then return end
+    pendingRefresh = true
+    local now = tick()
+    local delay = math.max(0, MIN_REFRESH_INTERVAL - (now - lastRefreshAt))
+    task.delay(delay, function()
+        pendingRefresh = false
+        lastRefreshAt = tick()
+        if dirtyPlayers then
+            dirtyPlayers = false
+            pcall(function() if UpdateESP then UpdateESP() end end)
+        end
+        if dirtyGuns then
+            dirtyGuns = false
+            pcall(function() if UpdateGunHighlights then UpdateGunHighlights() end end)
+        end
+        if dirtyCoins then
+            dirtyCoins = false
+            pcall(function() if UpdateCoinHighlights then UpdateCoinHighlights() end end)
+        end
+    end)
+end
 
 local function IsInLobby()
     local localPlayer = game.Players.LocalPlayer
@@ -210,7 +250,7 @@ local function ClearESP()
     ClearCoinHighlights()
 end
 
-local function UpdateESP()
+function UpdateESP()
     if not espEnabled then
         ClearHighlights()
         return
@@ -261,7 +301,41 @@ local function UpdateESP()
     end
 end
 
-local function UpdateGunHighlights()
+local function getCoinContainer()
+    if cachedMapModel and cachedMapModel.Parent and cachedCoinContainer and cachedCoinContainer.Parent then
+        return cachedCoinContainer
+    end
+
+    cachedMapModel = nil
+    cachedCoinContainer = nil
+
+    for _, child in ipairs(workspace:GetChildren()) do
+        if child:IsA("Model") then
+            local container = child:FindFirstChild("CoinContainer") or child:FindFirstChild("CoinAreas")
+            if container then
+                cachedMapModel = child
+                cachedCoinContainer = container
+                return container
+            end
+        end
+    end
+
+    return nil
+end
+
+local function getTrackedGunDrops()
+    local list = {}
+    for gd in pairs(trackedGunDrops) do
+        if gd and gd.Parent then
+            table.insert(list, gd)
+        else
+            trackedGunDrops[gd] = nil
+        end
+    end
+    return list
+end
+
+function UpdateGunHighlights()
     if not gunHighlightEnabled then
         ClearGunHighlights()
         return
@@ -271,52 +345,51 @@ local function UpdateGunHighlights()
         return
     end
 
-    local gunDrops = {}
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj.Name == "GunDrop" then
-            table.insert(gunDrops, obj)
-        end
-    end
-
-    local newHighlightMap = {}
+    local gunDrops = getTrackedGunDrops()
+    local seen = {}
     for _, gd in ipairs(gunDrops) do
         if gd and gd.Parent then
-            local highlight = Instance.new("Highlight")
+            seen[gd] = true
+            local highlight = gunHighlightMap[gd]
+            if not highlight then
+                highlight = Instance.new("Highlight")
+                highlight.Adornee = gd
+                highlight.FillColor = Color3.fromRGB(255, 255, 0)
+                highlight.FillTransparency = 0.5
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
+                highlight.OutlineTransparency = 0.2
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                highlight.Parent = gd
+                gunHighlightMap[gd] = highlight
+            end
             highlight.Adornee = gd
-            highlight.FillColor = Color3.fromRGB(255, 255, 0)
-            highlight.FillTransparency = 0.5
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
-            highlight.OutlineTransparency = 0.2
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            highlight.Parent = gd
-            table.insert(newHighlightMap, highlight)
+            highlight.Enabled = true
         end
     end
 
-    ClearGunHighlights()
-    for _, highlight in ipairs(newHighlightMap) do
-        gunHighlightMap[highlight] = true
+    for gd, highlight in pairs(gunHighlightMap) do
+        if not seen[gd] or not gd.Parent then
+            if highlight and highlight.Parent then
+                pcall(highlight.Destroy, highlight)
+            end
+            gunHighlightMap[gd] = nil
+        end
     end
 end
 
 local function GetAllCoinParts()
+    local container = getCoinContainer()
+    if not container then return {} end
     local parts = {}
-    for _, child in ipairs(workspace:GetChildren()) do
-        if child:IsA("Model") then
-            local container = child:FindFirstChild("CoinContainer") or child:FindFirstChild("CoinAreas")
-            if container then
-                for _, obj in ipairs(container:GetDescendants()) do
-                    if obj:IsA("BasePart") then
-                        table.insert(parts, obj)
-                    end
-                end
-            end
+    for _, obj in ipairs(container:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            table.insert(parts, obj)
         end
     end
     return parts
 end
 
-local function UpdateCoinHighlights()
+function UpdateCoinHighlights()
     if not coinHighlightEnabled then
         ClearCoinHighlights()
         return
@@ -327,31 +400,35 @@ local function UpdateCoinHighlights()
     end
 
     local coinParts = GetAllCoinParts()
-    local newHighlightMap = {}
+    local seen = {}
     for _, part in ipairs(coinParts) do
         if part and part.Parent then
-            local highlight = Instance.new("Highlight")
+            seen[part] = true
+            local highlight = coinHighlightMap[part]
+            if not highlight then
+                highlight = Instance.new("Highlight")
+                highlight.Adornee = part
+                highlight.FillColor = Color3.fromRGB(255, 215, 0)
+                highlight.FillTransparency = 0.5
+                highlight.OutlineColor = Color3.fromRGB(255, 215, 0)
+                highlight.OutlineTransparency = 0.2
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                highlight.Parent = part
+                coinHighlightMap[part] = highlight
+            end
             highlight.Adornee = part
-            highlight.FillColor = Color3.fromRGB(255, 215, 0)
-            highlight.FillTransparency = 0.5
-            highlight.OutlineColor = Color3.fromRGB(255, 215, 0)
-            highlight.OutlineTransparency = 0.2
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            highlight.Parent = part
-            table.insert(newHighlightMap, highlight)
+            highlight.Enabled = true
         end
     end
 
-    ClearCoinHighlights()
-    for _, highlight in ipairs(newHighlightMap) do
-        coinHighlightMap[highlight] = true
+    for part, highlight in pairs(coinHighlightMap) do
+        if not seen[part] or not part.Parent then
+            if highlight and highlight.Parent then
+                pcall(highlight.Destroy, highlight)
+            end
+            coinHighlightMap[part] = nil
+        end
     end
-end
-
-local function RefreshESP()
-    pcall(UpdateESP)
-    pcall(UpdateGunHighlights)
-    pcall(UpdateCoinHighlights)
 end
 
 VisualTab:Toggle({
@@ -363,7 +440,8 @@ VisualTab:Toggle({
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "Player Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
         if not espEnabled then ClearHighlights() end
-        RefreshESP()
+        markPlayersDirty()
+        scheduleRefresh()
     end
 })
 
@@ -376,7 +454,8 @@ VisualTab:Toggle({
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "Gun Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
         if not gunHighlightEnabled then ClearGunHighlights() end
-        RefreshESP()
+        markGunsDirty()
+        scheduleRefresh()
     end
 })
 
@@ -389,7 +468,8 @@ VisualTab:Toggle({
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "Coin Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
         if not coinHighlightEnabled then ClearCoinHighlights() end
-        RefreshESP()
+        markCoinsDirty()
+        scheduleRefresh()
     end
 })
 
@@ -397,10 +477,12 @@ local function ConnectPlayer(player)
     if not player then return end
     player.CharacterAdded:Connect(function()
         task.wait(0.2)
-        RefreshESP()
+        markPlayersDirty()
+        scheduleRefresh()
     end)
     player.CharacterRemoving:Connect(function()
-        RefreshESP()
+        markPlayersDirty()
+        scheduleRefresh()
     end)
 end
 
@@ -418,26 +500,32 @@ game.Players.PlayerRemoving:Connect(function(player)
 end)
 
 workspace.DescendantAdded:Connect(function(obj)
-    if obj.Name == "GunDrop" and gunHighlightEnabled then
-        RefreshESP()
+    if obj.Name == "GunDrop" then
+        trackedGunDrops[obj] = true
+        if gunHighlightEnabled then
+            markGunsDirty()
+            scheduleRefresh()
+        end
     end
 end)
 
 workspace.DescendantRemoving:Connect(function(obj)
-    if obj.Name == "GunDrop" or obj.Name:find("Coin") then
-        RefreshESP()
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        pcall(RefreshESP)
+    if obj.Name == "GunDrop" then
+        trackedGunDrops[obj] = nil
+        if gunHighlightEnabled then
+            markGunsDirty()
+            scheduleRefresh()
+        end
     end
 end)
 
 if roundTimer then
-    roundTimer:GetAttributeChangedSignal("Time"):Connect(RefreshESP)
+    roundTimer:GetAttributeChangedSignal("Time"):Connect(function()
+        markPlayersDirty()
+        markGunsDirty()
+        markCoinsDirty()
+        scheduleRefresh()
+    end)
 end
 
 local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -454,7 +542,8 @@ if gameplay then
                     undeitedhub.playerRoles = undeitedhub.playerRoles or {}
                     undeitedhub.playerRoles[localPlayer] = normalized
                     localPlayer:SetAttribute("Role", normalized)
-                    RefreshESP()
+                    markPlayersDirty()
+                    scheduleRefresh()
                 end
             end)
         end)
@@ -473,7 +562,10 @@ if gameplay then
                         player:SetAttribute("Role", role)
                     end
                 end
-                RefreshESP()
+                markPlayersDirty()
+                markGunsDirty()
+                markCoinsDirty()
+                scheduleRefresh()
             end)
         end)
     end
@@ -499,7 +591,10 @@ local function forceRoleScan()
             end
         end
     end
-    if changed then RefreshESP() end
+    if changed then
+        markPlayersDirty()
+        scheduleRefresh()
+    end
 end
 
 task.spawn(function()
@@ -539,6 +634,15 @@ undeitedhub.GetCurrentSheriff = function()
     return nil
 end
 
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if dirtyPlayers or dirtyGuns or dirtyCoins then
+            scheduleRefresh()
+        end
+    end
+end)
+
 undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
 local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
@@ -554,8 +658,8 @@ undeitedhub.DisableAll = function()
 end
 
 if espEnabled or gunHighlightEnabled or coinHighlightEnabled then
-    task.spawn(function()
-        task.wait(0.5)
-        RefreshESP()
-    end)
+    markPlayersDirty()
+    markGunsDirty()
+    markCoinsDirty()
+    scheduleRefresh()
 end
