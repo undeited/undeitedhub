@@ -36,7 +36,6 @@ local Tuning = {
     pingFactor = 0,
     players = 1,
     gravity = 196.2,
-    partCount = 0,
 }
 
 local function readPing()
@@ -51,14 +50,6 @@ local function readPing()
     return ping
 end
 
-local function readPartCount()
-    local char = LocalPlayer.Character
-    if not char then return 0 end
-    local count = 0
-    for _ in ipairs(char:GetDescendants()) do count = count + 1 end
-    return count
-end
-
 local function refreshTuning()
     local now = tick()
     if Tuning.lastUpdate > 0 and now - Tuning.lastUpdate < Tuning.refreshInterval then return end
@@ -67,7 +58,6 @@ local function refreshTuning()
     local ping = readPing()
     local players = math.max(1, #Players:GetPlayers())
     local gravity = Workspace.Gravity or 196.2
-    local partCount = readPartCount()
 
     local pingFactor = clamp(ping / 0.2, 0, 2)
     local playerFactor = clamp((players - 1) / 12, 0, 2)
@@ -76,17 +66,14 @@ local function refreshTuning()
     Tuning.pingFactor = pingFactor
     Tuning.players = players
     Tuning.gravity = gravity
-    Tuning.partCount = partCount
 
     Tuning.fireTickRate = clamp(0.05 / (1 + pingFactor * 0.3), 0.02, 0.15)
-    Tuning.fireScanDivisor = math.max(2, math.floor(5 + playerFactor * 4))
-    Tuning.firePartSweepRate = clamp(0.5 / (1 + playerFactor * 0.5), 0.15, 1.0)
 
-    Tuning.lagSweepInterval = clamp(0.25 * (1 + playerFactor * 0.5) * (1 + pingFactor * 0.4), 0.1, 1.0)
+    Tuning.lagSweepInterval = clamp(0.5 * (1 + playerFactor * 0.4) * (1 + pingFactor * 0.3), 0.25, 1.5)
 
-    Tuning.grabPollInterval = clamp(0.04 / (1 + pingFactor * 0.5), 0.015, 0.1)
+    Tuning.grabPollInterval = clamp(0.1 / (1 + pingFactor * 0.4), 0.05, 0.25)
 
-    Tuning.blobmanPollInterval = clamp(0.03 / (1 + pingFactor * 0.5), 0.01, 0.08)
+    Tuning.blobmanPollInterval = clamp(0.08 / (1 + pingFactor * 0.4), 0.04, 0.2)
 
     local gravityFactor = clamp(gravity / 196.2, 0.25, 3)
     Tuning.voidThreshold = clamp(80 * gravityFactor, 40, 250)
@@ -94,8 +81,8 @@ local function refreshTuning()
     Tuning.voidCooldown = clamp(0.4 * (1 + pingFactor * 0.5), 0.25, 1.0)
     Tuning.voidSafeUpdateInterval = clamp(0.5 * (1 + pingFactor * 0.25), 0.25, 1.0)
 
-    Tuning.explodeNearInterval = clamp(0.02 / (1 + pingFactor * 0.6), 0.008, 0.05)
-    Tuning.explodeFarInterval = clamp(0.1 * (1 + playerFactor * 0.3), 0.05, 0.3)
+    Tuning.explodeNearInterval = clamp(0.03 / (1 + pingFactor * 0.5), 0.015, 0.08)
+    Tuning.explodeFarInterval = clamp(0.15 * (1 + playerFactor * 0.2), 0.08, 0.4)
     Tuning.explodeBuffer = clamp(6 * (1 + pingFactor * 0.6), 4, 20)
     Tuning.explodeLookahead = clamp(0.5 * (1 + pingFactor * 0.75), 0.3, 1.5)
     Tuning.explodeDetectionCooldown = clamp(2 + playerFactor, 1.5, 5)
@@ -164,7 +151,7 @@ end
 local function clearPartOwnersDeep(character)
     if not character then return false end
     local found = false
-    for _, prt in ipairs(character:GetDescendants()) do
+    for _, prt in ipairs(character:GetChildren()) do
         local partOwner = prt:FindFirstChild("PartOwner")
         if partOwner and partOwner.Value ~= "" then
             found = true
@@ -221,16 +208,18 @@ local FIRE_NAMES = { "fire", "flame", "burn", "inferno", "ignite" }
 
 local function isFireInstance(obj)
     if not obj then return false end
-    if obj:IsA("Fire") or obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+    local class = obj.ClassName
+    if class == "Fire" or class == "ParticleEmitter" or class == "Trail" then
         local n = string.lower(obj.Name)
         for _, needle in ipairs(FIRE_NAMES) do
-            if n:find(needle) then return true end
+            if n:find(needle, 1, true) then return true end
         end
+        return false
     end
-    if obj:IsA("BasePart") then
+    if class == "Part" or class == "MeshPart" or class == "UnionOperation" or class == "TrussPart" then
         local n = string.lower(obj.Name)
         for _, needle in ipairs(FIRE_NAMES) do
-            if n:find(needle) then return true end
+            if n:find(needle, 1, true) then return true end
         end
     end
     return false
@@ -238,17 +227,16 @@ end
 
 local function neutralizeFire(obj)
     if not obj then return end
-    pcall(function() obj.Enabled = false end)
+    if obj:IsA("Fire") or obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+        pcall(function() obj.Enabled = false end)
+        return
+    end
     if obj:IsA("BasePart") then
         pcall(function()
             obj.CanTouch = false
             obj.CanQuery = false
         end)
-        pcall(function()
-            local fire = obj:FindFirstChildOfClass("Fire")
-            if fire then fire.Enabled = false end
-        end)
-        for _, d in ipairs(obj:GetDescendants()) do
+        for _, d in ipairs(obj:GetChildren()) do
             if d:IsA("Fire") or d:IsA("ParticleEmitter") or d:IsA("Trail") then
                 pcall(function() d.Enabled = false end)
             end
@@ -289,19 +277,23 @@ local function buildFireBarrier()
     hkFirePart.CanCollide = false
 end
 
-local function startFireWatchers()
-    for _, conn in ipairs(antiFireConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    antiFireConnections = {}
-
-    for _, folder in ipairs(Workspace:GetChildren()) do
-        for _, obj in ipairs(folder:GetDescendants()) do
+local function scanFireTargets()
+    local plots = Workspace:FindFirstChild("Plots")
+    if not plots then return end
+    for _, plot in ipairs(plots:GetChildren()) do
+        for _, obj in ipairs(plot:GetDescendants()) do
             if isFireInstance(obj) then
                 neutralizeFire(obj)
             end
         end
     end
+end
+
+local function startFireWatchers()
+    for _, conn in ipairs(antiFireConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    antiFireConnections = {}
 
     table.insert(antiFireConnections, Workspace.DescendantAdded:Connect(function(obj)
         if not antiFireActive then return end
@@ -309,6 +301,8 @@ local function startFireWatchers()
             neutralizeFire(obj)
         end
     end))
+
+    scanFireTargets()
 end
 
 local function stopFireWatchers()
@@ -326,28 +320,17 @@ local function ToggleAntiFire(state)
         pcall(startFireWatchers)
 
         antiFireTask = task.spawn(function()
-            local scanTick = 0
             while antiFireActive do
                 refreshTuning()
 
-                pcall(function()
-                    if hkFirePart and LocalPlayer.Character then
-                        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hkFirePart then
+                    local char = LocalPlayer.Character
+                    if char then
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
                         if hrp then
-                            hkFirePart.CFrame = hrp.CFrame
+                            pcall(function() hkFirePart.CFrame = hrp.CFrame end)
                         end
                     end
-                end)
-
-                scanTick = scanTick + 1
-                if scanTick % Tuning.fireScanDivisor == 0 then
-                    pcall(function()
-                        for _, obj in ipairs(Workspace:GetDescendants()) do
-                            if isFireInstance(obj) then
-                                neutralizeFire(obj)
-                            end
-                        end
-                    end)
                 end
 
                 task.wait(Tuning.fireTickRate)
@@ -385,6 +368,7 @@ end
 
 local antiLagActive = false
 local antiLagTask = nil
+local antiLagConnections = {}
 
 local LAG_CLASS_NAMES = {
     Beam = true,
@@ -398,32 +382,39 @@ local LAG_CLASS_NAMES = {
 local LAG_PART_NAMES = {
     GrabParts = true,
     GrabPart = true,
-    Beam = true,
     GrabLine = true,
     LinePart = true,
 }
 
-local function sweepLagSources()
-    local cleared = 0
+local function handleLagInstance(desc)
+    if not antiLagActive then return end
+    if LAG_CLASS_NAMES[desc.ClassName] then
+        pcall(function() desc:Destroy() end)
+    elseif LAG_PART_NAMES[desc.Name] then
+        pcall(function() desc:Destroy() end)
+    end
+end
 
-    for _, plr in ipairs(Players:GetPlayers()) do
-        local char = plr.Character
-        if char then
-            for _, d in ipairs(char:GetDescendants()) do
-                if LAG_CLASS_NAMES[d.ClassName] then
-                    pcall(function() d:Destroy() end)
-                    cleared = cleared + 1
-                elseif d:IsA("BasePart") and LAG_PART_NAMES[d.Name] then
-                    if plr ~= LocalPlayer then
-                        pcall(function() d:Destroy() end)
-                        cleared = cleared + 1
-                    end
-                end
-            end
+local function attachLagWatcher(character)
+    if not character then return end
+    if character == LocalPlayer.Character then return end
+    local conn = character.DescendantAdded:Connect(handleLagInstance)
+    table.insert(antiLagConnections, conn)
+end
+
+local function sweepLocalCharacter()
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, d in ipairs(char:GetChildren()) do
+        if LAG_CLASS_NAMES[d.ClassName] then
+            pcall(function() d:Destroy() end)
         end
     end
-
-    return cleared
+    for _, d in ipairs(char:GetChildren()) do
+        if d:IsA("BasePart") and LAG_PART_NAMES[d.Name] then
+            pcall(function() d:Destroy() end)
+        end
+    end
 end
 
 local function ApplyAntiLag(state)
@@ -431,11 +422,19 @@ local function ApplyAntiLag(state)
         pcall(function()
             LocalPlayer.PlayerScripts.CharacterAndBeamMove.Disabled = true
         end)
-        pcall(sweepLagSources)
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                attachLagWatcher(plr.Character)
+            end
+        end
     else
         pcall(function()
             LocalPlayer.PlayerScripts.CharacterAndBeamMove.Disabled = false
         end)
+        for _, conn in ipairs(antiLagConnections) do
+            pcall(function() conn:Disconnect() end)
+        end
+        antiLagConnections = {}
     end
 end
 
@@ -449,17 +448,8 @@ local function ToggleAntiLag(state)
             while antiLagActive do
                 refreshTuning()
 
-                pcall(function()
-                    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
-
-                    local char = LocalPlayer.Character
-                    if not char then return end
-
-                    for _, d in ipairs(char:GetDescendants()) do
-                        if LAG_CLASS_NAMES[d.ClassName] then
-                            pcall(function() d:Destroy() end)
-                        end
-                    end
+                if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                    pcall(sweepLocalCharacter)
 
                     for _, plr in ipairs(Players:GetPlayers()) do
                         if plr ~= LocalPlayer then
@@ -472,7 +462,8 @@ local function ToggleAntiLag(state)
                             end
                         end
                     end
-                end)
+                end
+
                 task.wait(Tuning.lagSweepInterval)
             end
             antiLagTask = nil
@@ -495,6 +486,14 @@ AntisTab:Toggle({
         SafeNotify({ Title = "Anti Lag", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
+
+Players.PlayerAdded:Connect(function(plr)
+    if plr == LocalPlayer then return end
+    plr.CharacterAdded:Connect(function(char)
+        task.wait(0.2)
+        if antiLagActive then attachLagWatcher(char) end
+    end)
+end)
 
 if undeitedhub.Toggles.antiLag then
     ToggleAntiLag(true)
@@ -532,9 +531,10 @@ local function attachAntiGrabToCharacter(character)
         end
     end))
 
-    for _, d in ipairs(character:GetDescendants()) do
-        if d.Name == "PartOwner" and d.Value ~= "" then
-            handleGrabIndicator(character, d)
+    for _, d in ipairs(character:GetChildren()) do
+        local po = d:FindFirstChild("PartOwner")
+        if po and po.Value ~= "" then
+            handleGrabIndicator(character, po)
         end
     end
 end
@@ -554,17 +554,19 @@ local function ToggleAntiGrab(state)
                 while antiGrabActive do
                     refreshTuning()
 
-                    pcall(function()
+                    if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                         local char = LocalPlayer.Character
-                        if not char then return end
-                        local hum = char:FindFirstChildOfClass("Humanoid")
-                        if not hum or hum.Health <= 0 then return end
-
-                        local cleared = clearPartOwnersDeep(char)
-                        if cleared then
-                            fireRecovery(char, hum)
+                        if char then
+                            local hum = char:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.Health > 0 then
+                                local cleared = clearPartOwnersDeep(char)
+                                if cleared then
+                                    fireRecovery(char, hum)
+                                end
+                            end
                         end
-                    end)
+                    end
+
                     task.wait(Tuning.grabPollInterval)
                 end
                 antiGrabTask = nil
@@ -593,12 +595,10 @@ AntisTab:Toggle({
     end
 })
 
-if LocalPlayer.CharacterAdded then
-    LocalPlayer.CharacterAdded:Connect(function(char)
-        task.wait(0.2)
-        if antiGrabActive then attachAntiGrabToCharacter(char) end
-    end)
-end
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.2)
+    if antiGrabActive then attachAntiGrabToCharacter(char) end
+end)
 
 if undeitedhub.Toggles.antiGrab then
     ToggleAntiGrab(true)
@@ -641,19 +641,21 @@ local function ToggleAntiBlobman(state)
             while antiBlobmanActive do
                 refreshTuning()
 
-                pcall(function()
+                if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                     local character = LocalPlayer.Character
-                    if not character then return end
-                    local hum = character:FindFirstChildOfClass("Humanoid")
-                    if not hum or hum.Health <= 0 then return end
+                    if character then
+                        local hum = character:FindFirstChildOfClass("Humanoid")
+                        if hum and hum.Health > 0 then
+                            local broken = breakBlobmanWeldsOn(character)
+                            local clearedOwners = clearPartOwnersDeep(character)
 
-                    local broken = breakBlobmanWeldsOn(character)
-                    local clearedOwners = clearPartOwnersDeep(character)
-
-                    if broken > 0 or clearedOwners then
-                        fireRecovery(character, hum)
+                            if broken > 0 or clearedOwners then
+                                fireRecovery(character, hum)
+                            end
+                        end
                     end
-                end)
+                end
+
                 task.wait(Tuning.blobmanPollInterval)
             end
             antiBlobmanTask = nil
@@ -753,7 +755,7 @@ local function restoreCharacterState(character, hum, hrp, targetCFrame)
         zeroVelocity(part)
     end
 
-    for _, child in ipairs(character:GetDescendants()) do
+    for _, child in ipairs(character:GetChildren()) do
         if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") or
            child:IsA("BodyForce") or child:IsA("BodyGyro") or
            child:IsA("BodyPosition") or child:IsA("BodyThrust") then
@@ -793,54 +795,53 @@ local function ToggleAntiVoid(state)
             while antiVoidActive do
                 refreshTuning()
 
-                pcall(function()
-                    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
-
+                if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                     local character = LocalPlayer.Character
-                    if not character then return end
-                    local hum = character:FindFirstChildOfClass("Humanoid")
-                    local hrp = character:FindFirstChild("HumanoidRootPart")
-                    if not hum or not hrp or hum.Health <= 0 then return end
+                    if character then
+                        local hum = character:FindFirstChildOfClass("Humanoid")
+                        local hrp = character:FindFirstChild("HumanoidRootPart")
+                        if hum and hrp and hum.Health > 0 then
+                            local barrierY = getDeathBarrierHeight()
+                            local thresholdY = barrierY + Tuning.voidThreshold
 
-                    local barrierY = getDeathBarrierHeight()
-                    local thresholdY = barrierY + Tuning.voidThreshold
+                            local now = tick()
+                            local pos = hrp.Position
+                            local vel = hrp.AssemblyLinearVelocity
 
-                    local now = tick()
-                    local pos = hrp.Position
-                    local vel = hrp.AssemblyLinearVelocity
+                            if now - lastSafeUpdate > Tuning.voidSafeUpdateInterval and pos.Y > thresholdY + 40 then
+                                lastSafeCFrame = hrp.CFrame
+                                lastSafeUpdate = now
+                            end
 
-                    if now - lastSafeUpdate > Tuning.voidSafeUpdateInterval and pos.Y > thresholdY + 40 then
-                        lastSafeCFrame = hrp.CFrame
-                        lastSafeUpdate = now
-                    end
+                            local trigger = false
+                            if pos.Y <= thresholdY then
+                                trigger = true
+                            end
 
-                    local trigger = false
-                    if pos.Y <= thresholdY then
-                        trigger = true
-                    end
+                            if not trigger and vel.Y < -100 then
+                                local predictedY = pos.Y + vel.Y * Tuning.voidPredictTime
+                                if predictedY <= thresholdY then
+                                    trigger = true
+                                end
+                            end
 
-                    if not trigger and vel.Y < -100 then
-                        local predictedY = pos.Y + vel.Y * Tuning.voidPredictTime
-                        if predictedY <= thresholdY then
-                            trigger = true
+                            if trigger then
+                                if now - lastVoidRestore > Tuning.voidCooldown then
+                                    lastVoidRestore = now
+
+                                    local target = findBestSpawn() or lastSafeCFrame
+                                    restoreCharacterState(character, hum, hrp, target)
+
+                                    SafeNotify({
+                                        Title = "Anti Void",
+                                        Content = "Pulled you back from the void",
+                                        Duration = 1.5,
+                                    })
+                                end
+                            end
                         end
                     end
-
-                    if trigger then
-                        if now - lastVoidRestore > Tuning.voidCooldown then
-                            lastVoidRestore = now
-
-                            local target = findBestSpawn() or lastSafeCFrame
-                            restoreCharacterState(character, hum, hrp, target)
-
-                            SafeNotify({
-                                Title = "Anti Void",
-                                Content = "Pulled you back from the void",
-                                Duration = 1.5,
-                            })
-                        end
-                    end
-                end)
+                end
                 RunService.Heartbeat:Wait()
             end
             antiVoidTask = nil
@@ -876,6 +877,8 @@ local detectedRadius = DEFAULT_BOMB_RADIUS
 local detectedPositionParts = { "Body", "PositionPart", "Main", "Part", "VisualBody" }
 local lastDetection = 0
 local toyFolderConnections = {}
+local activeBombs = {}
+local bombFolders = {}
 
 local function looksLikeBomb(model)
     if not model or not model:IsA("Model") then return false end
@@ -917,7 +920,7 @@ local function getMissileRadiusConstant(missileScript)
 end
 
 local function detectBombSettings()
-    for _, folder in ipairs(getToyFolders()) do
+    for _, folder in ipairs(bombFolders) do
         for _, toy in ipairs(folder:GetChildren()) do
             if looksLikeBomb(toy) then
                 local parts = {}
@@ -943,18 +946,6 @@ local function detectBombSettings()
     return false
 end
 
-local function getAllBombs()
-    local bombs = {}
-    for _, folder in ipairs(getToyFolders()) do
-        for _, toy in ipairs(folder:GetChildren()) do
-            if looksLikeBomb(toy) then
-                table.insert(bombs, toy)
-            end
-        end
-    end
-    return bombs
-end
-
 local function getBombBodyPart(bomb)
     if not bomb then return nil end
     for _, name in ipairs(detectedPositionParts) do
@@ -962,19 +953,15 @@ local function getBombBodyPart(bomb)
         if part and part:IsA("BasePart") then return part end
     end
     if bomb.PrimaryPart then return bomb.PrimaryPart end
-    for _, part in ipairs(bomb:GetDescendants()) do
+    for _, part in ipairs(bomb:GetChildren()) do
         if part:IsA("BasePart") then return part end
     end
     return nil
 end
 
-local function getBombPosition(bomb)
-    local body = getBombBodyPart(bomb)
-    return body and body.Position
-end
-
 local function destroyBomb(bomb)
     if not bomb then return end
+    activeBombs[bomb] = nil
     local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
     local destroyToy = menuToys and menuToys:FindFirstChild("DestroyToy")
     if destroyToy then
@@ -1012,9 +999,16 @@ local function isBombThreat(bomb, hrp)
 end
 
 local function attachBombWatcher(folder)
-    local conn = folder.ChildAdded:Connect(function(toy)
+    for _, toy in ipairs(folder:GetChildren()) do
+        if looksLikeBomb(toy) then
+            activeBombs[toy] = true
+        end
+    end
+
+    local addConn = folder.ChildAdded:Connect(function(toy)
         if not antiExplodeActive then return end
         if not looksLikeBomb(toy) then return end
+        activeBombs[toy] = true
         task.defer(function()
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -1025,7 +1019,13 @@ local function attachBombWatcher(folder)
             end
         end)
     end)
-    table.insert(toyFolderConnections, conn)
+
+    local removeConn = folder.ChildRemoved:Connect(function(toy)
+        activeBombs[toy] = nil
+    end)
+
+    table.insert(toyFolderConnections, addConn)
+    table.insert(toyFolderConnections, removeConn)
 end
 
 local function stopBombWatchers()
@@ -1033,6 +1033,7 @@ local function stopBombWatchers()
         pcall(function() conn:Disconnect() end)
     end
     toyFolderConnections = {}
+    activeBombs = {}
 end
 
 local function ToggleAntiExplode(state)
@@ -1047,24 +1048,24 @@ local function ToggleAntiExplode(state)
         detectedPositionParts = { "Body", "PositionPart", "Main", "Part", "VisualBody" }
 
         stopBombWatchers()
-        for _, folder in ipairs(getToyFolders()) do
+        bombFolders = getToyFolders()
+        for _, folder in ipairs(bombFolders) do
             attachBombWatcher(folder)
         end
 
-        toyFolderConnections[#toyFolderConnections + 1] = Workspace.ChildAdded:Connect(function(child)
+        table.insert(toyFolderConnections, Workspace.ChildAdded:Connect(function(child)
             if not antiExplodeActive then return end
             if child.Name:find("SpawnedInToys") then
+                table.insert(bombFolders, child)
                 attachBombWatcher(child)
             end
-        end)
+        end))
 
         antiExplodeTask = task.spawn(function()
             while antiExplodeActive do
                 refreshTuning()
 
-                pcall(function()
-                    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
-
+                if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                     local now = tick()
                     if now - lastDetection > Tuning.explodeDetectionCooldown then
                         lastDetection = now
@@ -1072,33 +1073,42 @@ local function ToggleAntiExplode(state)
                     end
 
                     local char = LocalPlayer.Character
-                    if not char then return end
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if not hrp or not hum or hum.Health <= 0 then return end
+                    if char then
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        if hrp and hum and hum.Health > 0 then
+                            local nearestDist = math.huge
 
-                    local bombs = getAllBombs()
-                    local nearestDist = math.huge
-
-                    for _, bomb in ipairs(bombs) do
-                        if bomb.Parent then
-                            local pos = getBombPosition(bomb)
-                            if pos then
-                                local d = (pos - hrp.Position).Magnitude
-                                if d < nearestDist then nearestDist = d end
-                                if isBombThreat(bomb, hrp) then
-                                    destroyBomb(bomb)
+                            for bomb in pairs(activeBombs) do
+                                if bomb.Parent then
+                                    local body = getBombBodyPart(bomb)
+                                    if body then
+                                        local pos = body.Position
+                                        local d = (pos - hrp.Position).Magnitude
+                                        if d < nearestDist then nearestDist = d end
+                                        if isBombThreat(bomb, hrp) then
+                                            destroyBomb(bomb)
+                                        end
+                                    end
+                                else
+                                    activeBombs[bomb] = nil
                                 end
                             end
-                        end
-                    end
 
-                    if nearestDist < (detectedRadius + Tuning.explodeBuffer) * 3 then
-                        task.wait(Tuning.explodeNearInterval)
+                            if nearestDist < (detectedRadius + Tuning.explodeBuffer) * 3 then
+                                task.wait(Tuning.explodeNearInterval)
+                            else
+                                task.wait(Tuning.explodeFarInterval)
+                            end
+                        else
+                            task.wait(Tuning.explodeFarInterval)
+                        end
                     else
                         task.wait(Tuning.explodeFarInterval)
                     end
-                end)
+                else
+                    task.wait(0.5)
+                end
             end
             antiExplodeTask = nil
         end)
@@ -1108,6 +1118,7 @@ local function ToggleAntiExplode(state)
             antiExplodeTask = nil
         end
         stopBombWatchers()
+        bombFolders = {}
     end
 end
 
