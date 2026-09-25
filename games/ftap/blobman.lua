@@ -27,7 +27,6 @@ local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
 local kickDropdown = nil
--- [KICK CHANGE] Made this much higher so the teleport flings the target fast.
 local KICK_HEIGHT = 500
 
 local INTERACT_KEY = Enum.KeyCode.F
