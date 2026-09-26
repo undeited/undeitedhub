@@ -145,6 +145,21 @@ local function getBossChest()
     return nil
 end
 
+local function getChestRuntime(chest)
+    if not chest or not chest.Parent then return nil end
+    return chest:FindFirstChild("bossRewardsRuntime")
+end
+
+local function isChestClaimed(chest)
+    if not chest or not chest.Parent then return true end
+    local runtime = getChestRuntime(chest)
+    if not runtime then return true end
+    if runtime:IsA("Script") or runtime:IsA("LocalScript") then
+        if runtime.Disabled then return true end
+    end
+    return false
+end
+
 local autoBossEnabled = undeitedhub.Toggles.autoBoss or false
 local bossConnection = nil
 
@@ -152,6 +167,9 @@ local currentBossRoot = nil
 local currentBossIndex = nil
 local lastBossPos = nil
 local lastPunchTime = 0
+
+local trackedChest = nil
+local chestClaimed = false
 
 local FOLLOW_OFFSET = Vector3.new(0, 0.5, 0)
 local CHEST_OFFSET = Vector3.new(0, 3, 0)
@@ -167,25 +185,44 @@ local function onBossHeartbeat()
         currentBossRoot = nil
         currentBossIndex = nil
         lastBossPos = nil
+        trackedChest = nil
+        chestClaimed = false
         return
     end
 
     local chest = getBossChest()
+
     if chest then
-        local chestPart = chest:FindFirstChild("Root") or chest:FindFirstChild("ChestCenterHandle") or chest:FindFirstChild("ChestOpenHandle")
-        if chestPart then
-            local hrp = getHRP()
-            if hrp then
-                local chestPos = chestPart.Position
-                pcall(function()
-                    hrp.CFrame = CFrame.new(chestPos + CHEST_OFFSET, chestPos)
-                end)
-                resetVelocity(hrp)
+        if trackedChest ~= chest then
+            trackedChest = chest
+            chestClaimed = false
+        end
+
+        if not chestClaimed then
+            if isChestClaimed(chest) then
+                chestClaimed = true
+                releaseE()
+            else
+                local chestPart = chest:FindFirstChild("Root")
+                    or chest:FindFirstChild("ChestCenterHandle")
+                    or chest:FindFirstChild("ChestOpenHandle")
+                if chestPart then
+                    local hrp = getHRP()
+                    if hrp then
+                        local chestPos = chestPart.Position
+                        pcall(function()
+                            hrp.CFrame = CFrame.new(chestPos + CHEST_OFFSET, chestPos)
+                        end)
+                        resetVelocity(hrp)
+                    end
+                    holdE()
+                end
+                return
             end
-            holdE()
-            return
         end
     else
+        trackedChest = nil
+        chestClaimed = false
         releaseE()
     end
 
@@ -247,6 +284,8 @@ local function startAutoBoss()
     currentBossRoot = nil
     currentBossIndex = nil
     lastBossPos = nil
+    trackedChest = nil
+    chestClaimed = false
 
     bossConnection = RunService.Heartbeat:Connect(onBossHeartbeat)
 end
@@ -261,6 +300,8 @@ local function stopAutoBoss()
     currentBossRoot = nil
     currentBossIndex = nil
     lastBossPos = nil
+    trackedChest = nil
+    chestClaimed = false
     releaseE()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
@@ -293,6 +334,8 @@ undeitedhub.DisableAll = function()
         currentBossRoot = nil
         currentBossIndex = nil
         lastBossPos = nil
+        trackedChest = nil
+        chestClaimed = false
         releaseE()
     end
     oldDisable()
