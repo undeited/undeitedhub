@@ -1,9 +1,14 @@
-local WindUI = undeitedhub.WindUI
+\local WindUI = undeitedhub.WindUI
 local BossTab = undeitedhub.Window:Tab({ Title = "Boss" })
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local LocalPlayer = Players.LocalPlayer
+
+local INTERACT_KEY = Enum.KeyCode.E
+local holdingE = false
 
 local function getPunchTool(player)
     local char = player.Character
@@ -100,17 +105,80 @@ local function getActiveBoss()
     return nil
 end
 
+local function getBossChest()
+    local chest = workspace:FindFirstChild("BossChest")
+    if chest then return chest end
+    local events = workspace:FindFirstChild("Events")
+    if events then
+        local arena = events:FindFirstChild("BossArena")
+        if arena then
+            return arena:FindFirstChild("BossChest")
+        end
+    end
+    return nil
+end
+
+local function findProximityPrompt(instance)
+    if not instance then return nil end
+    local direct = instance:FindFirstChildOfClass("ProximityPrompt")
+    if direct then return direct end
+    for _, d in ipairs(instance:GetDescendants()) do
+        if d:IsA("ProximityPrompt") then return d end
+    end
+    return nil
+end
+
 local autoBossEnabled = undeitedhub.Toggles.autoBoss or false
 local bossConnection = nil
 local currentBoss = nil
+local currentChest = nil
+local chestClaimed = false
 local lastPunchTime = 0
+local lastTeleportTime = 0
+local activePrompt = nil
+local promptStartedAt = 0
 
 local TELEPORT_DISTANCE = 20
 local ATTACK_RANGE = 8
+local CHEST_RANGE = 6
 local PUNCH_COOLDOWN = 0.1
 local TELEPORT_COOLDOWN = 3
+local CHEST_PROMPT_TIMEOUT = 1.5
 
-local lastTeleportTime = 0
+local function releaseE()
+    if activePrompt then
+        pcall(function()
+            activePrompt:InputHoldEnd()
+        end)
+        activePrompt = nil
+    end
+    if holdingE then
+        holdingE = false
+        pcall(function()
+            VirtualInputManager:SendKeyEvent(false, INTERACT_KEY, false, game)
+        end)
+    end
+end
+
+local function holdE(prompt)
+    if prompt then
+        if activePrompt ~= prompt then
+            releaseE()
+            activePrompt = prompt
+            promptStartedAt = tick()
+            pcall(function()
+                prompt:InputHoldBegin()
+            end)
+        end
+    else
+        if not holdingE then
+            holdingE = true
+            pcall(function()
+                VirtualInputManager:SendKeyEvent(true, INTERACT_KEY, false, game)
+            end)
+        end
+    end
+end
 
 local function teleportNearBoss(bossRoot)
     local hrp = getHRP()
@@ -170,7 +238,60 @@ local function onBossHeartbeat()
     local hum = getHumanoid()
     if not hum or hum.Health <= 0 then
         currentBoss = nil
+        currentChest = nil
+        chestClaimed = false
+        releaseE()
         return
+    end
+
+    local chest = getBossChest()
+    if chest then
+        if currentChest ~= chest then
+            currentChest = chest
+            chestClaimed = false
+            releaseE()
+        end
+
+        if not chestClaimed then
+            local hrp = getHRP()
+            local chestPart = chest:FindFirstChild("Root")
+                or chest:FindFirstChild("ChestCenterHandle")
+                or chest:FindFirstChild("ChestOpenHandle")
+            if hrp and chestPart then
+                local chestPos = chestPart.Position
+                local distance = (hrp.Position - chestPos).Magnitude
+                if distance > CHEST_RANGE then
+                    pcall(function()
+                        hrp.CFrame = CFrame.new(chestPos, chestPos + Vector3.new(0, 0, 1))
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    end)
+                end
+
+                local prompt = findProximityPrompt(chest)
+                if prompt then
+                    if activePrompt ~= prompt then
+                        releaseE()
+                        activePrompt = prompt
+                        promptStartedAt = tick()
+                        pcall(function()
+                            prompt:InputHoldBegin()
+                        end)
+                    end
+                else
+                    holdE(nil)
+                end
+
+                if activePrompt and tick() - promptStartedAt > CHEST_PROMPT_TIMEOUT then
+                    releaseE()
+                end
+            end
+            return
+        end
+    else
+        currentChest = nil
+        chestClaimed = false
+        releaseE()
     end
 
     local boss, _, index = getActiveBoss()
@@ -225,6 +346,8 @@ local function startAutoBoss()
     lastPunchTime = 0
     lastTeleportTime = 0
     currentBoss = nil
+    currentChest = nil
+    chestClaimed = false
 
     bossConnection = RunService.Heartbeat:Connect(onBossHeartbeat)
 end
@@ -237,6 +360,9 @@ local function stopAutoBoss()
         bossConnection = nil
     end
     currentBoss = nil
+    currentChest = nil
+    chestClaimed = false
+    releaseE()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
@@ -266,6 +392,9 @@ undeitedhub.DisableAll = function()
             bossConnection = nil
         end
         currentBoss = nil
+        currentChest = nil
+        chestClaimed = false
+        releaseE()
     end
     oldDisable()
 end
