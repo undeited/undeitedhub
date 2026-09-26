@@ -120,8 +120,6 @@ local function getInstancePosition(inst)
     return Vector3.zero
 end
 
--- Try to figure out what strength value a machine is associated with by
--- scanning its attributes and its descendant values for numbers that match.
 local function readMachineStrength(machine)
     if not machine then return nil end
 
@@ -224,6 +222,13 @@ local function isSeatedOn(seat)
     return hum.SeatPart == seat
 end
 
+local function isNearSeat(seat, threshold)
+    if not seat then return false end
+    local hrp = getHRP()
+    if not hrp then return false end
+    return (hrp.Position - seat.Position).Magnitude < (threshold or 8)
+end
+
 local function zeroVelocity()
     local hrp = getHRP()
     if not hrp then return end
@@ -236,14 +241,21 @@ end
 local function sitOnSeat(seat)
     if not seat then return false end
     local hrp = getHRP()
-    if not hrp then return false end
+    local hum = getHumanoid()
+    if not hrp or not hum then return false end
 
-    local targetCFrame = seat.CFrame + Vector3.new(0, 2, 0)
+    local targetCFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
 
     pcall(function()
         hrp.CFrame = targetCFrame
     end)
     zeroVelocity()
+
+    task.wait(0.05)
+    pcall(function()
+        hum.Sit = true
+    end)
+
     return true
 end
 
@@ -308,6 +320,16 @@ local function runFarmCycle()
         return
     end
 
+    if isNearSeat(useSeat, 8) or isNearSeat(repSeat, 8) then
+        fireUseMachine(useSeat)
+        fireRep(repSeat)
+        local hum = getHumanoid()
+        if hum then
+            pcall(function() hum.Sit = true end)
+        end
+        return
+    end
+
     local now = tick()
     if now - lastReseatTime < RESEAT_COOLDOWN then
         return
@@ -369,57 +391,6 @@ GymTab:Dropdown({
         selectedMachine = value
         currentMachine = nil
         lastReseatTime = 0
-    end
-})
-
-GymTab:Button({
-    Title = "Print Machines",
-    Callback = function()
-        local folder = findMachinesFolder()
-        if not folder then
-            Notify("Gym", "machinesFolder not found")
-            return
-        end
-
-        local gymData = GYMS[selectedGym]
-        local config = gymData and gymData[selectedMachine]
-        if not config then
-            Notify("Gym", "No config for " .. tostring(selectedMachine))
-            return
-        end
-
-        local matches = getMachineMatches(folder, config.machineName)
-        print("=== " .. config.machineName .. " (" .. #matches .. " matches) ===")
-        for i, m in ipairs(matches) do
-            local pos = getInstancePosition(m)
-            local detected = readMachineStrength(m)
-            print(string.format(
-                "[%d] %s  pos=(%.1f, %.1f, %.1f)  detectedStrength=%s",
-                i,
-                m:GetFullName(),
-                pos.X, pos.Y, pos.Z,
-                tostring(detected)
-            ))
-        end
-
-        local chosen = getMachineInstance(
-            folder,
-            config.machineName,
-            config.variantIndex,
-            config.requiredStrength
-        )
-        if chosen then
-            local cpos = getInstancePosition(chosen)
-            print(string.format(
-                "SELECTED: %s  pos=(%.1f, %.1f, %.1f)",
-                chosen:GetFullName(),
-                cpos.X, cpos.Y, cpos.Z
-            ))
-        else
-            print("SELECTED: none")
-        end
-
-        Notify("Gym", "Printed " .. #matches .. " matches (see console)")
     end
 })
 
