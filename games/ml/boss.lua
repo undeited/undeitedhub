@@ -1,4 +1,4 @@
-\local WindUI = undeitedhub.WindUI
+local WindUI = undeitedhub.WindUI
 local BossTab = undeitedhub.Window:Tab({ Title = "Boss" })
 
 local Players = game:GetService("Players")
