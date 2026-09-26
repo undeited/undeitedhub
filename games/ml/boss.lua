@@ -4,7 +4,6 @@ local BossTab = undeitedhub.Window:Tab({ Title = "Boss" })
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local LocalPlayer = Players.LocalPlayer
 
 local INTERACT_KEY = Enum.KeyCode.E
@@ -66,11 +65,14 @@ local function getBossRoot(boss)
     if not boss or not boss.Parent then return nil end
     if boss:IsA("BasePart") then return boss end
 
-    local hrp = boss:FindFirstChild("HumanoidRootPart")
+    local pelvis = boss:FindFirstChild("pelvis", true)
+    if pelvis and pelvis:IsA("BasePart") then return pelvis end
+
+    local hrp = boss:FindFirstChild("HumanoidRootPart", true)
     if hrp and hrp:IsA("BasePart") then return hrp end
 
-    local hum = boss:FindFirstChildOfClass("Humanoid")
-    if hum and hum.RootPart then return hum.RootPart end
+    local hitbox = boss:FindFirstChild("BossDamageHitbox", true)
+    if hitbox and hitbox:IsA("BasePart") then return hitbox end
 
     if boss.PrimaryPart then return boss.PrimaryPart end
 
@@ -80,12 +82,24 @@ local function getBossRoot(boss)
     return nil
 end
 
-local function isBossAlive(boss)
-    if not boss or not boss.Parent then return false end
+local function isBossAlive(bossFolder)
+    if not bossFolder or not bossFolder.Parent then return false end
+    local boss = bossFolder:FindFirstChild("Boss")
+    if not boss then return false end
+
+    local stats = bossFolder:FindFirstChild("stats")
+    if stats then
+        local health = stats:FindFirstChild("Health")
+        if health and (health:IsA("NumberValue") or health:IsA("IntValue")) then
+            return health.Value > 0
+        end
+    end
+
     local hum = boss:FindFirstChildOfClass("Humanoid")
     if hum then
         return hum.Health > 0
     end
+
     return true
 end
 
@@ -95,9 +109,9 @@ local function getActiveBoss()
 
     for i = 1, BOSS_COUNT do
         local bossFolder = arena:FindFirstChild("Boss" .. i)
-        if bossFolder then
+        if bossFolder and isBossAlive(bossFolder) then
             local boss = bossFolder:FindFirstChild("Boss")
-            if isBossAlive(boss) then
+            if boss then
                 return boss, bossFolder, i
             end
         end
@@ -128,6 +142,16 @@ local function findProximityPrompt(instance)
     return nil
 end
 
+local function findClickDetector(instance)
+    if not instance then return nil end
+    local direct = instance:FindFirstChildOfClass("ClickDetector")
+    if direct then return direct end
+    for _, d in ipairs(instance:GetDescendants()) do
+        if d:IsA("ClickDetector") then return d end
+    end
+    return nil
+end
+
 local autoBossEnabled = undeitedhub.Toggles.autoBoss or false
 local bossConnection = nil
 local currentBoss = nil
@@ -137,6 +161,7 @@ local lastPunchTime = 0
 local lastTeleportTime = 0
 local activePrompt = nil
 local promptStartedAt = 0
+local lastClickTime = 0
 
 local TELEPORT_DISTANCE = 20
 local ATTACK_RANGE = 8
@@ -144,6 +169,7 @@ local CHEST_RANGE = 6
 local PUNCH_COOLDOWN = 0.1
 local TELEPORT_COOLDOWN = 3
 local CHEST_PROMPT_TIMEOUT = 1.5
+local CLICK_COOLDOWN = 0.5
 
 local function releaseE()
     if activePrompt then
@@ -231,6 +257,63 @@ local function walkTowardsBoss(bossRoot)
     end)
 end
 
+local function handleChest(chest)
+    if not chest then return false end
+
+    local hrp = getHRP()
+    local chestPart = chest:FindFirstChild("Root")
+        or chest:FindFirstChild("ChestCenterHandle")
+        or chest:FindFirstChild("ChestOpenHandle")
+    if not hrp or not chestPart then return true end
+
+    local chestPos = chestPart.Position
+    local distance = (hrp.Position - chestPos).Magnitude
+    if distance > CHEST_RANGE then
+        pcall(function()
+            hrp.CFrame = CFrame.new(chestPos, chestPos + Vector3.new(0, 0, 1))
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+
+    local prompt = findProximityPrompt(chest)
+    if prompt then
+        if activePrompt ~= prompt then
+            releaseE()
+            activePrompt = prompt
+            promptStartedAt = tick()
+            pcall(function()
+                prompt:InputHoldBegin()
+            end)
+        end
+        if tick() - promptStartedAt > CHEST_PROMPT_TIMEOUT then
+            releaseE()
+        end
+        return true
+    end
+
+    local detector = findClickDetector(chest)
+    if detector then
+        local now = tick()
+        if now - lastClickTime >= CLICK_COOLDOWN then
+            lastClickTime = now
+            pcall(function()
+                if typeof(fireclickdetector) == "function" then
+                    fireclickdetector(detector)
+                elseif typeof(getconnections) == "function" then
+                    for _, c in ipairs(getconnections(detector.MouseClick)) do
+                        pcall(c.Fire, c)
+                    end
+                end
+            end)
+        end
+        return true
+    end
+
+    holdE(nil)
+    return true
+end
+
 local function onBossHeartbeat()
     if not autoBossEnabled then return end
     if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
@@ -253,40 +336,10 @@ local function onBossHeartbeat()
         end
 
         if not chestClaimed then
-            local hrp = getHRP()
-            local chestPart = chest:FindFirstChild("Root")
-                or chest:FindFirstChild("ChestCenterHandle")
-                or chest:FindFirstChild("ChestOpenHandle")
-            if hrp and chestPart then
-                local chestPos = chestPart.Position
-                local distance = (hrp.Position - chestPos).Magnitude
-                if distance > CHEST_RANGE then
-                    pcall(function()
-                        hrp.CFrame = CFrame.new(chestPos, chestPos + Vector3.new(0, 0, 1))
-                        hrp.AssemblyLinearVelocity = Vector3.zero
-                        hrp.AssemblyAngularVelocity = Vector3.zero
-                    end)
-                end
-
-                local prompt = findProximityPrompt(chest)
-                if prompt then
-                    if activePrompt ~= prompt then
-                        releaseE()
-                        activePrompt = prompt
-                        promptStartedAt = tick()
-                        pcall(function()
-                            prompt:InputHoldBegin()
-                        end)
-                    end
-                else
-                    holdE(nil)
-                end
-
-                if activePrompt and tick() - promptStartedAt > CHEST_PROMPT_TIMEOUT then
-                    releaseE()
-                end
+            local stillThere = handleChest(chest)
+            if stillThere then
+                return
             end
-            return
         end
     else
         currentChest = nil
@@ -294,7 +347,7 @@ local function onBossHeartbeat()
         releaseE()
     end
 
-    local boss, _, index = getActiveBoss()
+    local boss, bossFolder, index = getActiveBoss()
     if not boss then
         currentBoss = nil
         return
@@ -345,6 +398,7 @@ local function startAutoBoss()
 
     lastPunchTime = 0
     lastTeleportTime = 0
+    lastClickTime = 0
     currentBoss = nil
     currentChest = nil
     chestClaimed = false
