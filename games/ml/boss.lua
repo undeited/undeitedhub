@@ -61,8 +61,12 @@ local function getBossArena()
     return events:FindFirstChild("BossArena")
 end
 
-local function getBossRoot(boss)
-    if not boss or not boss.Parent then return nil end
+local function getBossRoot(bossFolder)
+    if not bossFolder or not bossFolder.Parent then return nil end
+
+    local boss = bossFolder:FindFirstChild("Boss")
+    if not boss then return nil end
+
     if boss:IsA("BasePart") then return boss end
 
     local pelvis = boss:FindFirstChild("pelvis", true)
@@ -71,7 +75,7 @@ local function getBossRoot(boss)
     local hrp = boss:FindFirstChild("HumanoidRootPart", true)
     if hrp and hrp:IsA("BasePart") then return hrp end
 
-    local hitbox = boss:FindFirstChild("BossDamageHitbox", true)
+    local hitbox = bossFolder:FindFirstChild("BossDamageHitbox", true)
     if hitbox and hitbox:IsA("BasePart") then return hitbox end
 
     if boss.PrimaryPart then return boss.PrimaryPart end
@@ -80,6 +84,20 @@ local function getBossRoot(boss)
         if part:IsA("BasePart") then return part end
     end
     return nil
+end
+
+local function getBossCenter(boss)
+    if not boss then return nil end
+    local sum = Vector3.zero
+    local count = 0
+    for _, d in ipairs(boss:GetDescendants()) do
+        if d:IsA("BasePart") then
+            sum = sum + d.Position
+            count = count + 1
+        end
+    end
+    if count == 0 then return nil end
+    return sum / count
 end
 
 local function isBossAlive(bossFolder)
@@ -158,18 +176,20 @@ local currentBoss = nil
 local currentChest = nil
 local chestClaimed = false
 local lastPunchTime = 0
-local lastTeleportTime = 0
 local activePrompt = nil
 local promptStartedAt = 0
 local lastClickTime = 0
 
-local TELEPORT_DISTANCE = 20
-local ATTACK_RANGE = 8
-local CHEST_RANGE = 6
+local ORBIT_RADIUS = 9
+local ORBIT_SPEED = 2.5
+local ORBIT_Y_OFFSET = 2
 local PUNCH_COOLDOWN = 0.1
-local TELEPORT_COOLDOWN = 3
+local CHEST_RANGE = 6
 local CHEST_PROMPT_TIMEOUT = 1.5
 local CLICK_COOLDOWN = 0.5
+
+local orbitAngle = 0
+local lastHeartbeat = 0
 
 local function releaseE()
     if activePrompt then
@@ -206,54 +226,32 @@ local function holdE(prompt)
     end
 end
 
-local function teleportNearBoss(bossRoot)
+local function orbitBoss(bossRoot, boss)
     local hrp = getHRP()
     if not hrp or not bossRoot then return end
 
-    local bossPos = bossRoot.Position
-    local hrpPos = hrp.Position
-    local direction = (hrpPos - bossPos)
-    direction = Vector3.new(direction.X, 0, direction.Z)
-    if direction.Magnitude < 0.01 then
-        direction = Vector3.new(0, 0, 1)
-    end
-    direction = direction.Unit
+    local center = getBossCenter(boss) or bossRoot.Position
 
-    local landingPos = bossPos + direction * TELEPORT_DISTANCE
+    local now = tick()
+    local dt = now - lastHeartbeat
+    lastHeartbeat = now
+    if dt <= 0 or dt > 0.5 then
+        dt = 1 / 60
+    end
+
+    orbitAngle = orbitAngle + ORBIT_SPEED * dt
+
+    local baseY = bossRoot.Position.Y + ORBIT_Y_OFFSET
+    local orbitPos = Vector3.new(
+        center.X + math.cos(orbitAngle) * ORBIT_RADIUS,
+        baseY,
+        center.Z + math.sin(orbitAngle) * ORBIT_RADIUS
+    )
+
     pcall(function()
-        hrp.CFrame = CFrame.new(landingPos, bossPos)
+        hrp.CFrame = CFrame.new(orbitPos, Vector3.new(center.X, baseY, center.Z))
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
-    end)
-end
-
-local function walkTowardsBoss(bossRoot)
-    local hum = getHumanoid()
-    local hrp = getHRP()
-    if not hum or not hrp or not bossRoot then return end
-
-    local bossPos = bossRoot.Position
-    local hrpPos = hrp.Position
-    local flatBoss = Vector3.new(bossPos.X, hrpPos.Y, bossPos.Z)
-    local distance = (flatBoss - hrpPos).Magnitude
-
-    if distance <= ATTACK_RANGE then
-        pcall(function()
-            hrp.CFrame = CFrame.new(hrpPos, Vector3.new(bossPos.X, hrpPos.Y, bossPos.Z))
-        end)
-        return
-    end
-
-    local direction = (flatBoss - hrpPos).Unit
-    local moveCFrame = CFrame.new(hrpPos, hrpPos + direction)
-
-    pcall(function()
-        hrp.CFrame = moveCFrame
-        hrp.AssemblyLinearVelocity = Vector3.new(direction.X * 25, hrp.AssemblyLinearVelocity.Y, direction.Z * 25)
-    end)
-
-    pcall(function()
-        hum:Move(direction, false)
     end)
 end
 
@@ -353,7 +351,7 @@ local function onBossHeartbeat()
         return
     end
 
-    local bossRoot = getBossRoot(boss)
+    local bossRoot = getBossRoot(bossFolder)
     if not bossRoot or not bossRoot.Parent then
         currentBoss = nil
         return
@@ -361,22 +359,13 @@ local function onBossHeartbeat()
 
     if currentBoss ~= boss then
         currentBoss = boss
-        lastTeleportTime = 0
+        orbitAngle = 0
+        lastHeartbeat = tick()
     end
 
-    local hrp = getHRP()
-    if not hrp then return end
+    orbitBoss(bossRoot, boss)
 
-    local distance = (hrp.Position - bossRoot.Position).Magnitude
     local now = tick()
-
-    if distance > TELEPORT_DISTANCE * 2 and now - lastTeleportTime >= TELEPORT_COOLDOWN then
-        lastTeleportTime = now
-        teleportNearBoss(bossRoot)
-    else
-        walkTowardsBoss(bossRoot)
-    end
-
     if now - lastPunchTime >= PUNCH_COOLDOWN then
         lastPunchTime = now
         if equipPunch(LocalPlayer) then
@@ -397,8 +386,9 @@ local function startAutoBoss()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     lastPunchTime = 0
-    lastTeleportTime = 0
     lastClickTime = 0
+    orbitAngle = 0
+    lastHeartbeat = tick()
     currentBoss = nil
     currentChest = nil
     chestClaimed = false
