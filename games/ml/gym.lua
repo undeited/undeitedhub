@@ -69,6 +69,9 @@ local autoFarmEnabled = undeitedhub.Toggles.gymAutoFarm or false
 local farmTask = nil
 local FARM_COOLDOWN = 0.05
 
+local currentMachine = nil
+local currentSeat = nil
+
 local function getStrength()
     local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
     if not leaderstats then return nil end
@@ -130,17 +133,40 @@ local function collectInteractSeats(machine)
     return seats
 end
 
-local function teleportToPart(part)
-    if not part then return false end
+local function getHumanoid()
     local char = LocalPlayer.Character
-    if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function getHRP()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function isSeatedOn(seat)
+    if not seat then return false end
+    local hum = getHumanoid()
+    if not hum then return false end
+    return hum.SeatPart == seat
+end
+
+local function zeroVelocity()
+    local hrp = getHRP()
+    if not hrp then return end
     pcall(function()
-        hrp.CFrame = part.CFrame
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
     end)
+end
+
+local function teleportToPart(part)
+    if not part then return false end
+    local hrp = getHRP()
+    if not hrp then return false end
+    pcall(function()
+        hrp.CFrame = part.CFrame
+    end)
+    zeroVelocity()
     return true
 end
 
@@ -158,15 +184,10 @@ local function runFarmCycle()
     if myStrength and myStrength < config.requiredStrength then return end
 
     local machine = getMachineInstance(folder, config.machineName, config.variantIndex)
-    if not machine then return end
-
-    local bench = machine:FindFirstChild(config.benchName)
-    local benchPart = getPartFromInstance(bench)
-    if not benchPart then
-        benchPart = getPartFromInstance(machine)
-    end
-    if benchPart then
-        teleportToPart(benchPart)
+    if not machine then
+        currentMachine = nil
+        currentSeat = nil
+        return
     end
 
     local seats = collectInteractSeats(machine)
@@ -175,12 +196,27 @@ local function runFarmCycle()
     local useSeat = seats[1]
     local repSeat = seats[2] or seats[1]
 
-    local rEvents = ReplicatedStorage:FindFirstChild("rEvents")
-    local remote = rEvents and rEvents:FindFirstChild("machineInteractRemote")
-    if remote then
-        pcall(function()
-            remote:InvokeServer("useMachine", useSeat)
-        end)
+    currentMachine = machine
+    currentSeat = useSeat
+
+    if not isSeatedOn(useSeat) then
+        local bench = machine:FindFirstChild(config.benchName)
+        local benchPart = getPartFromInstance(bench)
+        if not benchPart then
+            benchPart = getPartFromInstance(machine)
+        end
+        if benchPart then
+            teleportToPart(benchPart)
+        end
+
+        local rEvents = ReplicatedStorage:FindFirstChild("rEvents")
+        local remote = rEvents and rEvents:FindFirstChild("machineInteractRemote")
+        if remote then
+            pcall(function()
+                remote:InvokeServer("useMachine", useSeat)
+            end)
+        end
+        return
     end
 
     local muscleEvent = LocalPlayer:FindFirstChild("muscleEvent")
@@ -196,6 +232,9 @@ local function startAutoFarm()
     autoFarmEnabled = true
     undeitedhub.Toggles.gymAutoFarm = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+
+    currentMachine = nil
+    currentSeat = nil
 
     farmTask = task.spawn(function()
         while autoFarmEnabled do
@@ -215,6 +254,8 @@ local function stopAutoFarm()
         task.cancel(farmTask)
         farmTask = nil
     end
+    currentMachine = nil
+    currentSeat = nil
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
@@ -224,6 +265,8 @@ GymTab:Dropdown({
     Value = selectedGym,
     Callback = function(value)
         selectedGym = value
+        currentMachine = nil
+        currentSeat = nil
     end
 })
 
@@ -233,6 +276,8 @@ GymTab:Dropdown({
     Value = selectedMachine,
     Callback = function(value)
         selectedMachine = value
+        currentMachine = nil
+        currentSeat = nil
     end
 })
 
@@ -261,6 +306,8 @@ undeitedhub.DisableAll = function()
             task.cancel(farmTask)
             farmTask = nil
         end
+        currentMachine = nil
+        currentSeat = nil
     end
     oldDisable()
 end
