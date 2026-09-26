@@ -247,11 +247,29 @@ local function restorePlayerCollision()
     savedCanCollide = nil
 end
 
+local function getBossAimPoint(anchor, boss)
+    local anchorPos = anchor.Position
+
+    local head = boss:FindFirstChild("head", true)
+    if head and head:IsA("BasePart") then
+        return anchorPos:Lerp(head.Position, 0.5)
+    end
+
+    local spineUpper = boss:FindFirstChild("spine_upper", true)
+    if spineUpper and spineUpper:IsA("BasePart") then
+        return anchorPos:Lerp(spineUpper.Position, 0.5)
+    end
+
+    return anchorPos
+end
+
 local function orbitBoss(anchor, boss)
     local hrp = getHRP()
     if not hrp or not anchor then return end
 
-    local center = getBossCenter(boss) or anchor.Position
+    local anchorPos = anchor.Position
+    local center = getBossCenter(boss) or anchorPos
+    local aimPoint = getBossAimPoint(anchor, boss)
 
     local now = tick()
     local dt = now - lastHeartbeat
@@ -264,12 +282,23 @@ local function orbitBoss(anchor, boss)
 
     local orbitPos = Vector3.new(
         center.X + math.cos(orbitAngle) * ORBIT_RADIUS,
-        anchor.Position.Y,
+        anchorPos.Y,
         center.Z + math.sin(orbitAngle) * ORBIT_RADIUS
     )
 
+    local flatDX = orbitPos.X - aimPoint.X
+    local flatDZ = orbitPos.Z - aimPoint.Z
+    local flatDist = math.sqrt(flatDX * flatDX + flatDZ * flatDZ)
+
+    local aimCFrame
+    if flatDist < 0.05 then
+        aimCFrame = CFrame.new(orbitPos) * CFrame.Angles(0, orbitAngle + math.pi, 0)
+    else
+        aimCFrame = CFrame.lookAt(orbitPos, aimPoint)
+    end
+
     pcall(function()
-        hrp.CFrame = CFrame.new(orbitPos, Vector3.new(center.X, anchor.Position.Y, center.Z))
+        hrp.CFrame = aimCFrame
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
     end)
