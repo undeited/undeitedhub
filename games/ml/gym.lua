@@ -10,36 +10,43 @@ local GYMS = {
     ["Industrial Gym"] = {
         ["Bench (62.5k)"] = {
             machineName = "Industrial Bench",
+            variantIndex = 1,
             benchName = "Bench",
             requiredStrength = 62500,
         },
         ["Bench (125k)"] = {
             machineName = "Industrial Bench",
+            variantIndex = 2,
             benchName = "Bench",
             requiredStrength = 125000,
         },
         ["Bench (250k)"] = {
             machineName = "Industrial Bench",
+            variantIndex = 3,
             benchName = "Bench",
             requiredStrength = 250000,
         },
         ["Bar Lift (250k)"] = {
             machineName = "Industrial Bar Lift",
+            variantIndex = 1,
             benchName = "Bar",
             requiredStrength = 250000,
         },
         ["Boulder (187.5k)"] = {
             machineName = "Industrial Boulder",
+            variantIndex = 1,
             benchName = "Boulder",
             requiredStrength = 187500,
         },
         ["Squat (125k)"] = {
             machineName = "Industrial Squat",
+            variantIndex = 1,
             benchName = "Squat",
             requiredStrength = 125000,
         },
         ["Squat (312.5k)"] = {
             machineName = "Industrial Squat",
+            variantIndex = 2,
             benchName = "Squat",
             requiredStrength = 312500,
         },
@@ -96,6 +103,20 @@ local function getPartFromInstance(inst)
     return nil
 end
 
+local function getMachineInstance(folder, machineName, variantIndex)
+    if not folder or not machineName then return nil end
+    variantIndex = variantIndex or 1
+
+    local matches = {}
+    for _, child in ipairs(folder:GetChildren()) do
+        if child.Name == machineName then
+            table.insert(matches, child)
+        end
+    end
+
+    return matches[variantIndex]
+end
+
 local function collectInteractSeats(machine)
     if not machine then return {} end
     local seats = {}
@@ -136,7 +157,7 @@ local function runFarmCycle()
     local myStrength = getStrength()
     if myStrength and myStrength < config.requiredStrength then return end
 
-    local machine = folder:FindFirstChild(config.machineName)
+    local machine = getMachineInstance(folder, config.machineName, config.variantIndex)
     if not machine then return end
 
     local bench = machine:FindFirstChild(config.benchName)
