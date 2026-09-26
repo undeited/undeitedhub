@@ -25,18 +25,19 @@ end
 local function equipPunch(player)
     local char = player.Character
     if not char then return false end
-    local backpack = player:FindFirstChild("Backpack")
-    if not backpack then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+
     local punch = char:FindFirstChild("Punch")
     if punch then return true end
+
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then return false end
     punch = backpack:FindFirstChild("Punch")
     if punch then
-        for _, tool in ipairs(char:GetChildren()) do
-            if tool:IsA("Tool") and tool.Name ~= "Punch" then
-                tool.Parent = backpack
-            end
-        end
-        punch.Parent = char
+        pcall(function()
+            hum:EquipTool(punch)
+        end)
         task.wait(0.02)
         return true
     end
@@ -61,22 +62,20 @@ local function getBossArena()
     return events:FindFirstChild("BossArena")
 end
 
-local function getBossRoot(bossFolder)
+local function getBossAnchor(bossFolder)
     if not bossFolder or not bossFolder.Parent then return nil end
+
+    local hitbox = bossFolder:FindFirstChild("BossDamageHitbox", true)
+    if hitbox and hitbox:IsA("BasePart") then return hitbox end
 
     local boss = bossFolder:FindFirstChild("Boss")
     if not boss then return nil end
-
-    if boss:IsA("BasePart") then return boss end
 
     local pelvis = boss:FindFirstChild("pelvis", true)
     if pelvis and pelvis:IsA("BasePart") then return pelvis end
 
     local hrp = boss:FindFirstChild("HumanoidRootPart", true)
     if hrp and hrp:IsA("BasePart") then return hrp end
-
-    local hitbox = bossFolder:FindFirstChild("BossDamageHitbox", true)
-    if hitbox and hitbox:IsA("BasePart") then return hitbox end
 
     if boss.PrimaryPart then return boss.PrimaryPart end
 
@@ -180,16 +179,16 @@ local activePrompt = nil
 local promptStartedAt = 0
 local lastClickTime = 0
 
-local ORBIT_RADIUS = 9
-local ORBIT_SPEED = 2.5
-local ORBIT_Y_OFFSET = 2
-local PUNCH_COOLDOWN = 0.1
+local ORBIT_RADIUS = 3
+local ORBIT_SPEED = 3
+local PUNCH_COOLDOWN = 0.2
 local CHEST_RANGE = 6
 local CHEST_PROMPT_TIMEOUT = 1.5
 local CLICK_COOLDOWN = 0.5
 
 local orbitAngle = 0
 local lastHeartbeat = 0
+local savedCanCollide = nil
 
 local function releaseE()
     if activePrompt then
@@ -226,11 +225,33 @@ local function holdE(prompt)
     end
 end
 
-local function orbitBoss(bossRoot, boss)
+local function disablePlayerCollision()
     local hrp = getHRP()
-    if not hrp or not bossRoot then return end
+    if not hrp then return end
+    if savedCanCollide == nil then
+        savedCanCollide = hrp.CanCollide
+    end
+    pcall(function()
+        hrp.CanCollide = false
+    end)
+end
 
-    local center = getBossCenter(boss) or bossRoot.Position
+local function restorePlayerCollision()
+    if savedCanCollide == nil then return end
+    local hrp = getHRP()
+    if hrp then
+        pcall(function()
+            hrp.CanCollide = savedCanCollide
+        end)
+    end
+    savedCanCollide = nil
+end
+
+local function orbitBoss(anchor, boss)
+    local hrp = getHRP()
+    if not hrp or not anchor then return end
+
+    local center = getBossCenter(boss) or anchor.Position
 
     local now = tick()
     local dt = now - lastHeartbeat
@@ -241,15 +262,14 @@ local function orbitBoss(bossRoot, boss)
 
     orbitAngle = orbitAngle + ORBIT_SPEED * dt
 
-    local baseY = bossRoot.Position.Y + ORBIT_Y_OFFSET
     local orbitPos = Vector3.new(
         center.X + math.cos(orbitAngle) * ORBIT_RADIUS,
-        baseY,
+        anchor.Position.Y,
         center.Z + math.sin(orbitAngle) * ORBIT_RADIUS
     )
 
     pcall(function()
-        hrp.CFrame = CFrame.new(orbitPos, Vector3.new(center.X, baseY, center.Z))
+        hrp.CFrame = CFrame.new(orbitPos, Vector3.new(center.X, anchor.Position.Y, center.Z))
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
     end)
@@ -321,6 +341,7 @@ local function onBossHeartbeat()
         currentBoss = nil
         currentChest = nil
         chestClaimed = false
+        restorePlayerCollision()
         releaseE()
         return
     end
@@ -348,11 +369,12 @@ local function onBossHeartbeat()
     local boss, bossFolder, index = getActiveBoss()
     if not boss then
         currentBoss = nil
+        restorePlayerCollision()
         return
     end
 
-    local bossRoot = getBossRoot(bossFolder)
-    if not bossRoot or not bossRoot.Parent then
+    local anchor = getBossAnchor(bossFolder)
+    if not anchor or not anchor.Parent then
         currentBoss = nil
         return
     end
@@ -363,7 +385,8 @@ local function onBossHeartbeat()
         lastHeartbeat = tick()
     end
 
-    orbitBoss(bossRoot, boss)
+    disablePlayerCollision()
+    orbitBoss(anchor, boss)
 
     local now = tick()
     if now - lastPunchTime >= PUNCH_COOLDOWN then
@@ -392,6 +415,7 @@ local function startAutoBoss()
     currentBoss = nil
     currentChest = nil
     chestClaimed = false
+    savedCanCollide = nil
 
     bossConnection = RunService.Heartbeat:Connect(onBossHeartbeat)
 end
@@ -406,6 +430,7 @@ local function stopAutoBoss()
     currentBoss = nil
     currentChest = nil
     chestClaimed = false
+    restorePlayerCollision()
     releaseE()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
@@ -438,6 +463,7 @@ undeitedhub.DisableAll = function()
         currentBoss = nil
         currentChest = nil
         chestClaimed = false
+        restorePlayerCollision()
         releaseE()
     end
     oldDisable()
