@@ -137,7 +137,7 @@ local function teleportToPart(part)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
     pcall(function()
-        hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+        hrp.CFrame = part.CFrame
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
     end)
