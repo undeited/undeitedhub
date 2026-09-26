@@ -6,21 +6,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
-local function Notify(title, content, duration)
-    duration = duration or 3
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, { Title = title, Content = content, Duration = duration })
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = title,
-                Text = content,
-                Duration = duration,
-            })
-        end)
-    end
-end
-
 local GYMS = {
     ["Industrial Gym"] = {
         ["Bench (62.5k)"] = {
@@ -92,15 +77,6 @@ local function getStrength()
     return nil
 end
 
-local function formatNumber(n)
-    if not n then return "?" end
-    n = math.floor(n)
-    if n >= 1e9 then return string.format("%.1fB", n / 1e9) end
-    if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
-    if n >= 1e3 then return string.format("%.1fK", n / 1e3) end
-    return tostring(n)
-end
-
 local function findMachinesFolder()
     local direct = Workspace:FindFirstChild("machinesFolder")
     if direct then return direct end
@@ -147,42 +123,21 @@ local function teleportToPart(part)
     return true
 end
 
-local function runFarmCycle(silent)
+local function runFarmCycle()
     local folder = findMachinesFolder()
-    if not folder then
-        if not silent then Notify("Gym", "machinesFolder not found in Workspace") end
-        return false, "no folder"
-    end
+    if not folder then return end
 
     local gymData = GYMS[selectedGym]
-    if not gymData then
-        if not silent then Notify("Gym", "Unknown gym: " .. tostring(selectedGym)) end
-        return false, "no gym"
-    end
+    if not gymData then return end
 
     local config = gymData[selectedMachine]
-    if not config then
-        if not silent then Notify("Gym", "No config for " .. tostring(selectedMachine)) end
-        return false, "no config"
-    end
+    if not config then return end
 
     local myStrength = getStrength()
-    if myStrength and myStrength < config.requiredStrength then
-        if not silent then
-            Notify(
-                "Gym",
-                "Need " .. formatNumber(config.requiredStrength) ..
-                " strength (you have " .. formatNumber(myStrength) .. ")"
-            )
-        end
-        return false, "not enough strength"
-    end
+    if myStrength and myStrength < config.requiredStrength then return end
 
     local machine = folder:FindFirstChild(config.machineName)
-    if not machine then
-        if not silent then Notify("Gym", "Machine not found: " .. config.machineName) end
-        return false, "no machine"
-    end
+    if not machine then return end
 
     local bench = machine:FindFirstChild(config.benchName)
     local benchPart = getPartFromInstance(bench)
@@ -194,10 +149,7 @@ local function runFarmCycle(silent)
     end
 
     local seats = collectInteractSeats(machine)
-    if #seats == 0 then
-        if not silent then Notify("Gym", "No interactSeat inside " .. config.machineName) end
-        return false, "no seat"
-    end
+    if #seats == 0 then return end
 
     local useSeat = seats[1]
     local repSeat = seats[2] or seats[1]
@@ -208,8 +160,6 @@ local function runFarmCycle(silent)
         pcall(function()
             remote:InvokeServer("useMachine", useSeat)
         end)
-    elseif not silent then
-        Notify("Gym", "machineInteractRemote not found")
     end
 
     local muscleEvent = LocalPlayer:FindFirstChild("muscleEvent")
@@ -217,11 +167,7 @@ local function runFarmCycle(silent)
         pcall(function()
             muscleEvent:FireServer("rep", repSeat)
         end)
-    elseif not silent then
-        Notify("Gym", "muscleEvent not found on LocalPlayer")
     end
-
-    return true, selectedMachine
 end
 
 local function startAutoFarm()
@@ -233,7 +179,7 @@ local function startAutoFarm()
     farmTask = task.spawn(function()
         while autoFarmEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                pcall(runFarmCycle, true)
+                pcall(runFarmCycle)
             end
             task.wait(FARM_COOLDOWN)
         end
