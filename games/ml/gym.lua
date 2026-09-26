@@ -62,7 +62,6 @@ local GYMS = {
 }
 
 local MACHINE_OPTIONS = {
-    "Auto (Best)",
     "Bench (62.5k)",
     "Bench (125k)",
     "Bench (250k)",
@@ -73,7 +72,7 @@ local MACHINE_OPTIONS = {
 }
 
 local selectedGym = "Industrial Gym"
-local selectedMachine = "Auto (Best)"
+local selectedMachine = MACHINE_OPTIONS[1]
 local autoFarmEnabled = undeitedhub.Toggles.gymAutoFarm or false
 local farmTask = nil
 local FARM_COOLDOWN = 0.05
@@ -148,29 +147,6 @@ local function teleportToPart(part)
     return true
 end
 
-local function resolveMachineKey()
-    local gymData = GYMS[selectedGym]
-    if not gymData then return nil end
-
-    local myStrength = getStrength()
-
-    if selectedMachine == "Auto (Best)" then
-        local bestKey = nil
-        local bestReq = -1
-        for key, cfg in pairs(gymData) do
-            if myStrength and myStrength >= cfg.requiredStrength then
-                if cfg.requiredStrength > bestReq then
-                    bestReq = cfg.requiredStrength
-                    bestKey = key
-                end
-            end
-        end
-        return bestKey, myStrength
-    end
-
-    return selectedMachine, myStrength
-end
-
 local function runFarmCycle(silent)
     local folder = findMachinesFolder()
     if not folder then
@@ -184,20 +160,13 @@ local function runFarmCycle(silent)
         return false, "no gym"
     end
 
-    local machineKey, myStrength = resolveMachineKey()
-    if not machineKey then
-        if not silent then
-            Notify("Gym", "No machine available (need more strength)")
-        end
-        return false, "no machine available"
-    end
-
-    local config = gymData[machineKey]
+    local config = gymData[selectedMachine]
     if not config then
-        if not silent then Notify("Gym", "No config for " .. tostring(machineKey)) end
+        if not silent then Notify("Gym", "No config for " .. tostring(selectedMachine)) end
         return false, "no config"
     end
 
+    local myStrength = getStrength()
     if myStrength and myStrength < config.requiredStrength then
         if not silent then
             Notify(
@@ -216,18 +185,12 @@ local function runFarmCycle(silent)
     end
 
     local bench = machine:FindFirstChild(config.benchName)
-    if not bench and machine.Name == config.benchName then
-        bench = machine
-    end
     local benchPart = getPartFromInstance(bench)
+    if not benchPart then
+        benchPart = getPartFromInstance(machine)
+    end
     if benchPart then
         teleportToPart(benchPart)
-    else
-        local fallback = getPartFromInstance(machine)
-        if fallback then teleportToPart(fallback) end
-        if not silent then
-            Notify("Gym", "Using fallback part for " .. config.machineName)
-        end
     end
 
     local seats = collectInteractSeats(machine)
@@ -258,7 +221,7 @@ local function runFarmCycle(silent)
         Notify("Gym", "muscleEvent not found on LocalPlayer")
     end
 
-    return true, machineKey
+    return true, selectedMachine
 end
 
 local function startAutoFarm()
@@ -268,11 +231,9 @@ local function startAutoFarm()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     farmTask = task.spawn(function()
-        local firstCycle = true
         while autoFarmEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                pcall(runFarmCycle, firstCycle)
-                firstCycle = false
+                pcall(runFarmCycle, true)
             end
             task.wait(FARM_COOLDOWN)
         end
@@ -305,18 +266,6 @@ GymTab:Dropdown({
     Value = selectedMachine,
     Callback = function(value)
         selectedMachine = value
-    end
-})
-
-GymTab:Button({
-    Title = "Test Once",
-    Callback = function()
-        local ok, info = runFarmCycle(false)
-        if ok then
-            Notify("Gym", "Cycle ran on: " .. tostring(info))
-        else
-            Notify("Gym", "Cycle failed: " .. tostring(info))
-        end
     end
 })
 
