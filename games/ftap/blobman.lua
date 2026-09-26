@@ -99,6 +99,9 @@ local hoveringTargets = {}
 local hoverConnections = {}
 local heldHovers = {}
 
+local pendingBringTarget = nil
+local pendingBringActive = false
+
 local function isPlayerValid(player)
     if not player then return false end
     if not player.Character then return false end
@@ -494,6 +497,8 @@ local function startKickLoop()
         local grabStartTime = 0
         local savedPos = nil
         local target = nil
+        local lastTarget = nil
+        local waitingForPlotExit = false
 
         while kickEnabled do
             if selectedKickPlayer and selectedKickPlayer ~= "" then
@@ -502,18 +507,41 @@ local function startKickLoop()
                 target = nil
             end
 
+            if target ~= lastTarget then
+                lastTarget = target
+                waitingForPlotExit = false
+            end
+
             if not target or not target.Parent or not target.Character then
                 dragging = false
                 grabStartTime = 0
+                waitingForPlotExit = false
                 task.wait(0.2)
                 continue
             end
 
             if isPlayerInPlot(target) then
+                if not waitingForPlotExit then
+                    waitingForPlotExit = true
+                    SafeNotify({
+                        Title = "Kick Player",
+                        Content = "Target in plot — waiting until they leave...",
+                        Duration = 2,
+                    })
+                end
                 dragging = false
                 grabStartTime = 0
                 task.wait(0.3)
                 continue
+            end
+
+            if waitingForPlotExit then
+                waitingForPlotExit = false
+                SafeNotify({
+                    Title = "Kick Player",
+                    Content = "Target left plot — resuming.",
+                    Duration = 2,
+                })
             end
 
             local myChar = getPlayerCharacter()
@@ -660,6 +688,19 @@ local function stopKickLoop()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
+local function cancelPendingBring(notify)
+    if not pendingBringActive then return end
+    pendingBringActive = false
+    if notify and pendingBringTarget then
+        SafeNotify({
+            Title = "Bring Player",
+            Content = "Cancelled waiting for target to leave plot.",
+            Duration = 2,
+        })
+    end
+    pendingBringTarget = nil
+end
+
 local function bringPlayer(target, dropAfter)
     if not target or target == LocalPlayer then return end
     if not isPlayerValid(target) then return end
@@ -788,6 +829,55 @@ local function bringPlayer(target, dropAfter)
     end
 end
 
+local function watchPendingBring(target)
+    if pendingBringActive and pendingBringTarget == target then return end
+    if pendingBringActive and pendingBringTarget ~= target then
+        cancelPendingBring(false)
+    end
+    pendingBringTarget = target
+    if pendingBringActive then return end
+    pendingBringActive = true
+
+    SafeNotify({
+        Title = "Bring Player",
+        Content = "Waiting for target to leave their plot...",
+        Duration = 3,
+    })
+
+    task.spawn(function()
+        while pendingBringActive do
+            local t = pendingBringTarget
+            if not t then
+                pendingBringActive = false
+                return
+            end
+            if not t.Parent then
+                pendingBringActive = false
+                pendingBringTarget = nil
+                SafeNotify({
+                    Title = "Bring Player",
+                    Content = "Target left the game.",
+                    Duration = 2,
+                })
+                return
+            end
+            if isPlayerValid(t) and not isPlayerInPlot(t) then
+                pendingBringActive = false
+                pendingBringTarget = nil
+                SafeNotify({
+                    Title = "Bring Player",
+                    Content = "Target left plot — bringing now.",
+                    Duration = 2,
+                })
+                task.wait(0.1)
+                pcall(bringPlayer, t, false)
+                return
+            end
+            task.wait(0.25)
+        end
+    end)
+end
+
 local function bringSelectedPlayer()
     if not selectedBringPlayerObj then
         SafeNotify({ Title = "Bring Player", Content = "No player selected.", Duration = 2 })
@@ -803,7 +893,7 @@ local function bringSelectedPlayer()
         return
     end
     if isPlayerInPlot(selectedBringPlayerObj) then
-        SafeNotify({ Title = "Bring Player", Content = "Target is in a plot.", Duration = 3 })
+        watchPendingBring(selectedBringPlayerObj)
         return
     end
     bringPlayer(selectedBringPlayerObj, false)
@@ -862,7 +952,11 @@ bringDropdown = BlobmanTab:Dropdown({
     Values = buildDisplayNames(),
     Value = "",
     Callback = function(value)
-        selectedBringPlayerObj = getPlayerFromDropdownValue(value)
+        local newTarget = getPlayerFromDropdownValue(value)
+        if pendingBringActive and pendingBringTarget ~= newTarget then
+            cancelPendingBring(false)
+        end
+        selectedBringPlayerObj = newTarget
     end
 })
 
@@ -901,6 +995,9 @@ Players.PlayerRemoving:Connect(function(player)
     if selectedBringPlayerObj == player then
         selectedBringPlayerObj = nil
         pcall(function() bringDropdown:Set("") end)
+    end
+    if pendingBringTarget == player then
+        cancelPendingBring(false)
     end
     local formatted = getDropdownName(player)
     if selectedKickPlayer == formatted or selectedKickPlayer == player.DisplayName or selectedKickPlayer == player.Name then
@@ -941,6 +1038,7 @@ if kickEnabled then startKickLoop() end
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if kickEnabled then stopKickLoop() end
+    cancelPendingBring(false)
     for target in pairs(hoveringTargets) do stopHover(target) end
     stopAllHeldHovers()
     oldDisable()
