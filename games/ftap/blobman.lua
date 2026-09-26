@@ -23,6 +23,67 @@ local function SafeNotify(data)
     end
 end
 
+local function isPlayerInPlot(player)
+    if not player or not player.Character then return false end
+    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+
+    local pos = hrp.Position
+    local playerName = player.Name
+
+    local parent = player.Character.Parent
+    while parent and parent ~= Workspace do
+        local lower = parent.Name:lower()
+        if lower:find("plot") or lower:find("baseplate") or lower:find("base") then
+            return true
+        end
+        parent = parent.Parent
+    end
+
+    local plotsFolder = Workspace:FindFirstChild("Plots")
+    if plotsFolder then
+        for _, plot in ipairs(plotsFolder:GetChildren()) do
+            if plot:IsA("Model") or plot:IsA("BasePart") then
+                local plotPart
+                if plot:IsA("BasePart") then
+                    plotPart = plot
+                else
+                    plotPart = plot.PrimaryPart or plot:FindFirstChildWhichIsA("BasePart")
+                end
+                if plotPart then
+                    local size = plotPart.Size
+                    local radius = math.max(size.X, size.Z) * 0.7
+                    if (pos - plotPart.Position).Magnitude < radius then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    local toysFolder = Workspace:FindFirstChild(playerName .. "SpawnedInToys")
+    if toysFolder then
+        local nearestDist = math.huge
+        for _, toy in ipairs(toysFolder:GetChildren()) do
+            local toyPart
+            if toy:IsA("BasePart") then
+                toyPart = toy
+            elseif toy:IsA("Model") then
+                toyPart = toy.PrimaryPart or toy:FindFirstChildWhichIsA("BasePart")
+            end
+            if toyPart then
+                local d = (pos - toyPart.Position).Magnitude
+                if d < nearestDist then nearestDist = d end
+            end
+        end
+        if nearestDist < 100 then
+            return true
+        end
+    end
+
+    return false
+end
+
 local kickEnabled = undeitedhub.Toggles.kickPlayer or false
 local kickTask = nil
 local selectedKickPlayer = nil
@@ -448,6 +509,13 @@ local function startKickLoop()
                 continue
             end
 
+            if isPlayerInPlot(target) then
+                dragging = false
+                grabStartTime = 0
+                task.wait(0.3)
+                continue
+            end
+
             local myChar = getPlayerCharacter()
             if not myChar then
                 task.wait(0.1)
@@ -596,6 +664,15 @@ local function bringPlayer(target, dropAfter)
     if not target or target == LocalPlayer then return end
     if not isPlayerValid(target) then return end
 
+    if isPlayerInPlot(target) then
+        SafeNotify({
+            Title = "Bring Player",
+            Content = "Target is in a plot — teleporting would delete the blobman.",
+            Duration = 3,
+        })
+        return
+    end
+
     local blobman = getSeatedBlobman()
     if not blobman then
         blobman = sitOnBlobman()
@@ -723,6 +800,10 @@ local function bringSelectedPlayer()
     end
     if not isPlayerValid(selectedBringPlayerObj) then
         SafeNotify({ Title = "Bring Player", Content = "Selected player is not valid.", Duration = 2 })
+        return
+    end
+    if isPlayerInPlot(selectedBringPlayerObj) then
+        SafeNotify({ Title = "Bring Player", Content = "Target is in a plot.", Duration = 3 })
         return
     end
     bringPlayer(selectedBringPlayerObj, false)
