@@ -11,43 +11,36 @@ local GYMS = {
         ["Bench (62.5k)"] = {
             machineName = "Industrial Bench",
             variantIndex = 1,
-            benchName = "Bench",
             requiredStrength = 62500,
         },
         ["Bench (125k)"] = {
             machineName = "Industrial Bench",
             variantIndex = 2,
-            benchName = "Bench",
             requiredStrength = 125000,
         },
         ["Bench (250k)"] = {
             machineName = "Industrial Bench",
             variantIndex = 3,
-            benchName = "Bench",
             requiredStrength = 250000,
         },
         ["Bar Lift (250k)"] = {
             machineName = "Industrial Bar Lift",
             variantIndex = 1,
-            benchName = "Bar",
             requiredStrength = 250000,
         },
         ["Boulder (187.5k)"] = {
             machineName = "Industrial Boulder",
             variantIndex = 1,
-            benchName = "Boulder",
             requiredStrength = 187500,
         },
         ["Squat (125k)"] = {
             machineName = "Industrial Squat",
             variantIndex = 1,
-            benchName = "Squat",
             requiredStrength = 125000,
         },
         ["Squat (312.5k)"] = {
             machineName = "Industrial Squat",
             variantIndex = 2,
-            benchName = "Squat",
             requiredStrength = 312500,
         },
     },
@@ -68,9 +61,10 @@ local selectedMachine = MACHINE_OPTIONS[1]
 local autoFarmEnabled = undeitedhub.Toggles.gymAutoFarm or false
 local farmTask = nil
 local FARM_COOLDOWN = 0.05
+local RESEAT_COOLDOWN = 0.75
 
+local lastReseatTime = 0
 local currentMachine = nil
-local currentSeat = nil
 
 local function getStrength()
     local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
@@ -92,16 +86,6 @@ local function findMachinesFolder()
     if direct then return direct end
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj.Name == "machinesFolder" then return obj end
-    end
-    return nil
-end
-
-local function getPartFromInstance(inst)
-    if not inst then return nil end
-    if inst:IsA("BasePart") then return inst end
-    if inst:IsA("Model") then
-        if inst.PrimaryPart then return inst.PrimaryPart end
-        return inst:FindFirstChildWhichIsA("BasePart")
     end
     return nil
 end
@@ -159,15 +143,39 @@ local function zeroVelocity()
     end)
 end
 
-local function teleportToPart(part)
-    if not part then return false end
+local function sitOnSeat(seat)
+    if not seat then return false end
     local hrp = getHRP()
     if not hrp then return false end
+
+    local targetCFrame = seat.CFrame + Vector3.new(0, 2, 0)
+
     pcall(function()
-        hrp.CFrame = part.CFrame
+        hrp.CFrame = targetCFrame
     end)
     zeroVelocity()
     return true
+end
+
+local function fireUseMachine(seat)
+    if not seat then return end
+    local rEvents = ReplicatedStorage:FindFirstChild("rEvents")
+    local remote = rEvents and rEvents:FindFirstChild("machineInteractRemote")
+    if remote then
+        pcall(function()
+            remote:InvokeServer("useMachine", seat)
+        end)
+    end
+end
+
+local function fireRep(seat)
+    if not seat then return end
+    local muscleEvent = LocalPlayer:FindFirstChild("muscleEvent")
+    if muscleEvent then
+        pcall(function()
+            muscleEvent:FireServer("rep", seat)
+        end)
+    end
 end
 
 local function runFarmCycle()
@@ -186,8 +194,12 @@ local function runFarmCycle()
     local machine = getMachineInstance(folder, config.machineName, config.variantIndex)
     if not machine then
         currentMachine = nil
-        currentSeat = nil
         return
+    end
+
+    if currentMachine ~= machine then
+        currentMachine = machine
+        lastReseatTime = 0
     end
 
     local seats = collectInteractSeats(machine)
@@ -196,35 +208,19 @@ local function runFarmCycle()
     local useSeat = seats[1]
     local repSeat = seats[2] or seats[1]
 
-    currentMachine = machine
-    currentSeat = useSeat
-
-    if not isSeatedOn(useSeat) then
-        local bench = machine:FindFirstChild(config.benchName)
-        local benchPart = getPartFromInstance(bench)
-        if not benchPart then
-            benchPart = getPartFromInstance(machine)
-        end
-        if benchPart then
-            teleportToPart(benchPart)
-        end
-
-        local rEvents = ReplicatedStorage:FindFirstChild("rEvents")
-        local remote = rEvents and rEvents:FindFirstChild("machineInteractRemote")
-        if remote then
-            pcall(function()
-                remote:InvokeServer("useMachine", useSeat)
-            end)
-        end
+    if isSeatedOn(useSeat) or isSeatedOn(repSeat) then
+        fireRep(repSeat)
         return
     end
 
-    local muscleEvent = LocalPlayer:FindFirstChild("muscleEvent")
-    if muscleEvent then
-        pcall(function()
-            muscleEvent:FireServer("rep", repSeat)
-        end)
+    local now = tick()
+    if now - lastReseatTime < RESEAT_COOLDOWN then
+        return
     end
+    lastReseatTime = now
+
+    sitOnSeat(useSeat)
+    fireUseMachine(useSeat)
 end
 
 local function startAutoFarm()
@@ -233,8 +229,8 @@ local function startAutoFarm()
     undeitedhub.Toggles.gymAutoFarm = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
+    lastReseatTime = 0
     currentMachine = nil
-    currentSeat = nil
 
     farmTask = task.spawn(function()
         while autoFarmEnabled do
@@ -254,8 +250,8 @@ local function stopAutoFarm()
         task.cancel(farmTask)
         farmTask = nil
     end
+    lastReseatTime = 0
     currentMachine = nil
-    currentSeat = nil
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
@@ -266,7 +262,7 @@ GymTab:Dropdown({
     Callback = function(value)
         selectedGym = value
         currentMachine = nil
-        currentSeat = nil
+        lastReseatTime = 0
     end
 })
 
@@ -277,7 +273,7 @@ GymTab:Dropdown({
     Callback = function(value)
         selectedMachine = value
         currentMachine = nil
-        currentSeat = nil
+        lastReseatTime = 0
     end
 })
 
@@ -306,8 +302,8 @@ undeitedhub.DisableAll = function()
             task.cancel(farmTask)
             farmTask = nil
         end
+        lastReseatTime = 0
         currentMachine = nil
-        currentSeat = nil
     end
     oldDisable()
 end
