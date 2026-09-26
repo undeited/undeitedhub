@@ -23,25 +23,54 @@ end
 
 local GYMS = {
     ["Industrial Gym"] = {
-        ["Bench 1 (62.5k)"] = {
-            machineName = "Industrial Bench 1",
+        ["Bench (62.5k)"] = {
+            machineName = "Industrial Bench",
             benchName = "Bench",
             requiredStrength = 62500,
         },
-        ["Bench 2 (125k)"] = {
-            machineName = "Industrial Bench 2",
+        ["Bench (125k)"] = {
+            machineName = "Industrial Bench",
             benchName = "Bench",
             requiredStrength = 125000,
         },
-        ["Bench 3 (250k)"] = {
-            machineName = "Industrial Bench 3",
+        ["Bench (250k)"] = {
+            machineName = "Industrial Bench",
             benchName = "Bench",
             requiredStrength = 250000,
+        },
+        ["Bar Lift (250k)"] = {
+            machineName = "Industrial Bar Lift",
+            benchName = "Bar",
+            requiredStrength = 250000,
+        },
+        ["Boulder (187.5k)"] = {
+            machineName = "Industrial Boulder",
+            benchName = "Boulder",
+            requiredStrength = 187500,
+        },
+        ["Squat (125k)"] = {
+            machineName = "Industrial Squat",
+            benchName = "Squat",
+            requiredStrength = 125000,
+        },
+        ["Squat (312.5k)"] = {
+            machineName = "Industrial Squat",
+            benchName = "Squat",
+            requiredStrength = 312500,
         },
     },
 }
 
-local MACHINE_OPTIONS = { "Auto (Best)", "Bench 1 (62.5k)", "Bench 2 (125k)", "Bench 3 (250k)" }
+local MACHINE_OPTIONS = {
+    "Auto (Best)",
+    "Bench (62.5k)",
+    "Bench (125k)",
+    "Bench (250k)",
+    "Bar Lift (250k)",
+    "Boulder (187.5k)",
+    "Squat (125k)",
+    "Squat (312.5k)",
+}
 
 local selectedGym = "Industrial Gym"
 local selectedMachine = "Auto (Best)"
@@ -158,10 +187,9 @@ local function runFarmCycle(silent)
     local machineKey, myStrength = resolveMachineKey()
     if not machineKey then
         if not silent then
-            local need = myStrength and "higher strength" or "unknown strength"
-            Notify("Gym", "No bench available (need " .. need .. ")")
+            Notify("Gym", "No machine available (need more strength)")
         end
-        return false, "no bench available"
+        return false, "no machine available"
     end
 
     local config = gymData[machineKey]
@@ -194,8 +222,12 @@ local function runFarmCycle(silent)
     local benchPart = getPartFromInstance(bench)
     if benchPart then
         teleportToPart(benchPart)
-    elseif not silent then
-        Notify("Gym", "Bench part not found inside " .. config.machineName)
+    else
+        local fallback = getPartFromInstance(machine)
+        if fallback then teleportToPart(fallback) end
+        if not silent then
+            Notify("Gym", "Using fallback part for " .. config.machineName)
+        end
     end
 
     local seats = collectInteractSeats(machine)
