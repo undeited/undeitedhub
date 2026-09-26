@@ -66,6 +66,21 @@ local RESEAT_COOLDOWN = 0.75
 local lastReseatTime = 0
 local currentMachine = nil
 
+local function Notify(title, content, duration)
+    duration = duration or 4
+    if WindUI and type(WindUI.Notify) == "function" then
+        pcall(WindUI.Notify, WindUI, { Title = title, Content = content, Duration = duration })
+    else
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = title,
+                Text = content,
+                Duration = duration,
+            })
+        end)
+    end
+end
+
 local function getStrength()
     local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
     if not leaderstats then return nil end
@@ -90,10 +105,56 @@ local function findMachinesFolder()
     return nil
 end
 
-local function getMachineInstance(folder, machineName, variantIndex)
-    if not folder or not machineName then return nil end
-    variantIndex = variantIndex or 1
+local function getInstancePosition(inst)
+    if not inst then return Vector3.zero end
+    if inst:IsA("BasePart") then return inst.Position end
+    if inst:IsA("Model") then
+        local ok, pivot = pcall(function() return inst:GetPivot() end)
+        if ok and pivot then return pivot.Position end
+        local prim = inst.PrimaryPart
+        if prim then return prim.Position end
+        for _, d in ipairs(inst:GetDescendants()) do
+            if d:IsA("BasePart") then return d.Position end
+        end
+    end
+    return Vector3.zero
+end
 
+-- Try to figure out what strength value a machine is associated with by
+-- scanning its attributes and its descendant values for numbers that match.
+local function readMachineStrength(machine)
+    if not machine then return nil end
+
+    local candidates = {
+        "Strength", "RequiredStrength", "Requirement", "Required",
+        "StrengthRequired", "RequiredStrengthValue", "MinStrength",
+    }
+
+    for _, attr in ipairs(candidates) do
+        local v = machine:GetAttribute(attr)
+        if type(v) == "number" then return v end
+    end
+
+    for _, d in ipairs(machine:GetDescendants()) do
+        if d:IsA("IntValue") or d:IsA("NumberValue") then
+            local lname = string.lower(d.Name)
+            if lname:find("strength") or lname:find("require") then
+                if type(d.Value) == "number" then return d.Value end
+            end
+        elseif d:IsA("StringValue") then
+            local lname = string.lower(d.Name)
+            if lname:find("strength") or lname:find("require") then
+                local n = tonumber((tostring(d.Value):gsub("[^%d%.]", "")))
+                if n then return n end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function getMachineMatches(folder, machineName)
+    if not folder or not machineName then return {} end
     local matches = {}
     for _, child in ipairs(folder:GetChildren()) do
         if child.Name == machineName then
@@ -101,6 +162,35 @@ local function getMachineInstance(folder, machineName, variantIndex)
         end
     end
 
+    table.sort(matches, function(a, b)
+        local pa = getInstancePosition(a)
+        local pb = getInstancePosition(b)
+        if pa.Y ~= pb.Y then return pa.Y < pb.Y end
+        if pa.X ~= pb.X then return pa.X < pb.X end
+        return pa.Z < pb.Z
+    end)
+
+    return matches
+end
+
+local function getMachineInstance(folder, machineName, variantIndex, requiredStrength)
+    local matches = getMachineMatches(folder, machineName)
+    if #matches == 0 then return nil end
+    if #matches == 1 then return matches[1] end
+
+    if requiredStrength then
+        local exact = nil
+        for _, m in ipairs(matches) do
+            local s = readMachineStrength(m)
+            if s and math.abs(s - requiredStrength) < 1 then
+                exact = m
+                break
+            end
+        end
+        if exact then return exact end
+    end
+
+    variantIndex = variantIndex or 1
     return matches[variantIndex]
 end
 
@@ -191,7 +281,12 @@ local function runFarmCycle()
     local myStrength = getStrength()
     if myStrength and myStrength < config.requiredStrength then return end
 
-    local machine = getMachineInstance(folder, config.machineName, config.variantIndex)
+    local machine = getMachineInstance(
+        folder,
+        config.machineName,
+        config.variantIndex,
+        config.requiredStrength
+    )
     if not machine then
         currentMachine = nil
         return
@@ -274,6 +369,57 @@ GymTab:Dropdown({
         selectedMachine = value
         currentMachine = nil
         lastReseatTime = 0
+    end
+})
+
+GymTab:Button({
+    Title = "Print Machines",
+    Callback = function()
+        local folder = findMachinesFolder()
+        if not folder then
+            Notify("Gym", "machinesFolder not found")
+            return
+        end
+
+        local gymData = GYMS[selectedGym]
+        local config = gymData and gymData[selectedMachine]
+        if not config then
+            Notify("Gym", "No config for " .. tostring(selectedMachine))
+            return
+        end
+
+        local matches = getMachineMatches(folder, config.machineName)
+        print("=== " .. config.machineName .. " (" .. #matches .. " matches) ===")
+        for i, m in ipairs(matches) do
+            local pos = getInstancePosition(m)
+            local detected = readMachineStrength(m)
+            print(string.format(
+                "[%d] %s  pos=(%.1f, %.1f, %.1f)  detectedStrength=%s",
+                i,
+                m:GetFullName(),
+                pos.X, pos.Y, pos.Z,
+                tostring(detected)
+            ))
+        end
+
+        local chosen = getMachineInstance(
+            folder,
+            config.machineName,
+            config.variantIndex,
+            config.requiredStrength
+        )
+        if chosen then
+            local cpos = getInstancePosition(chosen)
+            print(string.format(
+                "SELECTED: %s  pos=(%.1f, %.1f, %.1f)",
+                chosen:GetFullName(),
+                cpos.X, cpos.Y, cpos.Z
+            ))
+        else
+            print("SELECTED: none")
+        end
+
+        Notify("Gym", "Printed " .. #matches .. " matches (see console)")
     end
 })
 
