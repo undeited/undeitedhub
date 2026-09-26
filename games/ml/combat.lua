@@ -67,12 +67,58 @@ local function resetVelocity(part)
     end)
 end
 
+local BOSS_ARENA_RADIUS = 60
+
+local function getBossArena()
+    local events = workspace:FindFirstChild("Events")
+    if not events then return nil end
+    return events:FindFirstChild("BossArena")
+end
+
+local function getBossRoot(boss)
+    if not boss or not boss.Parent then return nil end
+    if boss:IsA("BasePart") then return boss end
+    local hrp = boss:FindFirstChild("HumanoidRootPart")
+    if hrp and hrp:IsA("BasePart") then return hrp end
+    local hum = boss:FindFirstChildOfClass("Humanoid")
+    if hum and hum.RootPart then return hum.RootPart end
+    if boss.PrimaryPart then return boss.PrimaryPart end
+    for _, part in ipairs(boss:GetDescendants()) do
+        if part:IsA("BasePart") then return part end
+    end
+    return nil
+end
+
 local function isInBossArena(player)
     if not player or not player.Character then return false end
-    local bossArena = workspace:FindFirstChild("Events") and workspace.Events:FindFirstChild("BossArena")
-    if bossArena then
-        return player.Character:IsDescendantOf(bossArena)
+    local arena = getBossArena()
+    if not arena then return false end
+
+    if player.Character:IsDescendantOf(arena) then
+        return true
     end
+
+    local char = player.Character
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local pos = hrp.Position
+
+    for i = 1, 6 do
+        local bossFolder = arena:FindFirstChild("Boss" .. i)
+        if bossFolder then
+            local boss = bossFolder:FindFirstChild("Boss")
+            if boss then
+                local bossRoot = getBossRoot(boss)
+                if bossRoot then
+                    local dist = (pos - bossRoot.Position).Magnitude
+                    if dist <= BOSS_ARENA_RADIUS then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
     return false
 end
 
