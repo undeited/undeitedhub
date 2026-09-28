@@ -8,21 +8,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 local function isPlayerInPlot(player)
     if not player or not player.Character then return false end
     local hrp = player.Character:FindFirstChild("HumanoidRootPart")
@@ -482,7 +467,6 @@ local function startKickLoop()
     if kickTask then return end
     kickEnabled = true
     undeitedhub.Toggles.kickPlayer = true
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     kickTask = task.spawn(function()
         local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
@@ -518,14 +502,7 @@ local function startKickLoop()
             end
 
             if isPlayerInPlot(target) then
-                if not waitingForPlotExit then
-                    waitingForPlotExit = true
-                    SafeNotify({
-                        Title = "Kick Player",
-                        Content = "Target in plot — waiting until they leave...",
-                        Duration = 2,
-                    })
-                end
+                waitingForPlotExit = true
                 dragging = false
                 grabStartTime = 0
                 task.wait(0.3)
@@ -534,11 +511,6 @@ local function startKickLoop()
 
             if waitingForPlotExit then
                 waitingForPlotExit = false
-                SafeNotify({
-                    Title = "Kick Player",
-                    Content = "Target left plot — resuming.",
-                    Duration = 2,
-                })
             end
 
             local myChar = getPlayerCharacter()
@@ -661,7 +633,6 @@ local function startKickLoop()
         end
         kickEnabled = false
         undeitedhub.Toggles.kickPlayer = false
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         kickTask = nil
     end)
 end
@@ -682,7 +653,6 @@ local function stopKickLoop()
         stopHover(target)
     end
     stopAllHeldHovers()
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
 local function bringPlayer(target, dropAfter)
@@ -690,11 +660,6 @@ local function bringPlayer(target, dropAfter)
     if not isPlayerValid(target) then return end
 
     if isPlayerInPlot(target) then
-        SafeNotify({
-            Title = "Bring Player",
-            Content = "Target is in a plot — teleporting would delete the blobman.",
-            Duration = 3,
-        })
         return
     end
 
@@ -815,20 +780,16 @@ end
 
 local function bringSelectedPlayer()
     if not selectedBringPlayerObj then
-        SafeNotify({ Title = "Bring Player", Content = "No player selected.", Duration = 2 })
         return
     end
     if not selectedBringPlayerObj.Parent then
         selectedBringPlayerObj = nil
-        SafeNotify({ Title = "Bring Player", Content = "Selected player has left.", Duration = 2 })
         return
     end
     if not isPlayerValid(selectedBringPlayerObj) then
-        SafeNotify({ Title = "Bring Player", Content = "Selected player is not valid.", Duration = 2 })
         return
     end
     if isPlayerInPlot(selectedBringPlayerObj) then
-        SafeNotify({ Title = "Bring Player", Content = "Target is in a plot.", Duration = 3 })
         return
     end
     bringPlayer(selectedBringPlayerObj, false)
@@ -942,14 +903,7 @@ end)
 BlobmanTab:Button({
     Title = "Bring Player",
     Callback = function()
-        local ok, err = pcall(bringSelectedPlayer)
-        if not ok then
-            SafeNotify({
-                Title = "Bring Player Error",
-                Content = tostring(err):sub(1, 120),
-                Duration = 4,
-            })
-        end
+        pcall(bringSelectedPlayer)
     end
 })
 
