@@ -29,8 +29,33 @@ local MACHINE_OPTIONS = {
     "Squat (312.5k)",
 }
 
-local selectedGym = "Industrial Gym"
-local selectedMachine = MACHINE_OPTIONS[1]
+local GYM_OPTIONS = { "Industrial Gym" }
+
+local function findOption(list, value, fallback)
+    if type(value) == "string" then
+        for _, v in ipairs(list) do
+            if v == value then return v end
+        end
+    end
+    return fallback
+end
+
+local selectedGym = findOption(GYM_OPTIONS, undeitedhub.Toggles.gymSelectedGym, GYM_OPTIONS[1])
+local selectedMachine = findOption(MACHINE_OPTIONS, undeitedhub.Toggles.gymSelectedMachine, MACHINE_OPTIONS[1])
+
+undeitedhub.Toggles.gymSelectedGym = selectedGym
+undeitedhub.Toggles.gymSelectedMachine = selectedMachine
+
+local function persistSelection()
+    undeitedhub.Toggles.gymSelectedGym = selectedGym
+    undeitedhub.Toggles.gymSelectedMachine = selectedMachine
+    if undeitedhub.SaveSettings then
+        pcall(undeitedhub.SaveSettings)
+    end
+end
+
+persistSelection()
+
 local autoFarmEnabled = undeitedhub.Toggles.gymAutoFarm or false
 
 local heartbeatConn = nil
@@ -302,25 +327,41 @@ local function stopAutoFarm()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
-GymTab:Dropdown({
+local gymDropdown
+local machineDropdown
+
+gymDropdown = GymTab:Dropdown({
     Title = "Select Gym",
-    Values = { "Industrial Gym" },
+    Values = GYM_OPTIONS,
     Value = selectedGym,
     Callback = function(value)
-        selectedGym = value
+        selectedGym = findOption(GYM_OPTIONS, value, GYM_OPTIONS[1])
+        persistSelection()
         refreshPinned()
     end
 })
 
-GymTab:Dropdown({
+machineDropdown = GymTab:Dropdown({
     Title = "Select Machine",
     Values = MACHINE_OPTIONS,
     Value = selectedMachine,
     Callback = function(value)
-        selectedMachine = value
+        selectedMachine = findOption(MACHINE_OPTIONS, value, MACHINE_OPTIONS[1])
+        persistSelection()
         refreshPinned()
     end
 })
+
+task.defer(function()
+    pcall(function()
+        if gymDropdown and gymDropdown.Set then
+            gymDropdown:Set(selectedGym)
+        end
+        if machineDropdown and machineDropdown.Set then
+            machineDropdown:Set(selectedMachine)
+        end
+    end)
+end)
 
 GymTab:Toggle({
     Title = "Auto Farm",
@@ -332,6 +373,12 @@ GymTab:Toggle({
 
 if autoFarmEnabled then
     startAutoFarm()
+end
+
+undeitedhub.Toggles.gymSelectedGym = selectedGym
+undeitedhub.Toggles.gymSelectedMachine = selectedMachine
+if undeitedhub.SaveSettings then
+    pcall(undeitedhub.SaveSettings)
 end
 
 local oldDisable = undeitedhub.DisableAll or function() end
