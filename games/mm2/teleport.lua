@@ -1,4 +1,4 @@
-\local WindUI = undeitedhub.WindUI
+local WindUI = undeitedhub.WindUI
 local TeleportTab = undeitedhub.Window:Tab({ Title = "Teleport" })
 
 local function SafeNotify(data)
