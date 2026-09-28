@@ -8,6 +8,143 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 
+local function isValidInstance(inst)
+    if not inst then return false end
+    local ok, t = pcall(function() return typeof(inst) end)
+    if not ok or t ~= "Instance" then return false end
+    return inst.Parent ~= nil
+end
+
+local Cache = {
+    plotsFolder = nil,
+    plotBasePart = {},
+    blobmanSeat = {},
+    lastRevalidate = 0,
+    revalidateInterval = 3,
+}
+
+local cachedPlotInvalid = false
+
+local function refreshPlotsFolder()
+    if isValidInstance(Cache.plotsFolder) then return Cache.plotsFolder end
+    Cache.plotsFolder = nil
+
+    local direct = Workspace:FindFirstChild("Plots")
+    if direct then
+        Cache.plotsFolder = direct
+        return direct
+    end
+
+    local bestFolder = nil
+    local bestScore = 0
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child:IsA("Folder") or child:IsA("Model") then
+            local matchCount = 0
+            local childCount = 0
+            for _, sub in ipairs(child:GetChildren()) do
+                childCount = childCount + 1
+                if sub.Name:match("^Plot%d+$") then
+                    matchCount = matchCount + 1
+                end
+            end
+            if matchCount >= 2 then
+                local score = matchCount
+                if childCount > 0 then
+                    score = score * (matchCount / childCount)
+                end
+                if score > bestScore then
+                    bestScore = score
+                    bestFolder = child
+                end
+            end
+        end
+    end
+
+    Cache.plotsFolder = bestFolder
+    return bestFolder
+end
+
+local function isPlotModel(inst)
+    if not inst then return false end
+    if not (inst:IsA("Model") or inst:IsA("Folder")) then return false end
+    if inst.Name:match("^Plot%d+$") then return true end
+
+    if inst:FindFirstChild("PlotArea")
+        or inst:FindFirstChild("Barrier")
+        or inst:FindFirstChild("PlotSign")
+        or inst:FindFirstChild("TeslaCoil") then
+        return true
+    end
+
+    return false
+end
+
+local function getPlotBase(plot)
+    if not plot then return nil end
+
+    local cached = Cache.plotBasePart[plot]
+    if isValidInstance(cached) and cached:IsDescendantOf(plot) then
+        return cached
+    end
+    Cache.plotBasePart[plot] = nil
+
+    local named = plot:FindFirstChild("PlotArea")
+        or plot:FindFirstChild("Base")
+        or plot:FindFirstChild("Floor")
+        or plot:FindFirstChild("Baseplate")
+        or plot:FindFirstChild("PlotBase")
+        or plot:FindFirstChild("Ground")
+
+    local base = nil
+    if named and named:IsA("BasePart") then
+        base = named
+    else
+        local best = nil
+        local bestArea = 0
+        for _, d in ipairs(plot:GetDescendants()) do
+            if d:IsA("BasePart") then
+                local area = d.Size.X * d.Size.Z
+                local maxSide = math.max(d.Size.X, d.Size.Z)
+                if area > bestArea and d.Size.Y <= maxSide * 0.6 then
+                    bestArea = area
+                    best = d
+                end
+            end
+        end
+        base = best
+    end
+
+    if base then
+        Cache.plotBasePart[plot] = base
+    end
+    return base
+end
+
+local function refreshCaches(force)
+    local now = tick()
+    if not force and now - Cache.lastRevalidate < Cache.revalidateInterval then return end
+    Cache.lastRevalidate = now
+
+    if not isValidInstance(Cache.plotsFolder) then
+        Cache.plotsFolder = nil
+        Cache.plotBasePart = {}
+    end
+
+    for plot, base in pairs(Cache.plotBasePart) do
+        if not isValidInstance(plot) or not isValidInstance(base) then
+            Cache.plotBasePart[plot] = nil
+        end
+    end
+
+    for blobman, seat in pairs(Cache.blobmanSeat) do
+        if not isValidInstance(blobman) or not isValidInstance(seat) then
+            Cache.blobmanSeat[blobman] = nil
+        end
+    end
+
+    refreshPlotsFolder()
+end
+
 local function isPlayerInPlot(player)
     if not player or not player.Character then return false end
     local hrp = player.Character:FindFirstChild("HumanoidRootPart")
@@ -22,35 +159,22 @@ local function isPlayerInPlot(player)
         ancestor = ancestor.Parent
     end
 
-    local plotsFolder = Workspace:FindFirstChild("Plots")
+    refreshCaches()
+
+    local plotsFolder = Cache.plotsFolder
     if not plotsFolder then return false end
 
     for _, plot in ipairs(plotsFolder:GetChildren()) do
-        if plot:IsA("Model") then
-            local base = plot:FindFirstChild("Base")
-                or plot:FindFirstChild("Floor")
-                or plot:FindFirstChild("Baseplate")
-                or plot:FindFirstChild("PlotBase")
-
+        if isPlotModel(plot) then
+            local base = getPlotBase(plot)
             if base and base:IsA("BasePart") then
                 local size = base.Size
                 local lp = base.CFrame:PointToObjectSpace(pos)
-                if math.abs(lp.X) <= size.X * 0.5
-                    and math.abs(lp.Z) <= size.Z * 0.5
-                    and lp.Y >= -size.Y * 0.5 - 5
-                    and lp.Y <= size.Y * 0.5 + 40 then
+                if math.abs(lp.X) <= size.X * 0.5 + 2
+                    and math.abs(lp.Z) <= size.Z * 0.5 + 2
+                    and lp.Y >= -size.Y * 0.5 - 8
+                    and lp.Y <= size.Y * 0.5 + 50 then
                     return true
-                end
-            else
-                local ok, cf, size = pcall(function() return plot:GetBoundingBox() end)
-                if ok and cf and size then
-                    local lp = cf:PointToObjectSpace(pos)
-                    if math.abs(lp.X) <= size.X * 0.5
-                        and math.abs(lp.Z) <= size.Z * 0.5
-                        and lp.Y >= -size.Y * 0.5 - 5
-                        and lp.Y <= size.Y * 0.5 + 40 then
-                        return true
-                    end
                 end
             end
         end
@@ -101,7 +225,17 @@ local function getPlayerCFrame()
 end
 
 local function getToysFolder()
-    return Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+    local name = LocalPlayer.Name .. "SpawnedInToys"
+    local direct = Workspace:FindFirstChild(name)
+    if direct then return direct end
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child.Name:find("SpawnedInToys", 1, true) then
+            if child.Name:find(LocalPlayer.Name, 1, true) then
+                return child
+            end
+        end
+    end
+    return nil
 end
 
 local function getBlobmen()
@@ -159,6 +293,34 @@ local function ensureSingleBlobman()
     return getBlobmen()[1]
 end
 
+local function getBlobmanSeat(blobman)
+    if not blobman then return nil end
+
+    local cached = Cache.blobmanSeat[blobman]
+    if isValidInstance(cached) and cached:IsDescendantOf(blobman) then
+        return cached
+    end
+    Cache.blobmanSeat[blobman] = nil
+
+    local seat = blobman:FindFirstChildWhichIsA("VehicleSeat")
+    if seat then
+        Cache.blobmanSeat[blobman] = seat
+        return seat
+    end
+    seat = blobman:FindFirstChildWhichIsA("Seat")
+    if seat then
+        Cache.blobmanSeat[blobman] = seat
+        return seat
+    end
+    for _, d in ipairs(blobman:GetDescendants()) do
+        if d:IsA("VehicleSeat") or d:IsA("Seat") then
+            Cache.blobmanSeat[blobman] = d
+            return d
+        end
+    end
+    return nil
+end
+
 local function getSeatedBlobman()
     local character = getPlayerCharacter()
     if not character then return nil end
@@ -168,7 +330,7 @@ local function getSeatedBlobman()
         return hum.SeatPart.Parent
     end
     for _, blobman in ipairs(getBlobmen()) do
-        local seat = blobman:FindFirstChild("VehicleSeat")
+        local seat = getBlobmanSeat(blobman)
         if seat and seat.Occupant == hum then
             return blobman
         end
@@ -182,12 +344,17 @@ local function sitOnBlobman()
     local hum = character:FindFirstChildOfClass("Humanoid")
     local hrp = character:FindFirstChild("HumanoidRootPart")
     if not hum or not hrp or hum.Health <= 0 then return nil end
+
     local seated = getSeatedBlobman()
     if seated then return seated end
+
     local blobman = ensureSingleBlobman()
     if not blobman then return nil end
-    local seat = blobman:FindFirstChild("VehicleSeat")
-    if seat and (not seat.Occupant or seat.Occupant == hum) then
+
+    local seat = getBlobmanSeat(blobman)
+    if not seat then return nil end
+
+    if not seat.Occupant or seat.Occupant == hum then
         local camera = Workspace.CurrentCamera
         hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
         task.wait(0.05)
@@ -198,9 +365,17 @@ local function sitOnBlobman()
         VirtualInputManager:SendKeyEvent(true, INTERACT_KEY, false, game)
         task.wait(0.05)
         VirtualInputManager:SendKeyEvent(false, INTERACT_KEY, false, game)
-        task.wait(0.3)
-        if hum.SeatPart and hum.SeatPart.Parent == blobman then
-            return blobman
+        task.wait(0.35)
+
+        for _ = 1, 6 do
+            if hum.SeatPart and hum.SeatPart.Parent == blobman then
+                return blobman
+            end
+            local anySeat = getBlobmanSeat(blobman)
+            if anySeat and anySeat.Occupant == hum then
+                return blobman
+            end
+            task.wait(0.1)
         end
     end
     return nil
@@ -246,7 +421,7 @@ local function startHover(target, blobman)
         local character = target.Character
         if not character then return end
         local targetRoot = character:FindFirstChild("HumanoidRootPart")
-        local blobmanRoot = blobman:FindFirstChild("HumanoidRootPart") or blobman.PrimaryPart or blobman:FindFirstChild("VehicleSeat")
+        local blobmanRoot = blobman:FindFirstChild("HumanoidRootPart") or blobman.PrimaryPart or getBlobmanSeat(blobman)
         if not targetRoot or not blobmanRoot then return end
         local position = blobmanRoot.Position + Vector3.new(0, 15, 0)
         local lookDirection = blobmanRoot.CFrame.LookVector
@@ -307,9 +482,7 @@ local function startHeldHover(target, hand)
         local weld = detector:FindFirstChild(weldName)
         local ownerScript = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
         local grab = ownerScript and ownerScript:FindFirstChild("CreatureGrab")
-        if not grab or not weld then
-            return
-        end
+        if not grab or not weld then return end
 
         pcall(function()
             grab:FireServer(detector, targetRoot, weld)
@@ -470,8 +643,12 @@ local function startKickLoop()
         local target = nil
         local lastTarget = nil
         local waitingForPlotExit = false
+        local stallStart = tick()
+        local lastProgress = tick()
 
         while kickEnabled do
+            refreshCaches()
+
             if selectedKickPlayer and selectedKickPlayer ~= "" then
                 target = getPlayerFromDropdownValue(selectedKickPlayer)
             else
@@ -482,6 +659,8 @@ local function startKickLoop()
                 lastTarget = target
                 waitingForPlotExit = false
                 savedPos = nil
+                dragging = false
+                grabStartTime = 0
             end
 
             if not target or not target.Parent or not target.Character then
@@ -519,7 +698,8 @@ local function startKickLoop()
             end
 
             local seat = myHum.SeatPart
-            if not seat or not seat.Parent or seat.Parent.Name ~= "CreatureBlobman" then
+            local onBlobman = seat and seat.Parent and seat.Parent.Name == "CreatureBlobman"
+            if not onBlobman then
                 dragging = false
                 grabStartTime = 0
                 savedPos = nil
@@ -528,6 +708,10 @@ local function startKickLoop()
                 local reHum = myChar:FindFirstChildOfClass("Humanoid")
                 local reSeat = reHum and reHum.SeatPart
                 if not reSeat or not reSeat.Parent or reSeat.Parent.Name ~= "CreatureBlobman" then
+                    if tick() - stallStart > 8 then
+                        stallStart = tick()
+                        Cache.blobmanSeat = {}
+                    end
                     continue
                 end
             end
@@ -560,6 +744,7 @@ local function startKickLoop()
                         drop:FireServer(L_Weld, tRoot)
                         drop:FireServer(R_Weld, tRoot)
                     end)
+                    lastProgress = tick()
                 end
 
                 if not dragging then
@@ -613,10 +798,21 @@ local function startKickLoop()
                     pcall(function()
                         tHum.PlatformStand = true
                     end)
+                    lastProgress = tick()
                 end
             else
                 dragging = false
                 grabStartTime = 0
+            end
+
+            if tick() - lastProgress > 12 then
+                lastProgress = tick()
+                Cache.blobmanSeat = {}
+                cachedPlotInvalid = true
+                Cache.plotBasePart = {}
+                dragging = false
+                grabStartTime = 0
+                savedPos = nil
             end
 
             RunService.Heartbeat:Wait()
@@ -900,6 +1096,16 @@ end)
 
 task.delay(1, function()
     refreshDropdowns()
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(2)
+        pcall(refreshCaches, true)
+        if cachedPlotInvalid then
+            cachedPlotInvalid = false
+        end
+    end
 end)
 
 BlobmanTab:Button({
