@@ -926,14 +926,6 @@ local function ToggleAutoGrab(state)
     end
 end
 
-CombatTab:Toggle({
-    Title = "Auto Grab Gun",
-    Value = autoGrabGunEnabled,
-    Callback = function(state)
-        ToggleAutoGrab(state)
-    end
-})
-
 CombatTab:Button({
     Title = "Grab Gun",
     Callback = function()
@@ -972,6 +964,14 @@ CombatTab:Button({
             return
         end
         GrabGun(gunDrop, false)
+    end
+})
+
+CombatTab:Toggle({
+    Title = "Auto Grab Gun",
+    Value = autoGrabGunEnabled,
+    Callback = function(state)
+        ToggleAutoGrab(state)
     end
 })
 
