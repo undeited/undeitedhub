@@ -491,11 +491,13 @@ local function startKickLoop()
             if target ~= lastTarget then
                 lastTarget = target
                 waitingForPlotExit = false
+                savedPos = nil
             end
 
             if not target or not target.Parent or not target.Character then
                 dragging = false
                 grabStartTime = 0
+                savedPos = nil
                 waitingForPlotExit = false
                 task.wait(0.2)
                 continue
@@ -530,10 +532,14 @@ local function startKickLoop()
             if not seat or not seat.Parent or seat.Parent.Name ~= "CreatureBlobman" then
                 dragging = false
                 grabStartTime = 0
-                savedPos = myRoot.CFrame
+                savedPos = nil
                 pcall(sitOnBlobman)
-                task.wait(0.1)
-                continue
+                task.wait(0.25)
+                local reHum = myChar:FindFirstChildOfClass("Humanoid")
+                local reSeat = reHum and reHum.SeatPart
+                if not reSeat or not reSeat.Parent or reSeat.Parent.Name ~= "CreatureBlobman" then
+                    continue
+                end
             end
 
             if not savedPos then
@@ -700,12 +706,20 @@ local function bringPlayer(target, dropAfter)
     local originalCFrame = localRoot.CFrame
 
     localRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
-    task.wait(0.2)
+    task.wait(0.25)
 
-    if not getSeatedBlobman() then
+    local seated = getSeatedBlobman()
+    for _ = 1, 3 do
+        if seated then break end
         sitOnBlobman()
-        task.wait(0.3)
+        task.wait(0.25)
+        seated = getSeatedBlobman()
     end
+    if not seated then
+        localRoot.CFrame = originalCFrame
+        return
+    end
+    blobman = seated
 
     for i = 1, 10 do
         pcall(function()
@@ -768,11 +782,9 @@ local function bringPlayer(target, dropAfter)
         task.wait(0.02)
     end
 
+    local finalBlobman = getSeatedBlobman() or blobman
     if dropAfter then
-        local finalBlobman = getSeatedBlobman()
-        if finalBlobman then
-            dropHeldTarget(finalBlobman, hand)
-        end
+        dropHeldTarget(finalBlobman, hand)
     else
         startHeldHover(target, hand)
     end
