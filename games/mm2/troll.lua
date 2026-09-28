@@ -3,21 +3,6 @@ local utils = undeitedhub.Utils
 local config = undeitedhub.Config
 local MathUtils = undeitedhub.MathUtils
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 if not undeitedhub.GetCurrentMurderer then
     function undeitedhub.GetCurrentMurderer()
         for _, player in ipairs(game.Players:GetPlayers()) do
@@ -235,33 +220,27 @@ end
 
 local function FlingPlayer(target, silent)
     if not target or target == game.Players.LocalPlayer then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Invalid target", Duration = 2 }) end
         return false
     end
 
     if not IsRoundActive() then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Round is not active", Duration = 2 }) end
         return false
     end
 
     local targetChar = target.Character
     if not targetChar then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Target has no character", Duration = 2 }) end
         return false
     end
     local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
     if not targetHum or targetHum.Health <= 0 then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Target is dead", Duration = 2 }) end
         return false
     end
 
     if IsPlayerInLobby(target) then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Target is in lobby", Duration = 2 }) end
         return false
     end
 
     if IsSeated(target) then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Target is seated", Duration = 2 }) end
         return false
     end
 
@@ -271,13 +250,11 @@ local function FlingPlayer(target, silent)
     local rootPart = humanoid and humanoid.RootPart or getRoot(character)
 
     if not rootPart or not humanoid then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Local character invalid", Duration = 2 }) end
         return false
     end
 
     local tChar = flingManager.GetPlayerCharacter(target)
     if not tChar then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Target character missing", Duration = 2 }) end
         return false
     end
 
@@ -286,7 +263,6 @@ local function FlingPlayer(target, silent)
     local tHead = getHead(tChar)
 
     if not tRoot or not tHum or tHum.Health <= 0 then
-        if not silent then SafeNotify({ Title = "Fling", Content = "Target invalid or dead", Duration = 2 }) end
         return false
     end
 
@@ -328,7 +304,6 @@ local function FlingPlayer(target, silent)
     if not tChar:FindFirstChildWhichIsA("BasePart") then
         cleanupFlingPart()
         workspace.FallenPartsDestroyHeight = originalFPDH
-        if not silent then SafeNotify({ Title = "Fling", Content = "Target has no parts", Duration = 2 }) end
         return false
     end
 
@@ -435,7 +410,6 @@ local function FlingPlayer(target, silent)
 
     workspace.FallenPartsDestroyHeight = originalFPDH
 
-    if not silent then SafeNotify({ Title = "Fling", Content = "Flung " .. target.Name .. " into the void!", Duration = 2 }) end
     return true
 end
 
@@ -487,35 +461,11 @@ TrollTab:Button({
     Title = "Fling Murderer",
     Callback = function()
         if not IsRoundActive() then
-            SafeNotify({ Title = "Fling", Content = "Round is not active", Duration = 2 })
             return
         end
         local murderer = undeitedhub.GetCurrentMurderer()
         if murderer then
             FlingPlayer(murderer, false)
-        else
-            SafeNotify({ Title = "Fling", Content = "No murderer found", Duration = 2 })
-        end
-    end
-})
-
-TrollTab:Button({
-    Title = "Fling Sheriff",
-    Callback = function()
-        if not IsRoundActive() then
-            SafeNotify({ Title = "Fling", Content = "Round is not active", Duration = 2 })
-            return
-        end
-        local sheriff = undeitedhub.GetCurrentSheriff()
-        if sheriff then
-            local char = sheriff.Character
-            if char and (char:FindFirstChild("Gun") or sheriff.Backpack:FindFirstChild("Gun")) then
-                FlingPlayer(sheriff, false)
-            else
-                SafeNotify({ Title = "Fling", Content = "Sheriff has no gun or is dead", Duration = 2 })
-            end
-        else
-            SafeNotify({ Title = "Fling", Content = "No sheriff found", Duration = 2 })
         end
     end
 })
@@ -527,8 +477,23 @@ TrollTab:Toggle({
         autoFlingMurdererEnabled = state
         undeitedhub.Toggles.autoFlingMurdererEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Auto Fling Murderer", Content = state and "Enabled" or "Disabled", Duration = 2 })
         if state then lastFlingMurdererTime = tick() end
+    end
+})
+
+TrollTab:Button({
+    Title = "Fling Sheriff",
+    Callback = function()
+        if not IsRoundActive() then
+            return
+        end
+        local sheriff = undeitedhub.GetCurrentSheriff()
+        if sheriff then
+            local char = sheriff.Character
+            if char and (char:FindFirstChild("Gun") or sheriff.Backpack:FindFirstChild("Gun")) then
+                FlingPlayer(sheriff, false)
+            end
+        end
     end
 })
 
@@ -539,117 +504,7 @@ TrollTab:Toggle({
         autoFlingSheriffEnabled = state
         undeitedhub.Toggles.autoFlingSheriffEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Auto Fling Sheriff", Content = state and "Enabled" or "Disabled", Duration = 2 })
         if state then lastFlingSheriffTime = tick() end
-    end
-})
-
-local function GetPlayerKnife()
-    local localPlayer = game.Players.LocalPlayer
-    if not localPlayer then return nil end
-    local char = localPlayer.Character
-    if char then
-        local knife = char:FindFirstChild("Knife")
-        if knife and knife:IsA("Tool") then return knife end
-    end
-    local backpack = localPlayer:FindFirstChild("Backpack")
-    if backpack then
-        local knife = backpack:FindFirstChild("Knife")
-        if knife and knife:IsA("Tool") then return knife end
-    end
-    return nil
-end
-
-local function KillSheriff()
-    local localPlayer = game.Players.LocalPlayer
-    if not localPlayer then return end
-    local knife = GetPlayerKnife()
-    if not knife then return end
-    local handleTouched = knife:FindFirstChild("Events") and knife.Events:FindFirstChild("HandleTouched")
-    if not handleTouched or not handleTouched:IsA("RemoteEvent") then return end
-    local sheriff = undeitedhub.GetCurrentSheriff()
-    if not sheriff then return end
-    if IsPlayerInLobby(sheriff) then return end
-    local character = sheriff.Character
-    if not character then return end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if rootPart then
-        handleTouched:FireServer(rootPart)
-    end
-end
-
-TrollTab:Button({
-    Title = "Kill Sheriff",
-    Callback = function()
-        local localPlayer = game.Players.LocalPlayer
-        if not localPlayer then
-            SafeNotify({ Title = "Error", Content = "Local player not found", Duration = 2 })
-            return
-        end
-        local knife = GetPlayerKnife()
-        if not knife then
-            SafeNotify({ Title = "Error", Content = "You are not the murderer", Duration = 2 })
-            return
-        end
-        if IsInLobby() then
-            SafeNotify({ Title = "Kill Sheriff", Content = "Cannot kill in lobby", Duration = 2 })
-            return
-        end
-        if not IsRoundActive() then
-            SafeNotify({ Title = "Kill Sheriff", Content = "Round is not active", Duration = 2 })
-            return
-        end
-        pcall(KillSheriff)
-        SafeNotify({ Title = "Kill Sheriff", Content = "Attempted to kill sheriff", Duration = 2 })
-    end
-})
-
-local autoKillSheriffEnabled = undeitedhub.Toggles.autoKillSheriffEnabled or false
-local lastAutoKillSheriffTime = 0
-local KILL_COOLDOWN = 1
-
-game:GetService("RunService").Heartbeat:Connect(function()
-    if autoKillSheriffEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
-        local now = tick()
-        if now - lastAutoKillSheriffTime >= KILL_COOLDOWN and IsRoundActive() then
-            local localPlayer = game.Players.LocalPlayer
-            if localPlayer then
-                local knife = GetPlayerKnife()
-                if knife then
-                    local sheriff = undeitedhub.GetCurrentSheriff()
-                    if sheriff then
-                        local char = sheriff.Character
-                        if char then
-                            local hum = char:FindFirstChildOfClass("Humanoid")
-                            if hum and hum.Health > 0 and not IsPlayerInLobby(sheriff) then
-                                lastAutoKillSheriffTime = now
-                                pcall(KillSheriff)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
-TrollTab:Toggle({
-    Title = "Auto Kill Sheriff",
-    Value = autoKillSheriffEnabled,
-    Callback = function(state)
-        autoKillSheriffEnabled = state
-        undeitedhub.Toggles.autoKillSheriffEnabled = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({
-            Title = "Auto Kill Sheriff",
-            Content = autoKillSheriffEnabled and "Enabled" or "Disabled",
-            Duration = 2,
-        })
-        if autoKillSheriffEnabled then
-            lastAutoKillSheriffTime = tick()
-        end
     end
 })
 
@@ -658,7 +513,5 @@ undeitedhub.DisableAll = function()
     undeitedhub.Toggles.autoFlingMurdererEnabled = false
     autoFlingSheriffEnabled = false
     undeitedhub.Toggles.autoFlingSheriffEnabled = false
-    autoKillSheriffEnabled = false
-    undeitedhub.Toggles.autoKillSheriffEnabled = false
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
