@@ -8,21 +8,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 local function clamp(v, lo, hi)
     if v < lo then return lo end
     if v > hi then return hi end
@@ -348,8 +333,6 @@ AntisTab:Toggle({
     Callback = function(state)
         ToggleAntiFire(state)
         undeitedhub.Toggles.antiFire = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Anti Fire", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
@@ -473,8 +456,6 @@ AntisTab:Toggle({
     Callback = function(state)
         ToggleAntiLag(state)
         undeitedhub.Toggles.antiLag = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Anti Lag", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
@@ -581,8 +562,6 @@ AntisTab:Toggle({
     Callback = function(state)
         ToggleAntiGrab(state)
         undeitedhub.Toggles.antiGrab = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Anti Grab", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
@@ -669,8 +648,6 @@ AntisTab:Toggle({
     Callback = function(state)
         ToggleAntiBlobman(state)
         undeitedhub.Toggles.antiBlobman = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Anti Blobman", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
@@ -822,12 +799,6 @@ local function ToggleAntiVoid(state)
 
                                     local target = findBestSpawn() or lastSafeCFrame
                                     restoreCharacterState(character, hum, hrp, target)
-
-                                    SafeNotify({
-                                        Title = "Anti Void",
-                                        Content = "Pulled you back from the void",
-                                        Duration = 1.5,
-                                    })
                                 end
                             end
                         end
@@ -851,8 +822,6 @@ AntisTab:Toggle({
     Callback = function(state)
         ToggleAntiVoid(state)
         undeitedhub.Toggles.antiVoid = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Anti Void", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
