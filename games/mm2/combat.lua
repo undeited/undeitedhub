@@ -548,30 +548,32 @@ local function GetGunRaycastAttachment()
     return nil
 end
 
-local function GetGunOriginPosition()
+local function GetGunOriginCFrame()
     local att = GetGunRaycastAttachment()
     if att then
-        local ok, pos = pcall(function() return att.WorldPosition end)
-        if ok and pos then return pos end
+        local ok, cf = pcall(function() return att.WorldCFrame end)
+        if ok and cf then return cf end
+        local ok2, pos = pcall(function() return att.WorldPosition end)
+        if ok2 and pos then return CFrame.new(pos) end
     end
 
     local gun = GetPlayerGun()
     if gun then
         local handle = gun:FindFirstChild("Handle")
         if handle and handle:IsA("BasePart") then
-            return handle.Position
+            return handle.CFrame
         end
     end
 
     local localPlayer = game.Players.LocalPlayer
     local char = localPlayer and localPlayer.Character
     local head = char and char:FindFirstChild("Head")
-    if head then return head.Position end
+    if head then return head.CFrame end
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if hrp then return hrp.Position end
+    if hrp then return hrp.CFrame end
 
     local camera = workspace.CurrentCamera
-    if camera then return camera.CFrame.Position end
+    if camera then return camera.CFrame end
 
     return nil
 end
@@ -626,13 +628,10 @@ local function CheckLineOfSight(origin, targetPos, murdererChar, localPlayer)
     return false, false
 end
 
-local function FireShootRemote(shootRemote, originPos, targetPos)
-    if not shootRemote or not originPos or not targetPos then return false end
-    local direction = targetPos - originPos
-    if direction.Magnitude < 1e-3 then return false end
-    direction = direction.Unit
+local function FireShootRemote(shootRemote, originCFrame, targetCFrame)
+    if not shootRemote or not originCFrame or not targetCFrame then return false end
     local ok = pcall(function()
-        shootRemote:FireServer(originPos, direction)
+        shootRemote:FireServer(originCFrame, targetCFrame)
     end)
     return ok
 end
@@ -659,8 +658,9 @@ local function BuildShotContext()
     local rootPart = murdererChar:FindFirstChild("HumanoidRootPart")
     if not rootPart then return nil, "murderer no HRP" end
 
-    local originPos = GetGunOriginPosition()
-    if not originPos then return nil, "no origin" end
+    local originCFrame = GetGunOriginCFrame()
+    if not originCFrame then return nil, "no origin" end
+    local originPos = originCFrame.Position
 
     local currentPos = rootPart.Position
     UpdateMurdererHistory(murderer, currentPos)
@@ -673,6 +673,7 @@ local function BuildShotContext()
         murderer = murderer,
         murdererChar = murdererChar,
         rootPart = rootPart,
+        originCFrame = originCFrame,
         originPos = originPos,
         shootRemote = shootRemote,
         currentPos = currentPos,
@@ -727,7 +728,8 @@ local function ShootMurdererOnce()
         return false
     end
 
-    local ok = FireShootRemote(ctx.shootRemote, ctx.originPos, targetPos)
+    local targetCFrame = CFrame.new(targetPos)
+    local ok = FireShootRemote(ctx.shootRemote, ctx.originCFrame, targetCFrame)
     if ok then
         SafeNotify({ Title = "Shoot Murderer", Content = "Shot fired at " .. ctx.murderer.Name, Duration = 2 })
     else
@@ -741,7 +743,8 @@ local function ShootAtMurderer()
     if not ctx then return end
     local targetPos, blocked = ResolveTargetPos(ctx)
     if blocked or not targetPos then return end
-    FireShootRemote(ctx.shootRemote, ctx.originPos, targetPos)
+    local targetCFrame = CFrame.new(targetPos)
+    FireShootRemote(ctx.shootRemote, ctx.originCFrame, targetCFrame)
 end
 
 game:GetService("RunService").Heartbeat:Connect(function()
