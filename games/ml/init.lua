@@ -201,11 +201,17 @@ local function SafeLoad(name)
 end
 
 SafeLoad("games/ml/esp.lua")
+task.wait(0.05)
 SafeLoad("games/ml/combat.lua")
+task.wait(0.05)
 SafeLoad("games/ml/autofarm.lua")
+task.wait(0.05)
 SafeLoad("games/ml/gym.lua")
+task.wait(0.05)
 SafeLoad("games/ml/boss.lua")
+task.wait(0.05)
 SafeLoad("games/ml/misc.lua")
+task.wait(0.05)
 SafeLoad("shared/settings.lua")
 
 if _G.UNDEITEDHUB_STATES then
