@@ -23,9 +23,7 @@ end
 local function LoadScript(name)
     local script = HttpGet(BASE_URL .. name)
     local fn, err = LoadString(script, name)
-    if not fn then
-        error("Failed to compile " .. name .. ": " .. tostring(err), 0)
-    end
+    if not fn then error(err) end
     return fn()
 end
 
@@ -203,10 +201,15 @@ local function SafeLoad(name)
 end
 
 SafeLoad("games/ftap/esp.lua")
+task.wait(0.05)
 SafeLoad("games/ftap/combat.lua")
+task.wait(0.05)
 SafeLoad("games/ftap/blobman.lua")
+task.wait(0.05)
 SafeLoad("games/ftap/antis.lua")
+task.wait(0.05)
 SafeLoad("games/ftap/misc.lua")
+task.wait(0.05)
 SafeLoad("shared/settings.lua")
 
 if _G.UNDEITEDHUB_STATES then
