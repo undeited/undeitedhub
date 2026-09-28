@@ -1,5 +1,20 @@
 local WindUI = undeitedhub.WindUI
-local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
+
+local MiscTab
+for _ = 1, 5 do
+    local ok, result = pcall(function()
+        return undeitedhub.Window:Tab({ Title = "Misc" })
+    end)
+    if ok and result then
+        MiscTab = result
+        break
+    end
+    task.wait(0.1)
+end
+
+if not MiscTab then
+    return
+end
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
