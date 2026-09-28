@@ -229,9 +229,15 @@ local function EquipGun()
         return true
     end
     if gun.Parent == localPlayer:FindFirstChild("Backpack") then
-        humanoid:EquipTool(gun)
-        task.wait(0.1)
-        return true
+        pcall(function()
+            humanoid:EquipTool(gun)
+        end)
+        local startTime = tick()
+        while tick() - startTime < 0.5 do
+            if gun.Parent == char then return true end
+            task.wait(0.02)
+        end
+        return gun.Parent == char
     end
     return false
 end
@@ -492,25 +498,58 @@ end
 local function GetShootRemote()
     local gun = GetPlayerGun()
     if not gun then return nil end
-    local shoot = gun:FindFirstChild("Shoot")
-    if shoot and shoot:IsA("RemoteEvent") then
-        return shoot
-    end
-    for _, child in ipairs(gun:GetChildren()) do
-        if child:IsA("RemoteEvent") then
-            return child
+
+    local events = gun:FindFirstChild("Events")
+    if events then
+        local shoot = events:FindFirstChild("Shoot")
+        if shoot and shoot:IsA("RemoteEvent") then
+            return shoot
         end
     end
+
+    local direct = gun:FindFirstChild("Shoot")
+    if direct and direct:IsA("RemoteEvent") then
+        return direct
+    end
+
+    for _, d in ipairs(gun:GetDescendants()) do
+        if d:IsA("RemoteEvent") and string.lower(d.Name):find("shoot") then
+            return d
+        end
+    end
+
+    for _, d in ipairs(gun:GetDescendants()) do
+        if d:IsA("RemoteEvent") and string.lower(d.Name):find("fire") then
+            return d
+        end
+    end
+
+    if events then
+        for _, d in ipairs(events:GetChildren()) do
+            if d:IsA("RemoteEvent") then
+                return d
+            end
+        end
+    end
+
     return nil
 end
 
 local function GetGunRaycastAttachment()
     local gun = GetPlayerGun()
     if not gun then return nil end
+
     local att = gun:FindFirstChild("GunRaycastAttachment", true)
     if att and att:IsA("Attachment") then
         return att
     end
+
+    for _, d in ipairs(gun:GetDescendants()) do
+        if d:IsA("Attachment") and string.lower(d.Name):find("raycast") then
+            return d
+        end
+    end
+
     return nil
 end
 
@@ -521,8 +560,18 @@ local function GetGunOriginCFrame()
         if ok and cf then return cf end
     end
 
+    local gun = GetPlayerGun()
+    if gun then
+        local handle = gun:FindFirstChild("Handle")
+        if handle and handle:IsA("BasePart") then
+            return handle.CFrame
+        end
+    end
+
     local localPlayer = game.Players.LocalPlayer
     local char = localPlayer and localPlayer.Character
+    local head = char and char:FindFirstChild("Head")
+    if head then return head.CFrame end
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if hrp then return hrp.CFrame end
 
@@ -584,8 +633,12 @@ end
 
 local function FireShootRemote(shootRemote, originCFrame, targetPos)
     if not shootRemote or not originCFrame then return end
+    local originPos = originCFrame.Position
+    local direction = targetPos - originPos
+    if direction.Magnitude < 1e-3 then return end
+    direction = direction.Unit
     pcall(function()
-        shootRemote:FireServer(originCFrame.Position, targetPos)
+        shootRemote:FireServer(direction)
     end)
 end
 
@@ -674,6 +727,11 @@ local function ShootMurdererOnce()
         return false
     end
 
+    if not targetPos then
+        SafeNotify({ Title = "Shoot Murderer", Content = "No valid target position", Duration = 2 })
+        return false
+    end
+
     FireShootRemote(ctx.shootRemote, ctx.originCFrame, targetPos)
     SafeNotify({ Title = "Shoot Murderer", Content = "Shot fired at " .. ctx.murderer.Name, Duration = 2 })
     return true
@@ -684,7 +742,7 @@ local function ShootAtMurderer()
     local ctx = BuildShotContext()
     if not ctx then return end
     local targetPos, blocked = ResolveTargetPos(ctx)
-    if blocked then return end
+    if blocked or not targetPos then return end
     FireShootRemote(ctx.shootRemote, ctx.originCFrame, targetPos)
 end
 
