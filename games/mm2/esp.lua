@@ -79,7 +79,7 @@ local function scheduleRefresh()
         end
         if dirtyGuns then
             dirtyGuns = false
-            pcall(function() if UpdateGunHighlights then UpdateGunHighlights() end end)
+            pcall(function() if UpdateGunDropHighlights then UpdateGunDropHighlights() end end)
         end
         if dirtyCoins then
             dirtyCoins = false
@@ -246,7 +246,7 @@ local function ClearHighlights()
     highlightMap = {}
 end
 
-local function ClearGunHighlights()
+local function ClearGunDropHighlights()
     for _, highlight in pairs(gunHighlightMap) do
         if highlight and highlight.Parent then
             pcall(highlight.Destroy, highlight)
@@ -266,7 +266,7 @@ end
 
 local function ClearESP()
     ClearHighlights()
-    ClearGunHighlights()
+    ClearGunDropHighlights()
     ClearCoinHighlights()
 end
 
@@ -365,13 +365,13 @@ local function getTrackedGunDrops()
     return list
 end
 
-function UpdateGunHighlights()
+function UpdateGunDropHighlights()
     if not gunHighlightEnabled then
-        ClearGunHighlights()
+        ClearGunDropHighlights()
         return
     end
     if IsInLobby() or not IsRoundActive() then
-        ClearGunHighlights()
+        ClearGunDropHighlights()
         return
     end
 
@@ -483,7 +483,7 @@ VisualTab:Toggle({
         undeitedhub.Toggles.gunHighlightEnabled = state
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "Gun Drop Highlight", Content = state and "Enabled" or "Disabled", Duration = 2 })
-        if not gunHighlightEnabled then ClearGunHighlights() end
+        if not gunHighlightEnabled then ClearGunDropHighlights() end
         markGunsDirty()
         scheduleRefresh()
     end
