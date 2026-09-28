@@ -218,28 +218,29 @@ end
 
 local function EquipGun()
     local localPlayer = game.Players.LocalPlayer
-    if not localPlayer then return false end
+    if not localPlayer then return false, "no localplayer" end
     local gun = GetPlayerGun()
-    if not gun then return false end
+    if not gun then return false, "no gun in inventory" end
     local char = localPlayer.Character
-    if not char then return false end
+    if not char then return false, "no character" end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return false end
+    if not humanoid then return false, "no humanoid" end
     if gun.Parent == char then
         return true
     end
-    if gun.Parent == localPlayer:FindFirstChild("Backpack") then
+    local backpack = localPlayer:FindFirstChild("Backpack")
+    if gun.Parent == backpack then
         pcall(function()
             humanoid:EquipTool(gun)
         end)
         local startTime = tick()
-        while tick() - startTime < 0.5 do
+        while tick() - startTime < 0.6 do
             if gun.Parent == char then return true end
             task.wait(0.02)
         end
-        return gun.Parent == char
+        return gun.Parent == char, "equip timeout"
     end
-    return false
+    return false, "gun in unknown parent"
 end
 
 local function KillAll()
@@ -396,14 +397,15 @@ local function AutoTuneConfig()
     if ping > 0.3 then maxPrediction = 22 end
 
     local cooldown = config.cooldowns.autoShoot or 0.3
+    if cooldown < 0.5 then cooldown = 0.5 end
     if players > 8 then
-        cooldown = math.max(cooldown, 0.35)
+        cooldown = math.max(cooldown, 0.6)
     end
     if players > 12 then
-        cooldown = math.max(cooldown, 0.45)
+        cooldown = math.max(cooldown, 0.7)
     end
     if ping > 0.25 then
-        cooldown = math.max(cooldown, 0.4)
+        cooldown = math.max(cooldown, 0.65)
     end
 
     return iterations, maxPrediction, cooldown
@@ -497,33 +499,26 @@ end
 
 local function GetShootRemote()
     local gun = GetPlayerGun()
-    if not gun then return nil end
+    if not gun then return nil, "no gun" end
+
+    local shoot = gun:FindFirstChild("Shoot")
+    if shoot and shoot:IsA("RemoteEvent") then
+        return shoot
+    end
+
+    for _, d in ipairs(gun:GetDescendants()) do
+        if d:IsA("RemoteEvent") and d.Name == "Shoot" then
+            return d
+        end
+    end
+
+    for _, d in ipairs(gun:GetDescendants()) do
+        if d:IsA("RemoteEvent") and string.lower(d.Name):find("shoot", 1, true) then
+            return d
+        end
+    end
 
     local events = gun:FindFirstChild("Events")
-    if events then
-        local shoot = events:FindFirstChild("Shoot")
-        if shoot and shoot:IsA("RemoteEvent") then
-            return shoot
-        end
-    end
-
-    local direct = gun:FindFirstChild("Shoot")
-    if direct and direct:IsA("RemoteEvent") then
-        return direct
-    end
-
-    for _, d in ipairs(gun:GetDescendants()) do
-        if d:IsA("RemoteEvent") and string.lower(d.Name):find("shoot") then
-            return d
-        end
-    end
-
-    for _, d in ipairs(gun:GetDescendants()) do
-        if d:IsA("RemoteEvent") and string.lower(d.Name):find("fire") then
-            return d
-        end
-    end
-
     if events then
         for _, d in ipairs(events:GetChildren()) do
             if d:IsA("RemoteEvent") then
@@ -532,7 +527,7 @@ local function GetShootRemote()
         end
     end
 
-    return nil
+    return nil, "no shoot remote found"
 end
 
 local function GetGunRaycastAttachment()
@@ -545,7 +540,7 @@ local function GetGunRaycastAttachment()
     end
 
     for _, d in ipairs(gun:GetDescendants()) do
-        if d:IsA("Attachment") and string.lower(d.Name):find("raycast") then
+        if d:IsA("Attachment") and string.lower(d.Name):find("raycast", 1, true) then
             return d
         end
     end
@@ -553,35 +548,35 @@ local function GetGunRaycastAttachment()
     return nil
 end
 
-local function GetGunOriginCFrame()
+local function GetGunOriginPosition()
     local att = GetGunRaycastAttachment()
     if att then
-        local ok, cf = pcall(function() return att.WorldCFrame end)
-        if ok and cf then return cf end
+        local ok, pos = pcall(function() return att.WorldPosition end)
+        if ok and pos then return pos end
     end
 
     local gun = GetPlayerGun()
     if gun then
         local handle = gun:FindFirstChild("Handle")
         if handle and handle:IsA("BasePart") then
-            return handle.CFrame
+            return handle.Position
         end
     end
 
     local localPlayer = game.Players.LocalPlayer
     local char = localPlayer and localPlayer.Character
     local head = char and char:FindFirstChild("Head")
-    if head then return head.CFrame end
+    if head then return head.Position end
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if hrp then return hrp.CFrame end
+    if hrp then return hrp.Position end
 
     local camera = workspace.CurrentCamera
-    if camera then return camera.CFrame end
+    if camera then return camera.CFrame.Position end
 
     return nil
 end
 
-local function CheckLineOfSight(origin, targetPos, murdererChar, localPlayer, murderer)
+local function CheckLineOfSight(origin, targetPos, murdererChar, localPlayer)
     local map = GetCurrentMap()
 
     local includeList = {}
@@ -631,52 +626,54 @@ local function CheckLineOfSight(origin, targetPos, murdererChar, localPlayer, mu
     return false, false
 end
 
-local function FireShootRemote(shootRemote, originCFrame, targetPos)
-    if not shootRemote or not originCFrame then return end
-    local originPos = originCFrame.Position
+local function FireShootRemote(shootRemote, originPos, targetPos)
+    if not shootRemote or not originPos or not targetPos then return false end
     local direction = targetPos - originPos
-    if direction.Magnitude < 1e-3 then return end
+    if direction.Magnitude < 1e-3 then return false end
     direction = direction.Unit
-    pcall(function()
-        shootRemote:FireServer(direction)
+    local ok = pcall(function()
+        shootRemote:FireServer(originPos, direction)
     end)
+    return ok
 end
 
 local function BuildShotContext()
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return nil, "no localplayer" end
     if not IsRoundActive() then return nil, "round inactive" end
-    if not IsPlayerAlive() then return nil, "dead" end
-    if IsInLobby() then return nil, "in lobby" end
+    if not IsPlayerAlive() then return nil, "you are dead" end
+    if IsInLobby() then return nil, "you are in lobby" end
 
-    if not EquipGun() then return nil, "cannot equip gun" end
+    local equipped, equipErr = EquipGun()
+    if not equipped then return nil, "cannot equip gun (" .. tostring(equipErr) .. ")" end
     local gun = GetPlayerGun()
     if not gun then return nil, "no gun" end
-    local shootRemote = GetShootRemote()
-    if not shootRemote then return nil, "no shoot remote" end
+    local shootRemote, remoteErr = GetShootRemote()
+    if not shootRemote then return nil, "no shoot remote (" .. tostring(remoteErr) .. ")" end
 
+    if not undeitedhub.GetCurrentMurderer then return nil, "no murderer detector" end
     local murderer = undeitedhub.GetCurrentMurderer()
-    if not murderer then return nil, "no murderer" end
+    if not murderer then return nil, "no murderer detected" end
     local murdererChar = murderer.Character
     if not murdererChar then return nil, "murderer no character" end
     local rootPart = murdererChar:FindFirstChild("HumanoidRootPart")
     if not rootPart then return nil, "murderer no HRP" end
 
-    local originCFrame = GetGunOriginCFrame()
-    if not originCFrame then return nil, "no origin" end
+    local originPos = GetGunOriginPosition()
+    if not originPos then return nil, "no origin" end
 
     local currentPos = rootPart.Position
     UpdateMurdererHistory(murderer, currentPos)
     local velocity, speed = GetMurdererVelocity(murderer)
 
-    local predictedPos = ComputePredictedPosition(originCFrame.Position, currentPos, velocity, speed)
+    local predictedPos = ComputePredictedPosition(originPos, currentPos, velocity, speed)
 
     return {
         localPlayer = localPlayer,
         murderer = murderer,
         murdererChar = murdererChar,
         rootPart = rootPart,
-        originCFrame = originCFrame,
+        originPos = originPos,
         shootRemote = shootRemote,
         currentPos = currentPos,
         predictedPos = predictedPos,
@@ -687,7 +684,7 @@ local function BuildShotContext()
 end
 
 local function ResolveTargetPos(ctx)
-    local origin = ctx.originCFrame.Position
+    local origin = ctx.originPos
     local candidates = {
         ctx.predictedPos,
         ctx.currentPos,
@@ -698,56 +695,57 @@ local function ResolveTargetPos(ctx)
     local anyBlocked = false
 
     for _, pos in ipairs(candidates) do
-        local visible, blockedByInnocent = CheckLineOfSight(origin, pos, ctx.murdererChar, ctx.localPlayer, ctx.murderer)
-        if visible then
-            return pos, false, false
+        if pos then
+            local visible, blockedByInnocent = CheckLineOfSight(origin, pos, ctx.murdererChar, ctx.localPlayer)
+            if visible then
+                return pos, false, false
+            end
+            anyBlocked = true
+            lastBlockedByInnocent = blockedByInnocent
         end
-        anyBlocked = true
-        lastBlockedByInnocent = blockedByInnocent
     end
 
     return nil, anyBlocked, lastBlockedByInnocent
 end
 
 local function ShootMurdererOnce()
-    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return false end
     local ctx, err = BuildShotContext()
     if not ctx then
-        SafeNotify({ Title = "Shoot Murderer", Content = "Cannot shoot: " .. tostring(err), Duration = 2 })
+        SafeNotify({ Title = "Shoot Murderer", Content = "Cannot shoot: " .. tostring(err), Duration = 3 })
         return false
     end
 
     local targetPos, blocked, blockedByInnocent = ResolveTargetPos(ctx)
-    if blocked then
+    if blocked or not targetPos then
         if blockedByInnocent then
             SafeNotify({ Title = "Shoot Murderer", Content = "Blocked: another player in the way", Duration = 2 })
-        else
+        elseif blocked then
             SafeNotify({ Title = "Shoot Murderer", Content = "Blocked: wall in the way", Duration = 2 })
+        else
+            SafeNotify({ Title = "Shoot Murderer", Content = "No valid target position", Duration = 2 })
         end
         return false
     end
 
-    if not targetPos then
-        SafeNotify({ Title = "Shoot Murderer", Content = "No valid target position", Duration = 2 })
-        return false
+    local ok = FireShootRemote(ctx.shootRemote, ctx.originPos, targetPos)
+    if ok then
+        SafeNotify({ Title = "Shoot Murderer", Content = "Shot fired at " .. ctx.murderer.Name, Duration = 2 })
+    else
+        SafeNotify({ Title = "Shoot Murderer", Content = "FireServer failed", Duration = 3 })
     end
-
-    FireShootRemote(ctx.shootRemote, ctx.originCFrame, targetPos)
-    SafeNotify({ Title = "Shoot Murderer", Content = "Shot fired at " .. ctx.murderer.Name, Duration = 2 })
-    return true
+    return ok
 end
 
 local function ShootAtMurderer()
-    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
     local ctx = BuildShotContext()
     if not ctx then return end
     local targetPos, blocked = ResolveTargetPos(ctx)
     if blocked or not targetPos then return end
-    FireShootRemote(ctx.shootRemote, ctx.originCFrame, targetPos)
+    FireShootRemote(ctx.shootRemote, ctx.originPos, targetPos)
 end
 
 game:GetService("RunService").Heartbeat:Connect(function()
-    if autoShootEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
+    if autoShootEnabled then
         local now = tick()
         local _, _, cooldown = AutoTuneConfig()
         if now - lastShootTime >= cooldown then
@@ -760,7 +758,10 @@ end)
 CombatTab:Button({
     Title = "Shoot Murderer",
     Callback = function()
-        pcall(ShootMurdererOnce)
+        local ok, err = pcall(ShootMurdererOnce)
+        if not ok then
+            SafeNotify({ Title = "Shoot Murderer Error", Content = tostring(err):sub(1, 150), Duration = 4 })
+        end
     end
 })
 
@@ -942,7 +943,7 @@ local autoGrabGunEnabled = undeitedhub.Toggles.autoGrabGunEnabled or false
 local gunDropAddedConnection = nil
 
 local function AttemptAutoGrab()
-    if not autoGrabGunEnabled or not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+    if not autoGrabGunEnabled then return end
     if IsInLobby() or IsLocalPlayerMurderer() or not IsRoundActive() or not IsPlayerAlive() then return end
     if isGrabbing then return end
 
@@ -970,7 +971,7 @@ local function ToggleAutoGrab(state)
             gunDropAddedConnection = nil
         end
         gunDropAddedConnection = workspace.DescendantAdded:Connect(function(obj)
-            if autoGrabGunEnabled and obj.Name == "GunDrop" and _G.UNDEITEDHUB_WINDOW_VISIBLE then
+            if autoGrabGunEnabled and obj.Name == "GunDrop" then
                 pcall(AttemptAutoGrab)
             end
         end)
