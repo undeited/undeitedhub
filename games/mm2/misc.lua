@@ -1,20 +1,9 @@
 local WindUI = undeitedhub.WindUI
+local utils = undeitedhub.Utils
 
-local MiscTab
-for _ = 1, 5 do
-    local ok, result = pcall(function()
-        return undeitedhub.Window:Tab({ Title = "Misc" })
-    end)
-    if ok and result then
-        MiscTab = result
-        break
-    end
-    task.wait(0.1)
-end
-
-if not MiscTab then
-    return
-end
+local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
+if not MiscTab then return end
+task.wait(0.1)
 
 local function IsInLobby()
     local localPlayer = game.Players.LocalPlayer
@@ -104,10 +93,6 @@ local function IsPlayerAlive()
     if not humanoid then return false end
     return humanoid.Health > 0
 end
-
-local MiscTab = undeitedhub.Window:Tab({
-    Title = "Misc"
-})
 
 local function SendChatMessage(message)
     pcall(function()
