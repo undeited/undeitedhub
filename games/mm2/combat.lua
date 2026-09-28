@@ -453,8 +453,19 @@ end
 
 local function CheckLineOfSight(origin, predictedPos, murdererChar, localPlayer, murderer)
     local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = { localPlayer.Character }
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local filter = { localPlayer.Character }
+    if localPlayer.Character and localPlayer.Character.Parent then
+        for _, tool in ipairs(localPlayer.Character:GetChildren()) do
+            if tool:IsA("Tool") then table.insert(filter, tool) end
+        end
+    end
+    if localPlayer:FindFirstChild("Backpack") then
+        table.insert(filter, localPlayer.Backpack)
+    end
+    raycastParams.FilterDescendantsInstances = filter
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.IgnoreWater = true
+
     local direction = (predictedPos - origin)
     local rayResult = workspace:Raycast(origin, direction, raycastParams)
 
@@ -533,19 +544,19 @@ local function ShootMurdererOnce()
 
     local predictedPos = ComputePredictedPosition(originCFrame.Position, currentPos, velocity, speed)
 
+    local targetPos = predictedPos
     local origin = originCFrame.Position
-    local visible, blockedByInnocent = CheckLineOfSight(origin, predictedPos, murdererChar, localPlayer, murderer)
+    local visible, blockedByInnocent = CheckLineOfSight(origin, targetPos, murdererChar, localPlayer, murderer)
 
     if not visible then
-        if blockedByInnocent then
-            SafeNotify({ Title = "Shoot Murderer", Content = "Shot blocked by an innocent player", Duration = 2 })
-        else
-            SafeNotify({ Title = "Shoot Murderer", Content = "Murderer is behind a wall", Duration = 2 })
+        targetPos = currentPos
+        visible = CheckLineOfSight(origin, targetPos, murdererChar, localPlayer, murderer)
+        if not visible then
+            targetPos = rootPart.Position + Vector3.new(0, 1, 0)
         end
-        return false
     end
 
-    local targetCFrame = CFrame.new(predictedPos)
+    local targetCFrame = CFrame.new(targetPos)
     pcall(function()
         shootRemote:FireServer(originCFrame, targetCFrame)
     end)
@@ -587,12 +598,19 @@ local function ShootAtMurderer()
 
     local predictedPos = ComputePredictedPosition(originCFrame.Position, currentPos, velocity, speed)
 
+    local targetPos = predictedPos
     local origin = originCFrame.Position
-    local visible = CheckLineOfSight(origin, predictedPos, murdererChar, localPlayer, murderer)
+    local visible = CheckLineOfSight(origin, targetPos, murdererChar, localPlayer, murderer)
 
-    if not visible then return end
+    if not visible then
+        targetPos = currentPos
+        visible = CheckLineOfSight(origin, targetPos, murdererChar, localPlayer, murderer)
+        if not visible then
+            targetPos = rootPart.Position + Vector3.new(0, 1, 0)
+        end
+    end
 
-    local targetCFrame = CFrame.new(predictedPos)
+    local targetCFrame = CFrame.new(targetPos)
     pcall(function()
         shootRemote:FireServer(originCFrame, targetCFrame)
     end)
