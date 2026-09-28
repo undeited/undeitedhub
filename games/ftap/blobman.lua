@@ -714,6 +714,7 @@ local function startKickLoop()
                     end
                     continue
                 end
+                seat = reSeat
             end
 
             if not savedPos then
