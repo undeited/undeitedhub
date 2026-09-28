@@ -1,4 +1,4 @@
-local WindUI = undeitedhub.WindUI
+\local WindUI = undeitedhub.WindUI
 local TeleportTab = undeitedhub.Window:Tab({ Title = "Teleport" })
 
 local function SafeNotify(data)
@@ -34,30 +34,20 @@ local function LoadMapNames()
         return game:GetService("HttpService"):JSONDecode(raw)
     end)
 
+    local out = {}
     if ok and type(result) == "table" then
         local list = result.maps or result
         if type(list) == "table" then
-            local out = {}
             for _, v in ipairs(list) do
                 if type(v) == "string" then
                     table.insert(out, v)
                 end
             end
-            if #out > 0 then
-                undeitedhub.MM2Maps = out
-                return out
-            end
         end
     end
 
-    local fallback = {
-        "House2", "BioLab", "Office3", "Hospital3", "Factory",
-        "MilBase", "Bank2", "Hotel2", "Mansion2", "PoliceStation",
-        "ResearchFacility", "Workplace", "Pier", "BeachResort", "Yacht",
-        "Hospital2014", "Hotel2014", "Office2014",
-    }
-    undeitedhub.MM2Maps = fallback
-    return fallback
+    undeitedhub.MM2Maps = out
+    return out
 end
 
 local MAP_NAMES = LoadMapNames()
