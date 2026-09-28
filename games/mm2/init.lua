@@ -63,6 +63,7 @@ undeitedhub.Utils = utils
 undeitedhub.Config = config
 undeitedhub.MathUtils = MathUtils
 undeitedhub.Toggles = undeitedhub.Toggles or {}
+undeitedhub.BASE_URL = BASE_URL
 undeitedhub.SettingsFile = "undeitedhub/" .. GAME_FOLDER .. "/settings.json"
 
 local function ResolveThemeName(themeName)
