@@ -16,11 +16,51 @@ local function SafeNotify(data)
     end
 end
 
-local MAP_NAMES = {
-    "House2", "BioLab", "Office3", "Hospital3", "Factory",
-    "MilBase", "Bank2", "Hotel2", "Mansion2", "PoliceStation",
-    "ResearchFacility", "Workplace", "Pier", "BeachResort", "Yacht", "Hospital2014", "Hotel2014", "Office2014"
-}
+local function LoadMapNames()
+    if undeitedhub.MM2Maps then return undeitedhub.MM2Maps end
+
+    local baseUrl = undeitedhub.BASE_URL or "https://raw.githubusercontent.com/undeited/undeitedhub/main/"
+    local url = baseUrl .. "games/mm2/maps.json"
+
+    local ok, result = pcall(function()
+        local raw
+        if game and type(game.HttpGet) == "function" then
+            raw = game:HttpGet(url)
+        elseif game and type(game.HttpGetAsync) == "function" then
+            raw = game:HttpGetAsync(url)
+        else
+            error("no http")
+        end
+        return game:GetService("HttpService"):JSONDecode(raw)
+    end)
+
+    if ok and type(result) == "table" then
+        local list = result.maps or result
+        if type(list) == "table" then
+            local out = {}
+            for _, v in ipairs(list) do
+                if type(v) == "string" then
+                    table.insert(out, v)
+                end
+            end
+            if #out > 0 then
+                undeitedhub.MM2Maps = out
+                return out
+            end
+        end
+    end
+
+    local fallback = {
+        "House2", "BioLab", "Office3", "Hospital3", "Factory",
+        "MilBase", "Bank2", "Hotel2", "Mansion2", "PoliceStation",
+        "ResearchFacility", "Workplace", "Pier", "BeachResort", "Yacht",
+        "Hospital2014", "Hotel2014", "Office2014",
+    }
+    undeitedhub.MM2Maps = fallback
+    return fallback
+end
+
+local MAP_NAMES = LoadMapNames()
 
 local function getCurrentMap()
     for _, obj in pairs(workspace:GetChildren()) do
