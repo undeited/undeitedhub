@@ -12,57 +12,47 @@ local function isPlayerInPlot(player)
     if not player or not player.Character then return false end
     local hrp = player.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
-
     local pos = hrp.Position
-    local playerName = player.Name
 
-    local parent = player.Character.Parent
-    while parent and parent ~= Workspace do
-        local lower = parent.Name:lower()
-        if lower:find("plot") or lower:find("baseplate") or lower:find("base") then
+    local ancestor = player.Character.Parent
+    while ancestor and ancestor ~= Workspace do
+        if ancestor.Name:match("^Plot%d+$") then
             return true
         end
-        parent = parent.Parent
+        ancestor = ancestor.Parent
     end
 
     local plotsFolder = Workspace:FindFirstChild("Plots")
-    if plotsFolder then
-        for _, plot in ipairs(plotsFolder:GetChildren()) do
-            if plot:IsA("Model") or plot:IsA("BasePart") then
-                local plotPart
-                if plot:IsA("BasePart") then
-                    plotPart = plot
-                else
-                    plotPart = plot.PrimaryPart or plot:FindFirstChildWhichIsA("BasePart")
+    if not plotsFolder then return false end
+
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        if plot:IsA("Model") then
+            local base = plot:FindFirstChild("Base")
+                or plot:FindFirstChild("Floor")
+                or plot:FindFirstChild("Baseplate")
+                or plot:FindFirstChild("PlotBase")
+
+            if base and base:IsA("BasePart") then
+                local size = base.Size
+                local lp = base.CFrame:PointToObjectSpace(pos)
+                if math.abs(lp.X) <= size.X * 0.5
+                    and math.abs(lp.Z) <= size.Z * 0.5
+                    and lp.Y >= -size.Y * 0.5 - 5
+                    and lp.Y <= size.Y * 0.5 + 40 then
+                    return true
                 end
-                if plotPart then
-                    local size = plotPart.Size
-                    local radius = math.max(size.X, size.Z) * 0.7
-                    if (pos - plotPart.Position).Magnitude < radius then
+            else
+                local ok, cf, size = pcall(function() return plot:GetBoundingBox() end)
+                if ok and cf and size then
+                    local lp = cf:PointToObjectSpace(pos)
+                    if math.abs(lp.X) <= size.X * 0.5
+                        and math.abs(lp.Z) <= size.Z * 0.5
+                        and lp.Y >= -size.Y * 0.5 - 5
+                        and lp.Y <= size.Y * 0.5 + 40 then
                         return true
                     end
                 end
             end
-        end
-    end
-
-    local toysFolder = Workspace:FindFirstChild(playerName .. "SpawnedInToys")
-    if toysFolder then
-        local nearestDist = math.huge
-        for _, toy in ipairs(toysFolder:GetChildren()) do
-            local toyPart
-            if toy:IsA("BasePart") then
-                toyPart = toy
-            elseif toy:IsA("Model") then
-                toyPart = toy.PrimaryPart or toy:FindFirstChildWhichIsA("BasePart")
-            end
-            if toyPart then
-                local d = (pos - toyPart.Position).Magnitude
-                if d < nearestDist then nearestDist = d end
-            end
-        end
-        if nearestDist < 100 then
-            return true
         end
     end
 
