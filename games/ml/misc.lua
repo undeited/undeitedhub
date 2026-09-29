@@ -8,21 +8,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 local autoSpinEnabled = undeitedhub.Toggles.AutoSpin or false
 local autoSpinTask = nil
 local SPIN_INTERVAL = 1
@@ -92,17 +77,11 @@ MiscTab:Toggle({
     Title = "Auto Spin Wheel",
     Value = autoSpinEnabled,
     Callback = function(state)
-        if state then
-            startAutoSpin()
-        else
-            stopAutoSpin()
-        end
+        if state then startAutoSpin() else stopAutoSpin() end
     end
 })
 
-if autoSpinEnabled then
-    startAutoSpin()
-end
+if autoSpinEnabled then startAutoSpin() end
 
 local autoGiftEnabled = undeitedhub.Toggles.AutoGift or false
 local autoGiftTask = nil
@@ -140,9 +119,7 @@ local function startAutoGift()
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 pcall(claimGift, index)
                 index = index + 1
-                if index > MAX_GIFTS then
-                    index = 1
-                end
+                if index > MAX_GIFTS then index = 1 end
             end
             task.wait(GIFT_INTERVAL)
         end
@@ -164,17 +141,11 @@ MiscTab:Toggle({
     Title = "Auto Claim Gifts",
     Value = autoGiftEnabled,
     Callback = function(state)
-        if state then
-            startAutoGift()
-        else
-            stopAutoGift()
-        end
+        if state then startAutoGift() else stopAutoGift() end
     end
 })
 
-if autoGiftEnabled then
-    startAutoGift()
-end
+if autoGiftEnabled then startAutoGift() end
 
 local autoLiftEnabled = undeitedhub.Toggles.AutoLift or false
 local autoLiftTask = nil
@@ -200,21 +171,15 @@ local function getSeatedMachine()
     return nil
 end
 
-local function getRepSeat(machine)
-    if not machine then return nil end
-
-    local direct = machine:FindFirstChild("interactSeat")
-    if direct and direct:IsA("BasePart") then
-        return direct
-    end
-
+local function collectInteractSeats(machine)
+    local seats = {}
+    if not machine then return seats end
     for _, d in ipairs(machine:GetDescendants()) do
         if d.Name == "interactSeat" and d:IsA("BasePart") then
-            return d
+            table.insert(seats, d)
         end
     end
-
-    return nil
+    return seats
 end
 
 local function fireRep(seat)
@@ -236,8 +201,11 @@ local function startAutoLift()
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
                 local machine = getSeatedMachine()
                 if machine then
-                    local repSeat = getRepSeat(machine)
-                    fireRep(repSeat)
+                    local seats = collectInteractSeats(machine)
+                    for _, seat in ipairs(seats) do
+                        fireRep(seat)
+                        task.wait(0.03)
+                    end
                 end
             end
             task.wait(LIFT_INTERVAL)
@@ -260,17 +228,11 @@ MiscTab:Toggle({
     Title = "Auto Lift",
     Value = autoLiftEnabled,
     Callback = function(state)
-        if state then
-            startAutoLift()
-        else
-            stopAutoLift()
-        end
+        if state then startAutoLift() else stopAutoLift() end
     end
 })
 
-if autoLiftEnabled then
-    startAutoLift()
-end
+if autoLiftEnabled then startAutoLift() end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
