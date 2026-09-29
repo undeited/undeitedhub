@@ -1,6 +1,8 @@
 local WindUI = undeitedhub.WindUI
 local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
 
+local LocalPlayer = game:GetService("Players").LocalPlayer
+
 local function getStrength(player)
     local leaderstats = player:FindFirstChild("leaderstats")
     if leaderstats then
@@ -60,11 +62,57 @@ end
 local function resetVelocity(part)
     if not part then return end
     pcall(function()
-        part.Velocity = Vector3.new(0,0,0)
-        part.RotVelocity = Vector3.new(0,0,0)
-        part.AssemblyLinearVelocity = Vector3.new(0,0,0)
-        part.AssemblyAngularVelocity = Vector3.new(0,0,0)
+        part.Velocity = Vector3.new(0, 0, 0)
+        part.RotVelocity = Vector3.new(0, 0, 0)
+        part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     end)
+end
+
+local function clearMachineInUse()
+    local m = LocalPlayer:FindFirstChild("machineInUse")
+    if not m then return end
+    pcall(function()
+        if m:IsA("StringValue") then
+            m.Value = ""
+        elseif m:IsA("BoolValue") then
+            m.Value = false
+        elseif m:IsA("ObjectValue") then
+            m.Value = nil
+        elseif m:IsA("IntValue") or m:IsA("NumberValue") then
+            m.Value = 0
+        end
+    end)
+end
+
+local function getBodyMovementScript(character)
+    if not character then return nil end
+    for _, d in ipairs(character:GetDescendants()) do
+        if d:IsA("LocalScript") and d.Name == "bodyMovementScript" then
+            return d
+        end
+    end
+    return nil
+end
+
+local function setBodyMovementEnabled(enabled)
+    local char = LocalPlayer.Character
+    local script = getBodyMovementScript(char)
+    if script then
+        pcall(function() script.Disabled = not enabled end)
+    end
+end
+
+local function faceTargetAndSyncCamera(hrp, targetPos)
+    if not hrp or not targetPos then return end
+    local cam = workspace.CurrentCamera
+    local desired = CFrame.lookAt(hrp.Position, targetPos)
+    pcall(function() hrp.CFrame = desired end)
+    if cam then
+        pcall(function()
+            cam.CFrame = CFrame.lookAt(hrp.Position + Vector3.new(0, 1.5, 0), targetPos)
+        end)
+    end
 end
 
 local BOSS_ARENA_RADIUS = 60
@@ -144,6 +192,8 @@ local function startKill()
     undeitedhub.Toggles.AutoKill = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
+    setBodyMovementEnabled(false)
+
     killTask = task.spawn(function()
         local localPlayer = game:GetService("Players").LocalPlayer
         while killEnabled do
@@ -154,6 +204,8 @@ local function startKill()
                     task.wait(0.5)
                     continue
                 end
+
+                clearMachineInUse()
 
                 local myStrength = getStrength(localPlayer)
                 if not myStrength then
@@ -216,7 +268,6 @@ local function startKill()
                     local targetRoot = target.root
                     local targetHum = target.hum
                     local targetPlayer = target.ply
-                    local targetStrength = target.strength
                     local targetRebirths = target.rebirths
 
                     lastRebirths[targetPlayer] = targetRebirths
@@ -253,10 +304,9 @@ local function startKill()
                         end
 
                         resetVelocity(myRoot)
+
                         local targetPos = targetRoot.Position
-                        local attackPos = targetPos + Vector3.new(0, 0.5, 0)
-                        myRoot.CFrame = CFrame.new(attackPos, targetPos)
-                        resetVelocity(myRoot)
+                        faceTargetAndSyncCamera(myRoot, targetPos)
 
                         pcall(function()
                             currentPunch:Activate()
@@ -280,6 +330,7 @@ local function stopKill()
         killTask = nil
     end
     lastRebirths = {}
+    setBodyMovementEnabled(true)
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
