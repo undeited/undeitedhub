@@ -1,11 +1,10 @@
-local WindUI = undeitedhub.WindUI
+    local WindUI = undeitedhub.WindUI
 
 local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
 if not MiscTab then return end
 task.wait(0.1)
 
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
@@ -181,26 +180,39 @@ local autoLiftEnabled = undeitedhub.Toggles.AutoLift or false
 local autoLiftTask = nil
 local LIFT_INTERVAL = 0.15
 
-local function getSeatedMachineSeat()
+local function getSeatedMachine()
     local char = LocalPlayer.Character
     if not char then return nil end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return nil end
     local seat = hum.SeatPart
     if not seat then return nil end
-    local machine = seat.Parent
-    if not machine then return nil end
-    if not machine:IsA("Model") then
-        local p = machine.Parent
-        if p and p:IsA("Model") then
-            machine = p
-        else
-            return nil
+
+    local current = seat
+    while current do
+        local parent = current.Parent
+        if not parent then return nil end
+        if parent.Name == "machinesFolder" then
+            return current, seat
+        end
+        current = parent
+    end
+    return nil
+end
+
+local function pickRepSeat(machine, seatedSeat)
+    local seats = {}
+    for _, d in ipairs(machine:GetDescendants()) do
+        if d.Name == "interactSeat" and d:IsA("BasePart") then
+            table.insert(seats, d)
         end
     end
-    local folder = machine.Parent
-    if not folder or folder.Name ~= "machinesFolder" then return nil end
-    return machine, seat
+    for _, s in ipairs(seats) do
+        if s ~= seatedSeat then
+            return s
+        end
+    end
+    return seatedSeat
 end
 
 local function fireRep(seat)
@@ -220,9 +232,10 @@ local function startAutoLift()
     autoLiftTask = task.spawn(function()
         while autoLiftEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local machine, seat = getSeatedMachineSeat()
-                if machine and seat then
-                    fireRep(seat)
+                local machine, seatedSeat = getSeatedMachine()
+                if machine and seatedSeat then
+                    local repSeat = pickRepSeat(machine, seatedSeat)
+                    fireRep(repSeat)
                 end
             end
             task.wait(LIFT_INTERVAL)
