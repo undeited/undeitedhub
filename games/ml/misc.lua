@@ -5,6 +5,7 @@ if not MiscTab then return end
 task.wait(0.1)
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
@@ -149,9 +150,13 @@ if autoGiftEnabled then startAutoGift() end
 
 local autoLiftEnabled = undeitedhub.Toggles.AutoLift or false
 local autoLiftTask = nil
-local LIFT_INTERVAL = 0.15
+local DEFAULT_INTERVAL = 0.1
 
-local function getSeatedMachine()
+local function getMachinesFolder()
+    return Workspace:FindFirstChild("machinesFolder")
+end
+
+local function findMachineBySeatedSeat()
     local char = LocalPlayer.Character
     if not char then return nil end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -171,15 +176,65 @@ local function getSeatedMachine()
     return nil
 end
 
-local function collectInteractSeats(machine)
-    local seats = {}
-    if not machine then return seats end
-    for _, d in ipairs(machine:GetDescendants()) do
-        if d.Name == "interactSeat" and d:IsA("BasePart") then
-            table.insert(seats, d)
+local function findMachineByProximity()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    local pos = hrp.Position
+
+    local folder = getMachinesFolder()
+    if not folder then return nil end
+
+    local nearest, nearestDist = nil, 20
+    for _, machine in ipairs(folder:GetChildren()) do
+        local seat = machine:FindFirstChild("interactSeat")
+        if seat and seat:IsA("BasePart") then
+            local d = (seat.Position - pos).Magnitude
+            if d < nearestDist then
+                nearestDist = d
+                nearest = machine
+            end
         end
     end
-    return seats
+    return nearest
+end
+
+local function getActiveMachine()
+    return findMachineBySeatedSeat() or findMachineByProximity()
+end
+
+local function getRepSeat(machine)
+    if not machine then return nil end
+    local direct = machine:FindFirstChild("interactSeat")
+    if direct and direct:IsA("BasePart") then
+        return direct
+    end
+    for _, d in ipairs(machine:GetDescendants()) do
+        if d.Name == "interactSeat" and d:IsA("BasePart") then
+            return d
+        end
+    end
+    return nil
+end
+
+local function getRepTime(machine)
+    if not machine then return DEFAULT_INTERVAL end
+    local rt = machine:FindFirstChild("repTime")
+    if rt then
+        if rt:IsA("NumberValue") or rt:IsA("IntValue") then
+            local v = tonumber(rt.Value)
+            if v and v > 0 then
+                if v > 5 then v = v / 1000 end
+                return math.max(0.05, v)
+            end
+        end
+    end
+    local attr = machine:GetAttribute("repTime")
+    if type(attr) == "number" and attr > 0 then
+        return math.max(0.05, attr)
+    end
+    return DEFAULT_INTERVAL
 end
 
 local function fireRep(seat)
@@ -198,17 +253,18 @@ local function startAutoLift()
 
     autoLiftTask = task.spawn(function()
         while autoLiftEnabled do
+            local waitTime = DEFAULT_INTERVAL
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local machine = getSeatedMachine()
+                local machine = getActiveMachine()
                 if machine then
-                    local seats = collectInteractSeats(machine)
-                    for _, seat in ipairs(seats) do
+                    local seat = getRepSeat(machine)
+                    if seat then
                         fireRep(seat)
-                        task.wait(0.03)
                     end
+                    waitTime = getRepTime(machine)
                 end
             end
-            task.wait(LIFT_INTERVAL)
+            task.wait(waitTime)
         end
         autoLiftTask = nil
     end)
