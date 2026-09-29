@@ -54,6 +54,40 @@ local function getHRP()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
+local function clearMachineInUse()
+    local m = LocalPlayer:FindFirstChild("machineInUse")
+    if not m then return end
+    pcall(function()
+        if m:IsA("StringValue") then
+            m.Value = ""
+        elseif m:IsA("BoolValue") then
+            m.Value = false
+        elseif m:IsA("ObjectValue") then
+            m.Value = nil
+        elseif m:IsA("IntValue") or m:IsA("NumberValue") then
+            m.Value = 0
+        end
+    end)
+end
+
+local function getBodyMovementScript(character)
+    if not character then return nil end
+    for _, d in ipairs(character:GetDescendants()) do
+        if d:IsA("LocalScript") and d.Name == "bodyMovementScript" then
+            return d
+        end
+    end
+    return nil
+end
+
+local function setBodyMovementEnabled(enabled)
+    local char = LocalPlayer.Character
+    local script = getBodyMovementScript(char)
+    if script then
+        pcall(function() script.Disabled = not enabled end)
+    end
+end
+
 local BOSS_COUNT = 6
 
 local function getBossArena()
@@ -263,6 +297,14 @@ local function getBossAimPoint(anchor, boss)
     return anchorPos
 end
 
+local function syncCameraToAim(orbitPos, aimPoint)
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    pcall(function()
+        cam.CFrame = CFrame.lookAt(orbitPos + Vector3.new(0, 1.5, 0), aimPoint)
+    end)
+end
+
 local function orbitBoss(anchor, boss)
     local hrp = getHRP()
     if not hrp or not anchor then return end
@@ -302,6 +344,8 @@ local function orbitBoss(anchor, boss)
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
     end)
+
+    syncCameraToAim(orbitPos, aimPoint)
 end
 
 local function handleChest(chest)
@@ -375,6 +419,8 @@ local function onBossHeartbeat()
         return
     end
 
+    clearMachineInUse()
+
     local chest = getBossChest()
     if chest then
         if currentChest ~= chest then
@@ -437,6 +483,8 @@ local function startAutoBoss()
     undeitedhub.Toggles.autoBoss = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
+    setBodyMovementEnabled(false)
+
     lastPunchTime = 0
     lastClickTime = 0
     orbitAngle = 0
@@ -461,6 +509,7 @@ local function stopAutoBoss()
     chestClaimed = false
     restorePlayerCollision()
     releaseE()
+    setBodyMovementEnabled(true)
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
@@ -494,6 +543,7 @@ undeitedhub.DisableAll = function()
         chestClaimed = false
         restorePlayerCollision()
         releaseE()
+        setBodyMovementEnabled(true)
     end
     oldDisable()
 end
