@@ -7,21 +7,69 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
-local GYM_DEFS = {
-    { name = "Industrial Gym", prefix = "Industrial" },
-    { name = "Jungle Gym",     prefix = "Jungle" },
-    { name = "Frost Gym",      prefix = "Frost" },
-    { name = "Legends Gym",    prefix = "Legends" },
-    { name = "Mythical Gym",   prefix = "Mythical" },
-    { name = "Eternal Gym",    prefix = "Eternal" },
+local GYMS = {
+    ["Industrial Gym"] = {
+        ["Bench (62.5k)"]    = { machineName = "Industrial Bench",     variantIndex = 1, requiredStrength = 62500 },
+        ["Bench (125k)"]     = { machineName = "Industrial Bench",     variantIndex = 2, requiredStrength = 125000 },
+        ["Bench (250k)"]     = { machineName = "Industrial Bench",     variantIndex = 3, requiredStrength = 250000 },
+        ["Bar Lift (250k)"]  = { machineName = "Industrial Bar Lift",  variantIndex = 1, requiredStrength = 250000 },
+        ["Boulder (187.5k)"] = { machineName = "Industrial Boulder",   variantIndex = 1, requiredStrength = 187500 },
+        ["Squat (125k)"]     = { machineName = "Industrial Squat",     variantIndex = 1, requiredStrength = 125000 },
+        ["Squat (312.5k)"]   = { machineName = "Industrial Squat",     variantIndex = 2, requiredStrength = 312500 },
+    },
+    ["Frost Gym"] = {
+        ["Press (1k)"]   = { machineName = "Frost Press", variantIndex = 1, requiredStrength = 1000 },
+        ["Press (3k)"]   = { machineName = "Frost Press", variantIndex = 2, requiredStrength = 3000 },
+        ["Press (7.5k)"] = { machineName = "Frost Press", variantIndex = 3, requiredStrength = 7500 },
+        ["Press (15k)"]  = { machineName = "Frost Press", variantIndex = 4, requiredStrength = 15000 },
+        ["Squat (4k)"]   = { machineName = "Frost Squat", variantIndex = 1, requiredStrength = 4000 },
+        ["Squat (10k)"]  = { machineName = "Frost Squat", variantIndex = 2, requiredStrength = 10000 },
+        ["Lift (5k)"]    = { machineName = "Frost Lift",  variantIndex = 1, requiredStrength = 5000 },
+    },
+    ["Mythical Gym"] = {
+        ["Pullup (4k)"]  = { machineName = "Mythical Pullup", variantIndex = 1, requiredStrength = 4000 },
+        ["Pullup (8k)"]  = { machineName = "Mythical Pullup", variantIndex = 2, requiredStrength = 8000 },
+        ["Press (15k)"]  = { machineName = "Mythical Press",  variantIndex = 1, requiredStrength = 15000 },
+        ["Throw (10k)"]  = { machineName = "Mythical Throw",  variantIndex = 1, requiredStrength = 10000 },
+        ["Throw (18k)"]  = { machineName = "Mythical Throw",  variantIndex = 2, requiredStrength = 18000 },
+        ["Throw (25k)"]  = { machineName = "Mythical Throw",  variantIndex = 3, requiredStrength = 25000 },
+    },
+    ["Legends Gym"] = {
+        ["Pullup (18)"] = { machineName = "Legends Pullup", variantIndex = 1, requiredStrength = 0 },
+        ["Pullup (24)"] = { machineName = "Legends Pullup", variantIndex = 2, requiredStrength = 0 },
+        ["Throw (36)"]  = { machineName = "Legends Throw",  variantIndex = 1, requiredStrength = 0 },
+        ["Press (42)"]  = { machineName = "Legends Press",  variantIndex = 1, requiredStrength = 0 },
+        ["Squat (45)"]  = { machineName = "Legends Squat",  variantIndex = 1, requiredStrength = 0 },
+        ["Lift (50)"]   = { machineName = "Legends Lift",   variantIndex = 1, requiredStrength = 0 },
+    },
+    ["Eternal Gym"] = {
+        ["Press (15k)"] = { machineName = "Eternal Press", variantIndex = 1, requiredStrength = 15000 },
+    },
+    ["Muscle King Gym"] = {
+        ["Squat (60)"]   = { machineName = "Muscle King Squat", variantIndex = 1, requiredStrength = 0 },
+        ["Boulder (65)"] = { machineName = "King Boulder",      variantIndex = 1, requiredStrength = 0 },
+        ["Lift (80)"]    = { machineName = "Muscle King Lift",  variantIndex = 1, requiredStrength = 0 },
+    },
+    ["Jungle Gym"] = {
+        ["Bench (25k)"]     = { machineName = "Jungle Bench",     variantIndex = 1, requiredStrength = 25000 },
+        ["Bench (50k)"]     = { machineName = "Jungle Bench",     variantIndex = 2, requiredStrength = 50000 },
+        ["Bench (100k)"]    = { machineName = "Jungle Bench",     variantIndex = 3, requiredStrength = 100000 },
+        ["Squat (50k)"]     = { machineName = "Jungle Squat",     variantIndex = 1, requiredStrength = 50000 },
+        ["Squat (125k)"]    = { machineName = "Jungle Squat",     variantIndex = 2, requiredStrength = 125000 },
+        ["Boulder (75k)"]   = { machineName = "Jungle Boulder",   variantIndex = 1, requiredStrength = 75000 },
+        ["Bar Lift (100k)"] = { machineName = "Jungle Bar Lift",  variantIndex = 1, requiredStrength = 100000 },
+    },
 }
 
-local GYM_OPTIONS = {}
-local GYM_PREFIXES = {}
-for _, def in ipairs(GYM_DEFS) do
-    table.insert(GYM_OPTIONS, def.name)
-    GYM_PREFIXES[def.name] = def.prefix
-end
+local GYM_OPTIONS = {
+    "Industrial Gym",
+    "Frost Gym",
+    "Mythical Gym",
+    "Legends Gym",
+    "Eternal Gym",
+    "Muscle King Gym",
+    "Jungle Gym",
+}
 
 local function findOption(list, value, fallback)
     if type(value) == "string" then
@@ -32,19 +80,55 @@ local function findOption(list, value, fallback)
     return fallback
 end
 
+local function buildMachineOptions(gymName)
+    local data = GYMS[gymName]
+    if not data then return {} end
+    local options = {}
+    for name, _ in pairs(data) do
+        table.insert(options, name)
+    end
+    table.sort(options)
+    return options
+end
+
+local function findMachineOption(gymName, machineDisplay)
+    if type(machineDisplay) ~= "string" or machineDisplay == "" then
+        return nil
+    end
+    local data = GYMS[gymName]
+    if not data then return nil end
+    if data[machineDisplay] then return machineDisplay end
+    return nil
+end
+
+local selectedGym = findOption(GYM_OPTIONS, undeitedhub.Toggles.gymSelectedGym, GYM_OPTIONS[1])
+local selectedMachine = findMachineOption(selectedGym, undeitedhub.Toggles.gymSelectedMachine)
+if not selectedMachine then
+    local opts = buildMachineOptions(selectedGym)
+    selectedMachine = opts[1] or ""
+end
+
+undeitedhub.Toggles.gymSelectedGym = selectedGym
+undeitedhub.Toggles.gymSelectedMachine = selectedMachine
+
+local function persistSelection()
+    undeitedhub.Toggles.gymSelectedGym = selectedGym
+    undeitedhub.Toggles.gymSelectedMachine = selectedMachine
+    if undeitedhub.SaveSettings then
+        pcall(undeitedhub.SaveSettings)
+    end
+end
+
+persistSelection()
+
 local autoFarmEnabled = undeitedhub.Toggles.gymAutoFarm or false
 
 local heartbeatConn = nil
 local useMachineRunning = false
 
-local selectedGym = findOption(GYM_OPTIONS, undeitedhub.Toggles.gymSelectedGym, GYM_OPTIONS[1])
-local selectedMachineDisplay = undeitedhub.Toggles.gymSelectedMachine or ""
-
 local pinnedMachine = nil
 local pinnedUseSeat = nil
 local pinnedRepSeat = nil
-
-local machineOptionIndex = {}
 
 local lastMachineCheck = 0
 local lastRemoteFire = 0
@@ -131,89 +215,37 @@ local function readMachineStrength(machine)
     return nil
 end
 
-local function formatStrength(v)
-    if not v or v <= 0 then return "?" end
-    if v >= 1e9 then return string.format("%.1fB", v / 1e9) end
-    if v >= 1e6 then return string.format("%.1fM", v / 1e6) end
-    if v >= 1e3 then return string.format("%.1fk", v / 1e3) end
-    return tostring(v)
-end
-
-local function discoverMachines(gymName)
-    local prefix = GYM_PREFIXES[gymName]
-    if not prefix then return {} end
-    local folder = findMachinesFolder()
-    if not folder then return {} end
-
-    local list = {}
+local function getMachineMatches(folder, machineName)
+    if not folder or not machineName then return {} end
+    local matches = {}
     for _, child in ipairs(folder:GetChildren()) do
-        if child:IsA("Model") and child.Name:sub(1, #prefix) == prefix then
-            local nextChar = child.Name:sub(#prefix + 1, #prefix + 1)
-            if nextChar == "" or nextChar == " " or nextChar == "_" or nextChar == "-" then
-                local strength = readMachineStrength(child) or 0
-                table.insert(list, {
-                    machine = child,
-                    name = child.Name,
-                    strength = strength,
-                })
-            end
+        if child.Name == machineName then
+            table.insert(matches, child)
         end
     end
-    return list
+    table.sort(matches, function(a, b)
+        local pa = getInstancePosition(a)
+        local pb = getInstancePosition(b)
+        if pa.Y ~= pb.Y then return pa.Y < pb.Y end
+        if pa.X ~= pb.X then return pa.X < pb.X end
+        return pa.Z < pb.Z
+    end)
+    return matches
 end
 
-local function buildMachineOptions(gymName)
-    local prefix = GYM_PREFIXES[gymName] or ""
-    local machines = discoverMachines(gymName)
-
-    local groups = {}
-    local order = {}
-    for _, entry in ipairs(machines) do
-        local base = entry.name
-        if prefix ~= "" and base:sub(1, #prefix) == prefix then
-            base = base:sub(#prefix + 1)
-            base = base:gsub("^[%s_%-]+", "")
-        end
-        if base == "" then base = entry.name end
-        if not groups[base] then
-            groups[base] = {}
-            table.insert(order, base)
-        end
-        table.insert(groups[base], entry)
-    end
-
-    table.sort(order)
-
-    local options = {}
-    local index = {}
-
-    for _, base in ipairs(order) do
-        local entries = groups[base]
-        table.sort(entries, function(a, b)
-            if a.strength ~= b.strength then return a.strength < b.strength end
-            local pa = getInstancePosition(a.machine)
-            local pb = getInstancePosition(b.machine)
-            if pa.Y ~= pb.Y then return pa.Y < pb.Y end
-            if pa.X ~= pb.X then return pa.X < pb.X end
-            return pa.Z < pb.Z
-        end)
-
-        for i, entry in ipairs(entries) do
-            local display = base .. " (" .. formatStrength(entry.strength) .. ")"
-            if index[display] then
-                display = display .. " #" .. i
+local function getMachineInstance(folder, machineName, variantIndex, requiredStrength)
+    local matches = getMachineMatches(folder, machineName)
+    if #matches == 0 then return nil end
+    if #matches == 1 then return matches[1] end
+    if requiredStrength and requiredStrength > 0 then
+        for _, m in ipairs(matches) do
+            local s = readMachineStrength(m)
+            if s and math.abs(s - requiredStrength) < 1 then
+                return m
             end
-            local safety = 2
-            while index[display] do
-                display = base .. " (" .. formatStrength(entry.strength) .. ") #" .. i .. "." .. safety
-                safety = safety + 1
-            end
-            index[display] = entry
-            table.insert(options, display)
         end
     end
-
-    return options, index
+    return matches[variantIndex or 1]
 end
 
 local function collectInteractSeats(machine)
@@ -247,16 +279,17 @@ local function fireRep(seat)
 end
 
 local function refreshPinned()
-    if not selectedMachineDisplay or selectedMachineDisplay == "" then
+    local folder = findMachinesFolder()
+    if not folder then
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeat = nil
         return
     end
-
-    local _, index = buildMachineOptions(selectedGym)
-    local entry = index[selectedMachineDisplay]
-    if not entry or not entry.machine or not entry.machine.Parent then
+    local gymData = GYMS[selectedGym]
+    if not gymData then return end
+    local config = gymData[selectedMachine]
+    if not config then
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeat = nil
@@ -264,15 +297,31 @@ local function refreshPinned()
     end
 
     local myStrength = getStrength()
-    local required = readMachineStrength(entry.machine) or 0
-    if myStrength and required > 0 and myStrength < required then
+    if not myStrength then
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeat = nil
         return
     end
 
-    local seats = collectInteractSeats(entry.machine)
+    local machine = getMachineInstance(folder, config.machineName, config.variantIndex, config.requiredStrength)
+    if not machine then
+        pinnedMachine = nil
+        pinnedUseSeat = nil
+        pinnedRepSeat = nil
+        return
+    end
+
+    local liveRequired = readMachineStrength(machine)
+    local gate = liveRequired or config.requiredStrength
+    if gate and gate > 0 and myStrength < gate then
+        pinnedMachine = nil
+        pinnedUseSeat = nil
+        pinnedRepSeat = nil
+        return
+    end
+
+    local seats = collectInteractSeats(machine)
     if #seats == 0 then
         pinnedMachine = nil
         pinnedUseSeat = nil
@@ -280,7 +329,7 @@ local function refreshPinned()
         return
     end
 
-    pinnedMachine = entry.machine
+    pinnedMachine = machine
     pinnedUseSeat = seats[1]
     pinnedRepSeat = seats[2] or seats[1]
 end
@@ -386,22 +435,26 @@ end
 local gymDropdown
 local machineDropdown
 
-local function refreshMachineDropdown(preserveSelection)
-    local options, index = buildMachineOptions(selectedGym)
-    machineOptionIndex = index
+local function refreshMachineDropdown(resetSelection)
+    local options = buildMachineOptions(selectedGym)
 
-    if preserveSelection and selectedMachineDisplay ~= "" and index[selectedMachineDisplay] then
-        -- keep current selection
-    elseif #options > 0 then
-        selectedMachineDisplay = options[1]
+    if resetSelection then
+        selectedMachine = options[1] or ""
     else
-        selectedMachineDisplay = ""
+        local current = findMachineOption(selectedGym, selectedMachine)
+        if not current then
+            selectedMachine = options[1] or ""
+        else
+            selectedMachine = current
+        end
     end
 
     pcall(function()
         machineDropdown:Refresh(options, true)
-        machineDropdown:Set(selectedMachineDisplay)
+        machineDropdown:Set(selectedMachine)
     end)
+
+    undeitedhub.Toggles.gymSelectedMachine = selectedMachine
 end
 
 gymDropdown = GymTab:Dropdown({
@@ -411,22 +464,25 @@ gymDropdown = GymTab:Dropdown({
     Callback = function(value)
         selectedGym = findOption(GYM_OPTIONS, value, GYM_OPTIONS[1])
         undeitedhub.Toggles.gymSelectedGym = selectedGym
-        selectedMachineDisplay = ""
-        refreshMachineDropdown(false)
-        undeitedhub.Toggles.gymSelectedMachine = selectedMachineDisplay
-        if undeitedhub.SaveSettings then pcall(undeitedhub.SaveSettings) end
+        refreshMachineDropdown(true)
+        persistSelection()
         refreshPinned()
     end
 })
 
 machineDropdown = GymTab:Dropdown({
     Title = "Select Machine",
-    Values = {},
-    Value = "",
+    Values = buildMachineOptions(selectedGym),
+    Value = selectedMachine,
     Callback = function(value)
-        selectedMachineDisplay = value
-        undeitedhub.Toggles.gymSelectedMachine = selectedMachineDisplay
-        if undeitedhub.SaveSettings then pcall(undeitedhub.SaveSettings) end
+        local resolved = findMachineOption(selectedGym, value)
+        if resolved then
+            selectedMachine = resolved
+        else
+            selectedMachine = value
+        end
+        undeitedhub.Toggles.gymSelectedMachine = selectedMachine
+        persistSelection()
         refreshPinned()
     end
 })
@@ -436,26 +492,7 @@ task.defer(function()
         gymDropdown:Set(selectedGym)
     end)
     task.wait(0.1)
-    local options, index = buildMachineOptions(selectedGym)
-    machineOptionIndex = index
-    if selectedMachineDisplay ~= "" and index[selectedMachineDisplay] then
-        pcall(function()
-            machineDropdown:Refresh(options, true)
-            machineDropdown:Set(selectedMachineDisplay)
-        end)
-    elseif #options > 0 then
-        selectedMachineDisplay = options[1]
-        pcall(function()
-            machineDropdown:Refresh(options, true)
-            machineDropdown:Set(selectedMachineDisplay)
-        end)
-    else
-        pcall(function()
-            machineDropdown:Refresh(options, true)
-        end)
-    end
-    undeitedhub.Toggles.gymSelectedMachine = selectedMachineDisplay
-    if undeitedhub.SaveSettings then pcall(undeitedhub.SaveSettings) end
+    refreshMachineDropdown(false)
 end)
 
 GymTab:Toggle({
@@ -471,6 +508,7 @@ if autoFarmEnabled then
 end
 
 undeitedhub.Toggles.gymSelectedGym = selectedGym
+undeitedhub.Toggles.gymSelectedMachine = selectedMachine
 if undeitedhub.SaveSettings then
     pcall(undeitedhub.SaveSettings)
 end
