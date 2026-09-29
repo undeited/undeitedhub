@@ -150,6 +150,95 @@ if autoGiftEnabled then startAutoGift() end
 local autoLiftEnabled = undeitedhub.Toggles.AutoLift or false
 local autoLiftTask = nil
 local LIFT_INTERVAL = 0.15
+local GAMEPASS_INJECTED = false
+
+local function getOwnedGamepasses()
+    return LocalPlayer:FindFirstChild("ownedGamepasses")
+end
+
+local function injectFakeGamepass()
+    local owned = getOwnedGamepasses()
+    if not owned then return false end
+    local existing = owned:FindFirstChild("Auto Lift")
+    if existing then
+        GAMEPASS_INJECTED = true
+        return true
+    end
+    local flag = Instance.new("BoolValue")
+    flag.Name = "Auto Lift"
+    flag.Value = true
+    flag.Parent = owned
+    GAMEPASS_INJECTED = true
+    return true
+end
+
+local function removeFakeGamepass()
+    local owned = getOwnedGamepasses()
+    if not owned then return end
+    local existing = owned:FindFirstChild("Auto Lift")
+    if existing then
+        pcall(function() existing:Destroy() end)
+    end
+    GAMEPASS_INJECTED = false
+end
+
+local function fireGuiConnections(obj)
+    if not obj then return end
+    if typeof(getconnections) ~= "function" then return end
+    pcall(function()
+        for _, c in ipairs(getconnections(obj.MouseButton1Click)) do
+            pcall(c.Fire, c)
+        end
+        for _, c in ipairs(getconnections(obj.Activated)) do
+            pcall(c.Fire, c)
+        end
+        for _, c in ipairs(getconnections(obj.MouseButton1Down)) do
+            pcall(c.Fire, c)
+        end
+    end)
+end
+
+local function tryClickAutoLift()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+
+    local clicked = false
+
+    local gameGui = playerGui:FindFirstChild("gameGui")
+    if gameGui then
+        local hud = gameGui:FindFirstChild("hudNewMenu")
+        if hud then
+            local top = hud:FindFirstChild("Top")
+            if top then
+                local btn = top:FindFirstChild("AutoLiftBtn")
+                if btn and btn:IsA("GuiObject") then
+                    btn.Visible = true
+                    fireGuiConnections(btn)
+                    clicked = true
+                end
+            end
+        end
+    end
+
+    local currencyFrameGui = playerGui:FindFirstChild("currencyFrameGui")
+    if currencyFrameGui then
+        local cf = currencyFrameGui:FindFirstChild("currencyFrame")
+        if cf then
+            local frame = cf:FindFirstChild("autoLiftFrame")
+            if frame then
+                frame.Visible = true
+                for _, d in ipairs(frame:GetDescendants()) do
+                    if d:IsA("GuiButton") then
+                        fireGuiConnections(d)
+                        clicked = true
+                    end
+                end
+            end
+        end
+    end
+
+    return clicked
+end
 
 local function getSeatedMachine()
     local char = LocalPlayer.Character
@@ -196,9 +285,25 @@ local function startAutoLift()
     undeitedhub.Toggles.AutoLift = true
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
+    injectFakeGamepass()
+    task.spawn(function()
+        task.wait(0.3)
+        pcall(tryClickAutoLift)
+    end)
+
     autoLiftTask = task.spawn(function()
+        local uiRetryAt = tick() + 1
         while autoLiftEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                if not getOwnedGamepasses():FindFirstChild("Auto Lift") then
+                    injectFakeGamepass()
+                end
+
+                if tick() >= uiRetryAt then
+                    uiRetryAt = tick() + 2
+                    pcall(tryClickAutoLift)
+                end
+
                 local machine = getSeatedMachine()
                 if machine then
                     local seats = collectInteractSeats(machine)
@@ -220,6 +325,23 @@ local function stopAutoLift()
     if autoLiftTask then
         task.cancel(autoLiftTask)
         autoLiftTask = nil
+    end
+    if GAMEPASS_INJECTED then
+        pcall(function()
+            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+            if playerGui then
+                local gameGui = playerGui:FindFirstChild("gameGui")
+                if gameGui then
+                    local hud = gameGui:FindFirstChild("hudNewMenu")
+                    local top = hud and hud:FindFirstChild("Top")
+                    local btn = top and top:FindFirstChild("AutoLiftBtn")
+                    if btn then
+                        fireGuiConnections(btn)
+                    end
+                end
+            end
+        end)
+        removeFakeGamepass()
     end
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
