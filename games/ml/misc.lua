@@ -1,4 +1,4 @@
-    local WindUI = undeitedhub.WindUI
+local WindUI = undeitedhub.WindUI
 
 local MiscTab = undeitedhub.Window:Tab({ Title = "Misc" })
 if not MiscTab then return end
@@ -193,26 +193,28 @@ local function getSeatedMachine()
         local parent = current.Parent
         if not parent then return nil end
         if parent.Name == "machinesFolder" then
-            return current, seat
+            return current
         end
         current = parent
     end
     return nil
 end
 
-local function pickRepSeat(machine, seatedSeat)
-    local seats = {}
+local function getRepSeat(machine)
+    if not machine then return nil end
+
+    local direct = machine:FindFirstChild("interactSeat")
+    if direct and direct:IsA("BasePart") then
+        return direct
+    end
+
     for _, d in ipairs(machine:GetDescendants()) do
         if d.Name == "interactSeat" and d:IsA("BasePart") then
-            table.insert(seats, d)
+            return d
         end
     end
-    for _, s in ipairs(seats) do
-        if s ~= seatedSeat then
-            return s
-        end
-    end
-    return seatedSeat
+
+    return nil
 end
 
 local function fireRep(seat)
@@ -232,9 +234,9 @@ local function startAutoLift()
     autoLiftTask = task.spawn(function()
         while autoLiftEnabled do
             if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                local machine, seatedSeat = getSeatedMachine()
-                if machine and seatedSeat then
-                    local repSeat = pickRepSeat(machine, seatedSeat)
+                local machine = getSeatedMachine()
+                if machine then
+                    local repSeat = getRepSeat(machine)
                     fireRep(repSeat)
                 end
             end
