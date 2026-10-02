@@ -281,9 +281,9 @@ local refreshNeeded = true
 local coinCollectedConnection = nil
 local coinsStartedConnection = nil
 local waitingForRoundStart = true
-local killAfterFullEnabled = undeitedhub.Toggles.killAfterFullEnabled or false
+local killAfterFullEnabled = false
 local killAfterFullCooldown = false
-local autoTeleportToLobbyEnabled = undeitedhub.Toggles.autoTeleportToLobbyEnabled or false
+local autoTeleportToLobbyEnabled = false
 local lastTeleportTime = 0
 local TELEPORT_COOLDOWN = 5
 
@@ -360,7 +360,7 @@ local function onCoinsStarted(playerData)
     currentTarget = nil
 end
 
-local autoCollectEnabled = undeitedhub.Toggles.autoCollectEnabled or false
+local autoCollectEnabled = false
 local collectTask = nil
 local collectRunning = false
 local currentTween = nil
@@ -630,7 +630,6 @@ local function StartAutoCollect()
     collectRunning = true
     autoCollectEnabled = true
     undeitedhub.Toggles.autoCollectEnabled = true
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     StartKillBrickDisable()
 
@@ -833,7 +832,6 @@ local function StopAutoCollect()
         characterAddedConnection = nil
     end
     StopMonitoring()
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     SafeNotify({ Title = "Autofarm", Content = "Disabled", Duration = 2 })
 end
 
@@ -850,8 +848,6 @@ AutofarmTab:Toggle({
     Value = killAfterFullEnabled,
     Callback = function(state)
         killAfterFullEnabled = state
-        undeitedhub.Toggles.killAfterFullEnabled = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({
             Title = "Auto Kill All When Done",
             Content = state and "Enabled" or "Disabled",
@@ -865,8 +861,6 @@ AutofarmTab:Toggle({
     Value = autoTeleportToLobbyEnabled,
     Callback = function(state)
         autoTeleportToLobbyEnabled = state
-        undeitedhub.Toggles.autoTeleportToLobbyEnabled = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({
             Title = "Auto Teleport To Lobby When Done",
             Content = state and "Enabled" or "Disabled",
@@ -882,9 +876,7 @@ local oldDisable = undeitedhub.DisableAll
 undeitedhub.DisableAll = function()
     StopAutoCollect()
     killAfterFullEnabled = false
-    undeitedhub.Toggles.killAfterFullEnabled = false
     autoTeleportToLobbyEnabled = false
-    undeitedhub.Toggles.autoTeleportToLobbyEnabled = false
     StopKillBrickDisable()
     _G.UNDEITEDHUB_AUTOFARM_MOVING = false
     local camera = workspace.CurrentCamera
@@ -895,6 +887,5 @@ undeitedhub.DisableAll = function()
             camera.CameraSubject = hum
         end
     end
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     if oldDisable then oldDisable() end
 end
