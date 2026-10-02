@@ -103,14 +103,19 @@ local function setBodyMovementEnabled(enabled)
     end
 end
 
-local function faceTargetAndSyncCamera(hrp, targetPos)
+local function teleportAndAim(hrp, targetPos)
     if not hrp or not targetPos then return end
+    local attackPos = targetPos + Vector3.new(0, 0.5, 0)
+    local look = CFrame.lookAt(attackPos, targetPos)
+    pcall(function()
+        hrp.CFrame = look
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end)
     local cam = workspace.CurrentCamera
-    local desired = CFrame.lookAt(hrp.Position, targetPos)
-    pcall(function() hrp.CFrame = desired end)
     if cam then
         pcall(function()
-            cam.CFrame = CFrame.lookAt(hrp.Position + Vector3.new(0, 1.5, 0), targetPos)
+            cam.CFrame = CFrame.lookAt(attackPos + Vector3.new(0, 1.5, 0), targetPos)
         end)
     end
 end
@@ -306,7 +311,7 @@ local function startKill()
                         resetVelocity(myRoot)
 
                         local targetPos = targetRoot.Position
-                        faceTargetAndSyncCamera(myRoot, targetPos)
+                        teleportAndAim(myRoot, targetPos)
 
                         pcall(function()
                             currentPunch:Activate()
