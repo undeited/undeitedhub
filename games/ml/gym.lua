@@ -9,56 +9,104 @@ local LocalPlayer = Players.LocalPlayer
 
 local GYMS = {
     ["Industrial Gym"] = {
-        ["Bench (62.5k)"]    = { machineName = "Industrial Bench",     variantIndex = 1, requiredStrength = 62500 },
-        ["Bench (125k)"]     = { machineName = "Industrial Bench",     variantIndex = 2, requiredStrength = 125000 },
-        ["Bench (250k)"]     = { machineName = "Industrial Bench",     variantIndex = 3, requiredStrength = 250000 },
-        ["Bar Lift (250k)"]  = { machineName = "Industrial Bar Lift",  variantIndex = 1, requiredStrength = 250000 },
-        ["Boulder (187.5k)"] = { machineName = "Industrial Boulder",   variantIndex = 1, requiredStrength = 187500 },
-        ["Squat (125k)"]     = { machineName = "Industrial Squat",     variantIndex = 1, requiredStrength = 125000 },
-        ["Squat (312.5k)"]   = { machineName = "Industrial Squat",     variantIndex = 2, requiredStrength = 312500 },
+        ["Bench"] = {
+            { machineName = "Industrial Bench", variantIndex = 1, requiredStrength = 62500 },
+            { machineName = "Industrial Bench", variantIndex = 2, requiredStrength = 125000 },
+            { machineName = "Industrial Bench", variantIndex = 3, requiredStrength = 250000 },
+        },
+        ["Bar Lift"] = {
+            { machineName = "Industrial Bar Lift", variantIndex = 1, requiredStrength = 250000 },
+        },
+        ["Boulder"] = {
+            { machineName = "Industrial Boulder", variantIndex = 1, requiredStrength = 187500 },
+        },
+        ["Squat"] = {
+            { machineName = "Industrial Squat", variantIndex = 1, requiredStrength = 125000 },
+            { machineName = "Industrial Squat", variantIndex = 2, requiredStrength = 312500 },
+        },
     },
     ["Frost Gym"] = {
-        ["Press (1k)"]   = { machineName = "Frost Press", variantIndex = 1, requiredStrength = 1000 },
-        ["Press (3k)"]   = { machineName = "Frost Press", variantIndex = 2, requiredStrength = 3000 },
-        ["Press (7.5k)"] = { machineName = "Frost Press", variantIndex = 3, requiredStrength = 7500 },
-        ["Press (15k)"]  = { machineName = "Frost Press", variantIndex = 4, requiredStrength = 15000 },
-        ["Squat (4k)"]   = { machineName = "Frost Squat", variantIndex = 1, requiredStrength = 4000 },
-        ["Squat (10k)"]  = { machineName = "Frost Squat", variantIndex = 2, requiredStrength = 10000 },
-        ["Lift (5k)"]    = { machineName = "Frost Lift",  variantIndex = 1, requiredStrength = 5000 },
+        ["Press"] = {
+            { machineName = "Frost Press", variantIndex = 1, requiredStrength = 1000 },
+            { machineName = "Frost Press", variantIndex = 2, requiredStrength = 3000 },
+            { machineName = "Frost Press", variantIndex = 3, requiredStrength = 7500 },
+            { machineName = "Frost Press", variantIndex = 4, requiredStrength = 15000 },
+        },
+        ["Squat"] = {
+            { machineName = "Frost Squat", variantIndex = 1, requiredStrength = 4000 },
+            { machineName = "Frost Squat", variantIndex = 2, requiredStrength = 10000 },
+        },
+        ["Lift"] = {
+            { machineName = "Frost Lift", variantIndex = 1, requiredStrength = 5000 },
+        },
     },
     ["Mythical Gym"] = {
-        ["Pullup (4k)"]  = { machineName = "Mythical Pullup", variantIndex = 1, requiredStrength = 4000 },
-        ["Pullup (8k)"]  = { machineName = "Mythical Pullup", variantIndex = 2, requiredStrength = 8000 },
-        ["Press (15k)"]  = { machineName = "Mythical Press",  variantIndex = 1, requiredStrength = 15000 },
-        ["Throw (10k)"]  = { machineName = "Mythical Throw",  variantIndex = 1, requiredStrength = 10000 },
-        ["Throw (18k)"]  = { machineName = "Mythical Throw",  variantIndex = 2, requiredStrength = 18000 },
-        ["Throw (25k)"]  = { machineName = "Mythical Throw",  variantIndex = 3, requiredStrength = 25000 },
+        ["Pullup"] = {
+            { machineName = "Mythical Pullup", variantIndex = 1, requiredStrength = 4000 },
+            { machineName = "Mythical Pullup", variantIndex = 2, requiredStrength = 8000 },
+        },
+        ["Press"] = {
+            { machineName = "Mythical Press", variantIndex = 1, requiredStrength = 15000 },
+        },
+        ["Throw"] = {
+            { machineName = "Mythical Throw", variantIndex = 1, requiredStrength = 10000 },
+            { machineName = "Mythical Throw", variantIndex = 2, requiredStrength = 18000 },
+            { machineName = "Mythical Throw", variantIndex = 3, requiredStrength = 25000 },
+        },
     },
     ["Legends Gym"] = {
-        ["Pullup (18)"] = { machineName = "Legends Pullup", variantIndex = 1, requiredStrength = 0 },
-        ["Pullup (24)"] = { machineName = "Legends Pullup", variantIndex = 2, requiredStrength = 0 },
-        ["Throw (36)"]  = { machineName = "Legends Throw",  variantIndex = 1, requiredStrength = 0 },
-        ["Press (42)"]  = { machineName = "Legends Press",  variantIndex = 1, requiredStrength = 0 },
-        ["Squat (45)"]  = { machineName = "Legends Squat",  variantIndex = 1, requiredStrength = 0 },
-        ["Lift (50)"]   = { machineName = "Legends Lift",   variantIndex = 1, requiredStrength = 0 },
+        ["Pullup"] = {
+            { machineName = "Legends Pullup", variantIndex = 1, requiredStrength = 0 },
+            { machineName = "Legends Pullup", variantIndex = 2, requiredStrength = 0 },
+        },
+        ["Throw"] = {
+            { machineName = "Legends Throw", variantIndex = 1, requiredStrength = 0 },
+        },
+        ["Press"] = {
+            { machineName = "Legends Press", variantIndex = 1, requiredStrength = 0 },
+        },
+        ["Squat"] = {
+            { machineName = "Legends Squat", variantIndex = 1, requiredStrength = 0 },
+        },
+        ["Lift"] = {
+            { machineName = "Legends Lift", variantIndex = 1, requiredStrength = 0 },
+        },
     },
     ["Eternal Gym"] = {
-        ["Press (15k)"] = { machineName = "Eternal Press", variantIndex = 1, requiredStrength = 15000 },
+        ["Press"] = {
+            { machineName = "Eternal Press", variantIndex = 1, requiredStrength = 15000 },
+        },
     },
     ["Muscle King Gym"] = {
-        ["Bench"]        = { machineName = "Muscle King Bench", variantIndex = 1, requiredStrength = 0 },
-        ["Squat (60)"]   = { machineName = "Muscle King Squat", variantIndex = 1, requiredStrength = 0 },
-        ["Boulder (65)"] = { machineName = "King Boulder",      variantIndex = 1, requiredStrength = 0 },
-        ["Lift (80)"]    = { machineName = "Muscle King Lift",  variantIndex = 1, requiredStrength = 0 },
+        ["Bench"] = {
+            { machineName = "Muscle King Bench", variantIndex = 1, requiredStrength = 0 },
+        },
+        ["Squat"] = {
+            { machineName = "Muscle King Squat", variantIndex = 1, requiredStrength = 0 },
+        },
+        ["Boulder"] = {
+            { machineName = "King Boulder", variantIndex = 1, requiredStrength = 0 },
+        },
+        ["Lift"] = {
+            { machineName = "Muscle King Lift", variantIndex = 1, requiredStrength = 0 },
+        },
     },
     ["Jungle Gym"] = {
-        ["Bench (25k)"]     = { machineName = "Jungle Bench",     variantIndex = 1, requiredStrength = 25000 },
-        ["Bench (50k)"]     = { machineName = "Jungle Bench",     variantIndex = 2, requiredStrength = 50000 },
-        ["Bench (100k)"]    = { machineName = "Jungle Bench",     variantIndex = 3, requiredStrength = 100000 },
-        ["Squat (50k)"]     = { machineName = "Jungle Squat",     variantIndex = 1, requiredStrength = 50000 },
-        ["Squat (125k)"]    = { machineName = "Jungle Squat",     variantIndex = 2, requiredStrength = 125000 },
-        ["Boulder (75k)"]   = { machineName = "Jungle Boulder",   variantIndex = 1, requiredStrength = 75000 },
-        ["Bar Lift (100k)"] = { machineName = "Jungle Bar Lift",  variantIndex = 1, requiredStrength = 100000 },
+        ["Bench"] = {
+            { machineName = "Jungle Bench", variantIndex = 1, requiredStrength = 25000 },
+            { machineName = "Jungle Bench", variantIndex = 2, requiredStrength = 50000 },
+            { machineName = "Jungle Bench", variantIndex = 3, requiredStrength = 100000 },
+        },
+        ["Squat"] = {
+            { machineName = "Jungle Squat", variantIndex = 1, requiredStrength = 50000 },
+            { machineName = "Jungle Squat", variantIndex = 2, requiredStrength = 125000 },
+        },
+        ["Boulder"] = {
+            { machineName = "Jungle Boulder", variantIndex = 1, requiredStrength = 75000 },
+        },
+        ["Bar Lift"] = {
+            { machineName = "Jungle Bar Lift", variantIndex = 1, requiredStrength = 100000 },
+        },
     },
 }
 
@@ -126,7 +174,7 @@ local useMachineRunning = false
 
 local pinnedMachine = nil
 local pinnedUseSeat = nil
-local pinnedRepSeat = nil
+local pinnedRepSeats = {}
 
 local lastMachineCheck = 0
 local lastRemoteFire = 0
@@ -136,6 +184,7 @@ local lastCharacter = nil
 local MACHINE_CHECK_INTERVAL = 1.0
 local REMOTE_INTERVAL = 0.15
 local USE_MACHINE_INTERVAL = 0.5
+local SEAT_FIRE_GAP = 0.03
 
 local function getStrength()
     local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
@@ -246,6 +295,24 @@ local function getMachineInstance(folder, machineName, variantIndex, requiredStr
     return matches[variantIndex or 1]
 end
 
+local function pickVariant(variants, myStrength)
+    if type(variants) ~= "table" or #variants == 0 then return nil end
+    local strength = myStrength or 0
+    local best = nil
+    for _, v in ipairs(variants) do
+        local req = v.requiredStrength or 0
+        if req <= strength then
+            if not best or (v.variantIndex or 0) > (best.variantIndex or 0) then
+                best = v
+            end
+        end
+    end
+    if not best then
+        best = variants[1]
+    end
+    return best
+end
+
 local function collectInteractSeats(machine)
     if not machine then return {} end
     local seats = {}
@@ -281,16 +348,16 @@ local function refreshPinned()
     if not folder then
         pinnedMachine = nil
         pinnedUseSeat = nil
-        pinnedRepSeat = nil
+        pinnedRepSeats = {}
         return
     end
     local gymData = GYMS[selectedGym]
     if not gymData then return end
-    local config = gymData[selectedMachine]
-    if not config then
+    local variants = gymData[selectedMachine]
+    if not variants or #variants == 0 then
         pinnedMachine = nil
         pinnedUseSeat = nil
-        pinnedRepSeat = nil
+        pinnedRepSeats = {}
         return
     end
 
@@ -298,24 +365,32 @@ local function refreshPinned()
     if not myStrength then
         pinnedMachine = nil
         pinnedUseSeat = nil
-        pinnedRepSeat = nil
+        pinnedRepSeats = {}
         return
     end
 
-    local machine = getMachineInstance(folder, config.machineName, config.variantIndex, config.requiredStrength)
+    local variant = pickVariant(variants, myStrength)
+    if not variant then
+        pinnedMachine = nil
+        pinnedUseSeat = nil
+        pinnedRepSeats = {}
+        return
+    end
+
+    local machine = getMachineInstance(folder, variant.machineName, variant.variantIndex, variant.requiredStrength)
     if not machine then
         pinnedMachine = nil
         pinnedUseSeat = nil
-        pinnedRepSeat = nil
+        pinnedRepSeats = {}
         return
     end
 
     local liveRequired = readMachineStrength(machine)
-    local gate = liveRequired or config.requiredStrength
+    local gate = liveRequired or variant.requiredStrength
     if gate and gate > 0 and myStrength < gate then
         pinnedMachine = nil
         pinnedUseSeat = nil
-        pinnedRepSeat = nil
+        pinnedRepSeats = {}
         return
     end
 
@@ -323,13 +398,23 @@ local function refreshPinned()
     if #seats == 0 then
         pinnedMachine = nil
         pinnedUseSeat = nil
-        pinnedRepSeat = nil
+        pinnedRepSeats = {}
         return
     end
 
     pinnedMachine = machine
     pinnedUseSeat = seats[1]
-    pinnedRepSeat = seats[2] or seats[1]
+    pinnedRepSeats = seats
+end
+
+local function fireAllReps()
+    local seats = pinnedRepSeats
+    if type(seats) ~= "table" or #seats == 0 then return end
+    for _, seat in ipairs(seats) do
+        if seat and seat.Parent then
+            fireRep(seat)
+        end
+    end
 end
 
 local function onHeartbeat()
@@ -363,7 +448,7 @@ local function onHeartbeat()
         if isSeatedOnMachine then
             if now - lastRemoteFire >= REMOTE_INTERVAL then
                 lastRemoteFire = now
-                fireRep(pinnedRepSeat)
+                fireAllReps()
             end
         else
             pcall(function()
@@ -398,7 +483,7 @@ local function onHeartbeat()
         end
         if now - lastRemoteFire >= REMOTE_INTERVAL then
             lastRemoteFire = now
-            fireRep(pinnedRepSeat)
+            fireAllReps()
         end
     end
 end
@@ -425,7 +510,7 @@ local function stopAutoFarm()
     end
     pinnedMachine = nil
     pinnedUseSeat = nil
-    pinnedRepSeat = nil
+    pinnedRepSeats = {}
     lastCharacter = nil
     saveAll()
 end
