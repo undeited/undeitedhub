@@ -175,16 +175,17 @@ local useMachineRunning = false
 local pinnedMachine = nil
 local pinnedUseSeat = nil
 local pinnedRepSeats = {}
+local pinnedRequired = 0
 
 local lastMachineCheck = 0
 local lastRemoteFire = 0
 local lastUseMachine = 0
 local lastCharacter = nil
+local unseatUntil = 0
 
 local MACHINE_CHECK_INTERVAL = 1.0
 local REMOTE_INTERVAL = 0.15
 local USE_MACHINE_INTERVAL = 0.5
-local SEAT_FIRE_GAP = 0.03
 
 local function getStrength()
     local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
@@ -343,12 +344,25 @@ local function fireRep(seat)
     end
 end
 
+local function forceUnseat()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    if not hum.Sit and not hum.SeatPart then return end
+    pcall(function()
+        hum.Sit = false
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    end)
+end
+
 local function refreshPinned()
     local folder = findMachinesFolder()
     if not folder then
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeats = {}
+        pinnedRequired = 0
         return
     end
     local gymData = GYMS[selectedGym]
@@ -358,6 +372,7 @@ local function refreshPinned()
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeats = {}
+        pinnedRequired = 0
         return
     end
 
@@ -366,6 +381,7 @@ local function refreshPinned()
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeats = {}
+        pinnedRequired = 0
         return
     end
 
@@ -374,6 +390,7 @@ local function refreshPinned()
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeats = {}
+        pinnedRequired = 0
         return
     end
 
@@ -382,6 +399,7 @@ local function refreshPinned()
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeats = {}
+        pinnedRequired = 0
         return
     end
 
@@ -391,6 +409,7 @@ local function refreshPinned()
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeats = {}
+        pinnedRequired = 0
         return
     end
 
@@ -399,12 +418,26 @@ local function refreshPinned()
         pinnedMachine = nil
         pinnedUseSeat = nil
         pinnedRepSeats = {}
+        pinnedRequired = 0
         return
+    end
+
+    local machineChanged = (machine ~= pinnedMachine)
+
+    if machineChanged then
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum and hum.SeatPart then
+            forceUnseat()
+            unseatUntil = tick() + 0.35
+            lastCharacter = nil
+        end
     end
 
     pinnedMachine = machine
     pinnedUseSeat = seats[1]
     pinnedRepSeats = seats
+    pinnedRequired = gate or 0
 end
 
 local function fireAllReps()
@@ -427,6 +460,8 @@ local function onHeartbeat()
         refreshPinned()
     end
 
+    if now < unseatUntil then return end
+
     if not pinnedMachine or not pinnedMachine.Parent then return end
     if not pinnedUseSeat or not pinnedUseSeat.Parent then return end
 
@@ -441,8 +476,15 @@ local function onHeartbeat()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hum or not hrp or hum.Health <= 0 then return end
 
+    local seatPart = hum.SeatPart
+    if seatPart and not seatPart:IsDescendantOf(pinnedMachine) then
+        forceUnseat()
+        unseatUntil = tick() + 0.35
+        return
+    end
+
     local isRealSeat = pinnedUseSeat:IsA("Seat") or pinnedUseSeat:IsA("VehicleSeat")
-    local isSeatedOnMachine = hum.SeatPart and hum.SeatPart:IsDescendantOf(pinnedMachine)
+    local isSeatedOnMachine = seatPart and seatPart:IsDescendantOf(pinnedMachine)
 
     if isRealSeat then
         if isSeatedOnMachine then
@@ -497,6 +539,7 @@ local function startAutoFarm()
     lastRemoteFire = 0
     lastUseMachine = 0
     lastCharacter = nil
+    unseatUntil = 0
     refreshPinned()
     heartbeatConn = RunService.Heartbeat:Connect(onHeartbeat)
 end
@@ -511,7 +554,9 @@ local function stopAutoFarm()
     pinnedMachine = nil
     pinnedUseSeat = nil
     pinnedRepSeats = {}
+    pinnedRequired = 0
     lastCharacter = nil
+    unseatUntil = 0
     saveAll()
 end
 
