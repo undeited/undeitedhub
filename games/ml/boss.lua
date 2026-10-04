@@ -183,6 +183,40 @@ local function getBossChest()
     return nil
 end
 
+local function getChestHandle(chest)
+    if not chest then return nil end
+    local part = chest:FindFirstChild("Root")
+        or chest:FindFirstChild("ChestCenterHandle")
+        or chest:FindFirstChild("ChestOpenHandle")
+    if part and part:IsA("BasePart") then
+        return part
+    end
+    for _, d in ipairs(chest:GetDescendants()) do
+        if d:IsA("BasePart") then return d end
+    end
+    return nil
+end
+
+local function isChestVisible(chest)
+    local part = getChestHandle(chest)
+    if not part or not part.Parent then return false end
+    if part.Transparency >= 1 then return false end
+    local ltm = part.LocalTransparencyModifier
+    if ltm and ltm >= 1 then return false end
+    for _, desc in ipairs(chest:GetChildren()) do
+        if desc:IsA("Model") then
+            for _, d in ipairs(desc:GetDescendants()) do
+                if d:IsA("BasePart") then
+                    local dT = d.Transparency
+                    local dL = d.LocalTransparencyModifier or 0
+                    if dT < 1 and dL < 1 then return true end
+                end
+            end
+        end
+    end
+    return true
+end
+
 local function findProximityPrompt(instance)
     if not instance then return nil end
     local direct = instance:FindFirstChildOfClass("ProximityPrompt")
@@ -350,11 +384,10 @@ end
 
 local function handleChest(chest)
     if not chest then return false end
+    if not isChestVisible(chest) then return true end
 
     local hrp = getHRP()
-    local chestPart = chest:FindFirstChild("Root")
-        or chest:FindFirstChild("ChestCenterHandle")
-        or chest:FindFirstChild("ChestOpenHandle")
+    local chestPart = getChestHandle(chest)
     if not hrp or not chestPart then return true end
 
     local chestPos = chestPart.Position
@@ -429,7 +462,7 @@ local function onBossHeartbeat()
             releaseE()
         end
 
-        if not chestClaimed then
+        if not chestClaimed and isChestVisible(chest) then
             local stillThere = handleChest(chest)
             if stillThere then
                 return
