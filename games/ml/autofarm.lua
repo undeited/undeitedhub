@@ -189,6 +189,28 @@ local function getHumanoid()
     return char and char:FindFirstChildOfClass("Humanoid")
 end
 
+local function isSittingOnMachine()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or not hum.SeatPart then return false end
+    local current = hum.SeatPart
+    while current do
+        if current.Name == "machinesFolder" then return true end
+        current = current.Parent
+    end
+    return false
+end
+
+local function isAntiTeleportSuppressed()
+    if _G.UNDEITEDHUB_SUPPRESS_ANTI_TELEPORT then return true end
+    if undeitedhub.Toggles.gymAutoFarm then return true end
+    if undeitedhub.Toggles.autoBoss then return true end
+    if undeitedhub.Toggles.AutoKill then return true end
+    if isSittingOnMachine() then return true end
+    return false
+end
+
 local function resetTracking(graceSeconds)
     lastSafeCFrame = nil
     if graceSeconds then
@@ -233,6 +255,11 @@ local function startAntiTeleport()
 
                 local hrp = getHRP()
                 if not hrp then return end
+
+                if isAntiTeleportSuppressed() then
+                    lastSafeCFrame = hrp.CFrame
+                    return
+                end
 
                 if lastSafeCFrame then
                     local dist = (hrp.Position - lastSafeCFrame.Position).Magnitude
