@@ -54,7 +54,7 @@ local function refreshTuning()
 
     Tuning.fireTickRate = clamp(0.05 / (1 + pingFactor * 0.3), 0.02, 0.15)
     Tuning.lagSweepInterval = clamp(0.5 * (1 + playerFactor * 0.4) * (1 + pingFactor * 0.3), 0.25, 1.5)
-    Tuning.grabStruggleInterval = clamp(0.1 / (1 + pingFactor * 0.4), 0.05, 0.2)
+    Tuning.grabPollInterval = clamp(0.15 / (1 + pingFactor * 0.4), 0.08, 0.3)
 
     local gravityFactor = clamp(gravity / 196.2, 0.25, 3)
     Tuning.voidThreshold = clamp(80 * gravityFactor, 40, 250)
@@ -433,11 +433,9 @@ if undeitedhub.Toggles.antiLag then
 end
 
 local antiGrabActive = false
-local antiGrabHeartbeat = nil
+local antiGrabTask = nil
 local antiGrabWorkspaceConn = nil
 local antiGrabCharConn = nil
-local antiGrabPeriodicTask = nil
-local lastStruggleFire = 0
 
 local function isForeignWeld(weld)
     if not weld then return false end
@@ -466,52 +464,29 @@ local function isForeignWeld(weld)
     return true
 end
 
-local function breakWeld(weld)
-    if not weld then return end
-    pcall(function() weld:Destroy() end)
-end
-
-local function scrubCharacterWelds()
+local function hasForeignGrab()
     local char = LocalPlayer.Character
-    if not char then return 0 end
-    local count = 0
+    if not char then return false end
+
+    for _, d in ipairs(char:GetChildren()) do
+        local po = d:FindFirstChild("PartOwner")
+        if po and po.Value ~= "" then return true end
+    end
+
     for _, d in ipairs(char:GetDescendants()) do
+        if isForeignWeld(d) then return true end
+    end
+
+    return false
+end
+
+local function breakForeignWeldsOn(character)
+    if not character then return 0 end
+    local count = 0
+    for _, d in ipairs(character:GetDescendants()) do
         if isForeignWeld(d) then
-            breakWeld(d)
+            pcall(function() d:Destroy() end)
             count = count + 1
-        end
-    end
-    return count
-end
-
-local function scrubWorkspaceWelds()
-    local count = 0
-    for _, obj in ipairs(Workspace:GetChildren()) do
-        if obj:IsA("Model") or obj:IsA("Folder") or obj:IsA("BasePart") then
-            for _, desc in ipairs(obj:GetDescendants()) do
-                if isForeignWeld(desc) then
-                    breakWeld(desc)
-                    count = count + 1
-                end
-            end
-        end
-    end
-    return count
-end
-
-local function reclaimCharacterOwnership()
-    local char = LocalPlayer.Character
-    if not char then return 0 end
-    local count = 0
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            pcall(function()
-                local owner = part:GetNetworkOwner()
-                if owner and owner ~= LocalPlayer then
-                    part:SetNetworkOwner(LocalPlayer)
-                    count = count + 1
-                end
-            end)
         end
     end
     return count
@@ -529,16 +504,14 @@ local function undoRagdoll(hum)
         needsFix = true
     end
     if hum.PlatformStand then needsFix = true end
-    if hum.Sit then needsFix = true end
 
-    if needsFix then
-        pcall(function()
-            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-            hum.PlatformStand = false
-            hum.Sit = false
-            hum.AutoRotate = true
-        end)
-    end
+    if not needsFix then return end
+
+    pcall(function()
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        hum.PlatformStand = false
+        hum.AutoRotate = true
+    end)
 
     for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
         if track.Animation and track.Animation.AnimationId == "rbxassetid://7047322890" then
@@ -547,52 +520,22 @@ local function undoRagdoll(hum)
     end
 end
 
-local function onGrabHeartbeat()
-    if not antiGrabActive then return end
-    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
-
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp or hum.Health <= 0 then return end
-
-    scrubCharacterWelds()
-    undoRagdoll(hum)
-    reclaimCharacterOwnership()
-
-    local now = tick()
-    if now - lastStruggleFire >= Tuning.grabStruggleInterval then
-        lastStruggleFire = now
-        local characterEvents = getCharacterEvents()
-        if characterEvents then
-            local struggle = characterEvents:FindFirstChild("Struggle")
-            if struggle then
-                pcall(function() struggle:FireServer(LocalPlayer) end)
-            end
-            local ragdollRemote = characterEvents:FindFirstChild("RagdollRemote")
-            if ragdollRemote then
-                pcall(function() ragdollRemote:FireServer(hrp, 0.00000000001) end)
-            end
-        end
-    end
-end
-
 local function onWorkspaceDescendantAdded(obj)
     if not antiGrabActive then return end
-    if obj:IsA("Weld")
+    if not (obj:IsA("Weld")
         or obj:IsA("WeldConstraint")
         or obj:IsA("RigidConstraint")
         or obj:IsA("Motor6D")
         or obj:IsA("Snap")
-        or obj:IsA("ManualWeld") then
-        if isForeignWeld(obj) then
-            breakWeld(obj)
-            local char = LocalPlayer.Character
-            if char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then fireRecovery(char, hum) end
-            end
+        or obj:IsA("ManualWeld")) then
+        return
+    end
+    if isForeignWeld(obj) then
+        pcall(function() obj:Destroy() end)
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then fireRecovery(char, hum) end
         end
     end
 end
@@ -624,7 +567,7 @@ local function onCharDescendantAdded(desc)
         task.defer(function()
             if not antiGrabActive then return end
             if isForeignWeld(desc) then
-                breakWeld(desc)
+                pcall(function() desc:Destroy() end)
                 local char = LocalPlayer.Character
                 if char then
                     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -650,13 +593,6 @@ local function attachAntiGrabToCharacter(character)
             pcall(function() po.Value = "" end)
         end
     end
-
-    task.spawn(function()
-        task.wait(0.1)
-        if not antiGrabActive then return end
-        scrubWorkspaceWelds()
-        reclaimCharacterOwnership()
-    end)
 end
 
 local function ToggleAntiGrab(state)
@@ -664,12 +600,6 @@ local function ToggleAntiGrab(state)
 
     if state then
         refreshTuning()
-
-        if antiGrabHeartbeat then
-            pcall(function() antiGrabHeartbeat:Disconnect() end)
-            antiGrabHeartbeat = nil
-        end
-        antiGrabHeartbeat = RunService.Heartbeat:Connect(onGrabHeartbeat)
 
         if antiGrabWorkspaceConn then
             pcall(function() antiGrabWorkspaceConn:Disconnect() end)
@@ -682,22 +612,32 @@ local function ToggleAntiGrab(state)
             attachAntiGrabToCharacter(character)
         end
 
-        if not antiGrabPeriodicTask then
-            antiGrabPeriodicTask = task.spawn(function()
+        if not antiGrabTask then
+            antiGrabTask = task.spawn(function()
                 while antiGrabActive do
+                    refreshTuning()
+
                     if _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                        pcall(scrubWorkspaceWelds)
+                        local char = LocalPlayer.Character
+                        if char then
+                            local hum = char:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.Health > 0 then
+                                if hasForeignGrab() or hum.PlatformStand then
+                                    breakForeignWeldsOn(char)
+                                    clearPartOwnersDeep(char)
+                                    undoRagdoll(hum)
+                                    fireRecovery(char, hum)
+                                end
+                            end
+                        end
                     end
-                    task.wait(1.0)
+
+                    task.wait(Tuning.grabPollInterval)
                 end
-                antiGrabPeriodicTask = nil
+                antiGrabTask = nil
             end)
         end
     else
-        if antiGrabHeartbeat then
-            pcall(function() antiGrabHeartbeat:Disconnect() end)
-            antiGrabHeartbeat = nil
-        end
         if antiGrabWorkspaceConn then
             pcall(function() antiGrabWorkspaceConn:Disconnect() end)
             antiGrabWorkspaceConn = nil
@@ -706,9 +646,9 @@ local function ToggleAntiGrab(state)
             pcall(function() antiGrabCharConn:Disconnect() end)
             antiGrabCharConn = nil
         end
-        if antiGrabPeriodicTask then
-            task.cancel(antiGrabPeriodicTask)
-            antiGrabPeriodicTask = nil
+        if antiGrabTask then
+            task.cancel(antiGrabTask)
+            antiGrabTask = nil
         end
     end
 end
