@@ -73,8 +73,6 @@ local function refreshTuning()
     Tuning.minLosDot = clamp(0.1 + pingFactor * 0.1, 0.05, 0.4)
 end
 
-refreshTuning()
-
 local silentAimEnabled = undeitedhub.Toggles.SilentAim or false
 local targetPosition = nil
 local checkingLOS = false
@@ -259,9 +257,21 @@ local function setupHook()
     hookActive = true
 end
 
-local renderConnection = RunService.RenderStepped:Connect(function()
-    pcall(updateTarget)
-end)
+local renderConnection = nil
+
+local function startUpdateLoop()
+    if renderConnection then return end
+    renderConnection = RunService.RenderStepped:Connect(function()
+        pcall(updateTarget)
+    end)
+end
+
+local function stopUpdateLoop()
+    if renderConnection then
+        renderConnection:Disconnect()
+        renderConnection = nil
+    end
+end
 
 Players.PlayerAdded:Connect(markTargetsDirty)
 Players.PlayerRemoving:Connect(function(player)
@@ -290,14 +300,16 @@ CombatTab:Toggle({
     Callback = function(state)
         silentAimEnabled = state
         undeitedhub.Toggles.SilentAim = state
-        if state and not hookActive then
-            setupHook()
-        end
         if state then
+            if not hookActive then
+                setupHook()
+            end
             refreshTuning()
             markTargetsDirty()
+            startUpdateLoop()
         else
             targetPosition = nil
+            stopUpdateLoop()
         end
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         SafeNotify({ Title = "Silent Aim", Content = state and "Enabled" or "Disabled", Duration = 2 })
@@ -309,6 +321,7 @@ undeitedhub.DisableAll = function()
     silentAimEnabled = false
     targetPosition = nil
     undeitedhub.Toggles.SilentAim = false
+    stopUpdateLoop()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end
@@ -318,5 +331,6 @@ if silentAimEnabled then
         task.wait(0.5)
         setupHook()
         markTargetsDirty()
+        startUpdateLoop()
     end)
 end
