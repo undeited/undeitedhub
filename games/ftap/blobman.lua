@@ -23,8 +23,6 @@ local Cache = {
     revalidateInterval = 3,
 }
 
-local cachedPlotInvalid = false
-
 local function refreshPlotsFolder()
     if isValidInstance(Cache.plotsFolder) then return Cache.plotsFolder end
     Cache.plotsFolder = nil
@@ -809,7 +807,6 @@ local function startKickLoop()
             if tick() - lastProgress > 12 then
                 lastProgress = tick()
                 Cache.blobmanSeat = {}
-                cachedPlotInvalid = true
                 Cache.plotBasePart = {}
                 dragging = false
                 grabStartTime = 0
@@ -1097,16 +1094,6 @@ end)
 
 task.delay(1, function()
     refreshDropdowns()
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(2)
-        pcall(refreshCaches, true)
-        if cachedPlotInvalid then
-            cachedPlotInvalid = false
-        end
-    end
 end)
 
 BlobmanTab:Button({
