@@ -247,7 +247,7 @@ local activePrompt = nil
 local promptStartedAt = 0
 local lastClickTime = 0
 
-local ORBIT_RADIUS = 3
+local ORBIT_RADIUS = 2.5
 local ORBIT_SPEED = 3
 local PUNCH_COOLDOWN = 0.2
 local CHEST_RANGE = 6
@@ -382,6 +382,33 @@ local function orbitBoss(anchor, boss)
     syncCameraToAim(orbitPos, aimPoint)
 end
 
+local function performPunch(anchor, boss)
+    local hrp = getHRP()
+    if not hrp or not anchor then return end
+
+    local anchorPos = anchor.Position
+    local aimPoint = getBossAimPoint(anchor, boss)
+
+    local punchPos = anchorPos + Vector3.new(0, 1.5, 0)
+
+    pcall(function()
+        hrp.CFrame = CFrame.lookAt(punchPos, aimPoint)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end)
+
+    syncCameraToAim(punchPos, aimPoint)
+
+    if equipPunch(LocalPlayer) then
+        local punch = getPunchTool(LocalPlayer)
+        if punch and punch.Parent == LocalPlayer.Character then
+            pcall(function()
+                punch:Activate()
+            end)
+        end
+    end
+end
+
 local function handleChest(chest)
     if not chest then return false end
     if not isChestVisible(chest) then return true end
@@ -499,14 +526,7 @@ local function onBossHeartbeat()
     local now = tick()
     if now - lastPunchTime >= PUNCH_COOLDOWN then
         lastPunchTime = now
-        if equipPunch(LocalPlayer) then
-            local punch = getPunchTool(LocalPlayer)
-            if punch and punch.Parent == LocalPlayer.Character then
-                pcall(function()
-                    punch:Activate()
-                end)
-            end
-        end
+        performPunch(anchor, boss)
     end
 end
 
