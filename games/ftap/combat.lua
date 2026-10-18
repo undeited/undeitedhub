@@ -61,12 +61,18 @@ end
 refreshTuning()
 
 local silentAimEnabled = undeitedhub.Toggles.SilentAim or false
+local selectedTarget = "Nearby"
+local targetDropdown = nil
 local targetPosition = nil
 local checkingLOS = false
 
 local frameCounter = 0
 local cachedTargets = {}
 local cachedTargetsDirty = true
+
+local function getDropdownName(player)
+    return player.DisplayName .. " (@" .. player.Name .. ")"
+end
 
 local function markTargetsDirty()
     cachedTargetsDirty = true
@@ -153,6 +159,44 @@ local function updateTarget()
 
     local origin = getLosOrigin()
     if not origin then
+        targetPosition = nil
+        return
+    end
+
+    if selectedTarget ~= "Nearby" then
+        local targetPlayer = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and getDropdownName(p) == selectedTarget then
+                targetPlayer = p
+                break
+            end
+        end
+
+        if not targetPlayer or not targetPlayer.Character then
+            targetPosition = nil
+            return
+        end
+
+        local char = targetPlayer.Character
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then
+            targetPosition = nil
+            return
+        end
+
+        for _, entry in ipairs(cachedTargets) do
+            if entry.player == targetPlayer then
+                for _, part in ipairs(entry.parts) do
+                    if part.Parent then
+                        if hasLineOfSight(origin, part.Position, char) then
+                            targetPosition = part.Position
+                            return
+                        end
+                    end
+                end
+            end
+        end
+
         targetPosition = nil
         return
     end
@@ -259,10 +303,55 @@ local function stopUpdateLoop()
     end
 end
 
-Players.PlayerAdded:Connect(markTargetsDirty)
+local function buildTargetList()
+    local list = { "Nearby" }
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(list, getDropdownName(p))
+        end
+    end
+    table.sort(list, function(a, b)
+        if a == "Nearby" then return true end
+        if b == "Nearby" then return false end
+        return a < b
+    end)
+    return list
+end
+
+local function refreshTargetDropdown()
+    local list = buildTargetList()
+    if targetDropdown then
+        pcall(function()
+            targetDropdown:Refresh(list, true)
+            if selectedTarget ~= "Nearby" and not table.find(list, selectedTarget) then
+                selectedTarget = "Nearby"
+                targetDropdown:Set("Nearby")
+            end
+        end)
+    end
+end
+
+targetDropdown = CombatTab:Dropdown({
+    Title = "Target",
+    Values = buildTargetList(),
+    Value = "Nearby",
+    Callback = function(value)
+        selectedTarget = value
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+    end
+})
+
+Players.PlayerAdded:Connect(function(player)
+    markTargetsDirty()
+    task.wait(0.1)
+    refreshTargetDropdown()
+end)
+
 Players.PlayerRemoving:Connect(function(player)
     if player == LocalPlayer then return end
     markTargetsDirty()
+    task.wait(0.1)
+    refreshTargetDropdown()
 end)
 
 local function watchCharacter(player)
@@ -270,8 +359,12 @@ local function watchCharacter(player)
     player.CharacterAdded:Connect(function()
         task.wait(0.2)
         markTargetsDirty()
+        refreshTargetDropdown()
     end)
-    player.CharacterRemoving:Connect(markTargetsDirty)
+    player.CharacterRemoving:Connect(function()
+        markTargetsDirty()
+        refreshTargetDropdown()
+    end)
 end
 
 for _, player in ipairs(Players:GetPlayers()) do
