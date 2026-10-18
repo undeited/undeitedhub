@@ -98,13 +98,14 @@ local function startSparklers()
 
     local toysFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 2)
     if toysFolder then
+        local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+        local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
+        
         for _, child in ipairs(toysFolder:GetChildren()) do
             if child.Name == "FireworkSparkler" then
                 local base = child:FindFirstChild("Base")
                 if base then
                     table.insert(activeSparklers, child)
-                    local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
-                    local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
                     if setNet then
                         pcall(function() setNet:FireServer(base, base.CFrame) end)
                     end
@@ -126,10 +127,15 @@ local function startSparklers()
         for i, sparkler in ipairs(activeSparklers) do
             if sparkler and sparkler.Parent then
                 local offsetAngle = orbitAngle + (i * (math.pi * 2 / #activeSparklers))
-                local targetPos = root.Position + Vector3.new(math.cos(offsetAngle) * radius, 2, math.sin(offsetAngle) * radius)
+                
+                local offsetX = math.cos(offsetAngle) * radius
+                local offsetZ = math.sin(offsetAngle) * radius
+                
+                local targetPos = root.Position + Vector3.new(offsetX, 2, offsetZ)
+                local lookDir = Vector3.new(offsetX, 0, offsetZ).Unit
                 
                 pcall(function()
-                    sparkler:PivotTo(CFrame.new(targetPos))
+                    sparkler:PivotTo(CFrame.lookAt(targetPos, targetPos + lookDir))
                 end)
             end
         end
