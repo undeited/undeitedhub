@@ -55,6 +55,7 @@ local function refreshTuning()
     Tuning.fireTickRate = clamp(0.05 / (1 + pingFactor * 0.3), 0.02, 0.15)
     Tuning.lagSweepInterval = clamp(0.5 * (1 + playerFactor * 0.4) * (1 + pingFactor * 0.3), 0.25, 1.5)
     Tuning.grabStruggleInterval = clamp(0.15 / (1 + pingFactor * 0.4), 0.08, 0.3)
+    Tuning.blobmanPollInterval = clamp(0.05 / (1 + pingFactor * 0.4), 0.02, 0.15)
 
     local gravityFactor = clamp(gravity / 196.2, 0.25, 3)
     Tuning.voidThreshold = clamp(80 * gravityFactor, 40, 250)
@@ -135,6 +136,8 @@ local function clearPartOwnersDeep(character)
     end
     return found
 end
+
+-- ANTI FIRE
 
 local antiFireActive = false
 local antiFireTask = nil
@@ -301,6 +304,8 @@ if undeitedhub.Toggles.antiFire then
     ToggleAntiFire(true)
 end
 
+-- ANTI LAG
+
 local antiLagActive = false
 local antiLagTask = nil
 local antiLagConnections = {}
@@ -431,6 +436,8 @@ end)
 if undeitedhub.Toggles.antiLag then
     ToggleAntiLag(true)
 end
+
+-- ANTI GRAB
 
 local antiGrabActive = false
 local antiGrabHeartbeat = nil
@@ -731,6 +738,214 @@ if undeitedhub.Toggles.antiGrab then
     ToggleAntiGrab(true)
 end
 
+-- PRO ANTI BLOBMAN
+
+local antiBlobmanActive = false
+local antiBlobmanHeartbeat = nil
+local antiBlobmanConnections = {}
+local currentBurger = nil
+local isSpawningBurger = false
+
+local function isBlobmanPart(part)
+    if not part then return false end
+    local current = part
+    while current do
+        if current.Name == "CreatureBlobman" then return true end
+        current = current.Parent
+    end
+    return false
+end
+
+local function isBlobmanWeld(child)
+    if not (child:IsA("Weld") or child:IsA("WeldConstraint") or child:IsA("RigidConstraint") or child:IsA("Motor6D")) then
+        return false
+    end
+    local p0 = child.Part0
+    local p1 = child.Part1
+    if not p0 or not p1 then return false end
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local aIsChar = p0:IsDescendantOf(char)
+    local bIsChar = p1:IsDescendantOf(char)
+    if not (aIsChar or bIsChar) then return false end
+    local opposite = aIsChar and p1 or p0
+    return isBlobmanPart(opposite)
+end
+
+local function breakBlobmanWeldsOn(character)
+    if not character then return 0 end
+    local count = 0
+    for _, child in ipairs(character:GetDescendants()) do
+        if isBlobmanWeld(child) then
+            pcall(function() child:Destroy() end)
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function spawnBurger()
+    if isSpawningBurger then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
+    if not menuToys then return end
+    local spawnRemote = menuToys:FindFirstChild("SpawnToyRemoteFunction")
+    
+    if spawnRemote then
+        isSpawningBurger = true
+        pcall(function()
+            spawnRemote:InvokeServer("FoodHamburger", root.CFrame, Vector3.zero)
+        end)
+        task.delay(0.1, function() isSpawningBurger = false end)
+    end
+end
+
+local function holdBurger()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+    if not toysFolder then return end
+    
+    local burger = toysFolder:FindFirstChild("FoodHamburger")
+    if not burger then return end
+    currentBurger = burger
+    
+    local holdPart = burger:FindFirstChild("HoldPart")
+    if not holdPart then return end
+    
+    local holdRemote = holdPart:FindFirstChild("HoldItemRemoteFunction")
+    if holdRemote then
+        pcall(function()
+            holdRemote:InvokeServer(burger, char)
+        end)
+    end
+end
+
+local function dropBurger()
+    if not currentBurger or not currentBurger.Parent then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    local holdPart = currentBurger:FindFirstChild("HoldPart")
+    if not holdPart then return end
+    
+    local dropRemote = holdPart:FindFirstChild("DropItemRemoteFunction")
+    if dropRemote then
+        pcall(function()
+            dropRemote:InvokeServer(currentBurger, root.CFrame, Vector3.zero)
+        end)
+    end
+    currentBurger = nil
+end
+
+local function proBlobmanHeartbeat()
+    if not antiBlobmanActive then return end
+    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp or hum.Health <= 0 then return end
+
+    local broken = breakBlobmanWeldsOn(char)
+    local cleared = clearPartOwnersDeep(char)
+    local isGrabbed = hum.PlatformStand or hum:GetState() == Enum.HumanoidStateType.Ragdoll or hum:GetState() == Enum.HumanoidStateType.Physics
+
+    if broken > 0 or cleared or isGrabbed then
+        fireRecovery(char, hum)
+        if isGrabbed then
+            dropBurger()
+        end
+    end
+
+    if not currentBurger or not currentBurger.Parent then
+        local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+        local burger = toysFolder and toysFolder:FindFirstChild("FoodHamburger")
+        if not burger then
+            spawnBurger()
+        else
+            holdBurger()
+        end
+    else
+        local holdPart = currentBurger:FindFirstChild("HoldPart")
+        if not holdPart or not holdPart:FindFirstChild("Weld") then
+            holdBurger()
+        end
+        
+        if (currentBurger.Position - hrp.Position).Magnitude > 5 then
+            pcall(function()
+                currentBurger:PivotTo(hrp.CFrame)
+                currentBurger.AssemblyLinearVelocity = Vector3.zero
+            end)
+        end
+    end
+end
+
+local function ToggleAntiBlobman(state)
+    antiBlobmanActive = state
+
+    if state then
+        if antiBlobmanHeartbeat then
+            pcall(function() antiBlobmanHeartbeat:Disconnect() end)
+            antiBlobmanHeartbeat = nil
+        end
+        antiBlobmanHeartbeat = RunService.Heartbeat:Connect(proBlobmanHeartbeat)
+
+        table.insert(antiBlobmanConnections, Workspace.DescendantAdded:Connect(function(obj)
+            if not antiBlobmanActive then return end
+            if obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("RigidConstraint") or obj:IsA("Motor6D") then
+                if isBlobmanWeld(obj) then
+                    pcall(function() obj:Destroy() end)
+                    local char = LocalPlayer.Character
+                    if char then
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        if hum then fireRecovery(char, hum) end
+                    end
+                end
+            end
+        end))
+        
+        task.spawn(function()
+            local char = LocalPlayer.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then fireRecovery(char, hum) end
+            end
+        end)
+    else
+        if antiBlobmanHeartbeat then
+            pcall(function() antiBlobmanHeartbeat:Disconnect() end)
+            antiBlobmanHeartbeat = nil
+        end
+        for _, conn in ipairs(antiBlobmanConnections) do
+            pcall(function() conn:Disconnect() end)
+        end
+        antiBlobmanConnections = {}
+        dropBurger()
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Blobman",
+    Value = false,
+    Callback = function(state)
+        ToggleAntiBlobman(state)
+        undeitedhub.Toggles.antiBlobman = state
+    end
+})
+
+if undeitedhub.Toggles.antiBlobman then
+    ToggleAntiBlobman(true)
+end
+
+-- ANTI VOID
+
 local ANTI_VOID_OFFSET = Vector3.new(0, 3, 0)
 
 local antiVoidActive = false
@@ -905,6 +1120,7 @@ undeitedhub.DisableAll = function()
     if antiFireActive then ToggleAntiFire(false) end
     if antiLagActive then ToggleAntiLag(false) end
     if antiGrabActive then ToggleAntiGrab(false) end
+    if antiBlobmanActive then ToggleAntiBlobman(false) end
     if antiVoidActive then ToggleAntiVoid(false) end
     oldDisable()
 end
