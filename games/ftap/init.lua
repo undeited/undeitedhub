@@ -111,25 +111,6 @@ local function LoadSettings()
     end)
 end
 
-local function SaveSettings()
-    pcall(function()
-        local data = {
-            toggles = undeitedhub.Toggles,
-            theme = ResolveThemeName(undeitedhub.CurrentTheme or "Default"),
-            toggleKey = undeitedhub.ToggleKey or config.toggleKey or "K",
-        }
-
-        if writefile and makefolder then
-            makefolder("undeitedhub")
-            makefolder("undeitedhub/" .. GAME_FOLDER)
-            writefile(undeitedhub.SettingsFile, game:GetService("HttpService"):JSONEncode(data))
-        end
-
-        _G.UNDEITEDHUB_STORAGE = _G.UNDEITEDHUB_STORAGE or {}
-        _G.UNDEITEDHUB_STORAGE[game.PlaceId] = data
-    end)
-end
-
 LoadSettings()
 undeitedhub.ToggleKey = undeitedhub.ToggleKey or config.toggleKey or "K"
 
@@ -144,7 +125,6 @@ local Window = WindUI:CreateWindow({
     MinSize = Vector2.new(560, 350),
     MaxSize = Vector2.new(850, 560),
     Transparent = false,
-    Acrylic = false,
     Theme = themeToApply,
     Resizable = true,
     SideBarWidth = 200,
@@ -155,8 +135,6 @@ local Window = WindUI:CreateWindow({
 Window:SetToggleKey(Enum.KeyCode[undeitedhub.ToggleKey])
 
 undeitedhub.Window = Window
-undeitedhub.SaveSettings = SaveSettings
-undeitedhub.LoadSettings = LoadSettings
 
 _G.UNDEITEDHUB_WINDOW_VISIBLE = true
 local frame = Window.Frame
@@ -199,5 +177,3 @@ end
 if undeitedhub.RestoreStates then
     undeitedhub.RestoreStates()
 end
-
-SaveSettings()
