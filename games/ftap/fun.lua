@@ -14,6 +14,7 @@ local orbitTask = nil
 local syncTask = nil
 local activeSparklers = {}
 local orbitAngle = 0
+local lastSpawnTime = 0
 
 local function isPlayerInPlot()
     local char = LocalPlayer.Character
@@ -58,6 +59,8 @@ end
 
 local function syncSparklers()
     if not sparklerEnabled then return end
+    
+    -- If in a plot, clear the active list so we don't orbit them
     if isPlayerInPlot() then
         activeSparklers = {}
         return
@@ -66,6 +69,11 @@ local function syncSparklers()
     local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
     if not toysFolder then
         activeSparklers = {}
+        -- Spawn immediately if folder doesn't exist (no toys spawned yet)
+        if tick() - lastSpawnTime > 1 then
+            lastSpawnTime = tick()
+            spawnSparkler()
+        end
         return
     end
 
@@ -76,6 +84,7 @@ local function syncSparklers()
         end
     end
 
+    -- 1. Remove destroyed sparklers from active list
     for i = #activeSparklers, 1, -1 do
         local sp = activeSparklers[i]
         if not currentSparklers[sp] or not sp.Parent then
@@ -83,6 +92,7 @@ local function syncSparklers()
         end
     end
 
+    -- 2. Add newly spawned sparklers to active list
     for sparkler in pairs(currentSparklers) do
         if #activeSparklers < MAX_SPARKLERS then
             local found = false
@@ -104,10 +114,14 @@ local function syncSparklers()
             end
         end
     end
-    
+
+    -- 3. Auto-spawn missing sparklers if they were deleted
     local missing = MAX_SPARKLERS - #activeSparklers
-    for i = 1, missing do
-        spawnSparkler()
+    if missing > 0 and tick() - lastSpawnTime > 0.5 then
+        lastSpawnTime = tick()
+        for i = 1, missing do
+            spawnSparkler()
+        end
     end
 end
 
@@ -115,14 +129,17 @@ local function startSparklers()
     sparklerEnabled = true
     activeSparklers = {}
     orbitAngle = 0
+    lastSpawnTime = 0
     
+    -- Run sync loop fast (every 0.2s) to instantly catch deletions
     syncTask = task.spawn(function()
         while sparklerEnabled do
             syncSparklers()
-            task.wait(0.5)
+            task.wait(0.2)
         end
     end)
 
+    -- Orbit loop
     orbitTask = RunService.Heartbeat:Connect(function(dt)
         if not sparklerEnabled then return end
         if isPlayerInPlot() then return end
