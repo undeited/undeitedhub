@@ -578,13 +578,6 @@ local function onGrabHeartbeat()
     
     if hum.PlatformStand or state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.Physics then
         isGrabbed = true
-    else
-        for _, d in ipairs(char:GetDescendants()) do
-            if isForeignWeld(d) then
-                isGrabbed = true
-                break
-            end
-        end
     end
 
     if isGrabbed then
@@ -735,7 +728,7 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     if antiGrabActive then attachAntiGrabToCharacter(char) end
 end)
 
--- REACTIVE ANTI BLOBMAN
+-- ANTI BLOBMAN
 
 local antiBlobmanActive = false
 local antiBlobmanHeartbeat = nil
@@ -772,18 +765,6 @@ local function isBlobmanWeld(child)
     return isBlobmanPart(opposite)
 end
 
-local function breakBlobmanWeldsOn(character)
-    if not character then return 0 end
-    local count = 0
-    for _, child in ipairs(character:GetDescendants()) do
-        if isBlobmanWeld(child) then
-            pcall(function() child:Destroy() end)
-            count = count + 1
-        end
-    end
-    return count
-end
-
 local function checkIfGrabbed()
     local char = LocalPlayer.Character
     if not char then return false end
@@ -795,11 +776,6 @@ local function checkIfGrabbed()
     if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.FallingDown then 
         return true 
     end
-    
-    for _, d in ipairs(char:GetDescendants()) do
-        if isBlobmanWeld(d) then return true end
-    end
-    
     return false
 end
 
@@ -881,14 +857,10 @@ local function proBlobmanHeartbeat()
     
     if isGrabbed then
         lastGrabTime = now
-        breakBlobmanWeldsOn(char)
         clearPartOwnersDeep(char)
         reclaimCharacterOwnership()
         fireRecovery(char, hum)
         triggerBurgerAnti()
-    elseif now - lastGrabTime < 2.0 then
-        breakBlobmanWeldsOn(char)
-        clearPartOwnersDeep(char)
     end
 end
 
