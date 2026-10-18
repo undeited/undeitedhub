@@ -9,21 +9,6 @@ local Stats = game:GetService("Stats")
 
 local LocalPlayer = Players.LocalPlayer
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 local function clamp(v, lo, hi)
     if v < lo then return lo end
     if v > hi then return hi end
@@ -72,6 +57,8 @@ local function refreshTuning()
     Tuning.maxCandidatesToCheck = math.max(3, math.floor(5 + playerFactor * 3))
     Tuning.minLosDot = clamp(0.1 + pingFactor * 0.1, 0.05, 0.4)
 end
+
+refreshTuning()
 
 local silentAimEnabled = undeitedhub.Toggles.SilentAim or false
 local targetPosition = nil
@@ -237,7 +224,6 @@ local hookActive = false
 local function setupHook()
     if hookActive then return end
     if not pcall(function() return hookmetamethod end) then
-        SafeNotify({ Title = "Silent Aim", Content = "Your executor does not support hookmetamethod.", Duration = 4 })
         return
     end
 
@@ -312,7 +298,6 @@ CombatTab:Toggle({
             stopUpdateLoop()
         end
         if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        SafeNotify({ Title = "Silent Aim", Content = state and "Enabled" or "Disabled", Duration = 2 })
     end
 })
 
