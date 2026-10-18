@@ -96,7 +96,6 @@ local function syncSparklers()
         end
     end
 
-    -- Remove invalid sparklers from active list
     for i = #activeSparklers, 1, -1 do
         local sp = activeSparklers[i]
         if not currentSparklers[sp] or not sp.Parent then
@@ -105,7 +104,6 @@ local function syncSparklers()
         end
     end
 
-    -- Add newly spawned sparklers
     for sparkler in pairs(currentSparklers) do
         if #activeSparklers < MAX_SPARKLERS then
             local found = false
@@ -119,16 +117,13 @@ local function syncSparklers()
             if not found then
                 table.insert(activeSparklers, sparkler)
                 local base = sparkler:FindFirstChild("Base")
-                local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
-                local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
-                if base and setNet then
-                    pcall(function() setNet:FireServer(base, base.CFrame) end)
+                if base then
+                    base.CanCollide = false -- Prevent server from blocking it on walls
                 end
             end
         end
     end
 
-    -- Auto-spawn missing sparklers
     local missing = MAX_SPARKLERS - #activeSparklers
     if missing > 0 and tick() - lastSpawnTime > 0.5 then
         lastSpawnTime = tick()
@@ -167,40 +162,44 @@ local function startSparklers()
         orbitAngle = orbitAngle + 3 * dt
         local radius = 5
 
-        -- Iterate backwards so we can safely remove elements
         for i = #activeSparklers, 1, -1 do
             local sparkler = activeSparklers[i]
             if sparkler and sparkler.Parent then
                 local base = sparkler:FindFirstChild("Base")
                 
-                -- Force unanchor just in case the game anchored it
-                if base and base.Anchored then
-                    base.Anchored = false
-                end
+                if base then
+                    base.CanCollide = false
+                    if base.Anchored then base.Anchored = false end
 
-                local offsetAngle = orbitAngle + (i * (math.pi * 2 / count))
-                local offsetX = math.cos(offsetAngle) * radius
-                local offsetZ = math.sin(offsetAngle) * radius
-                
-                local targetPos = root.Position + Vector3.new(offsetX, 2, offsetZ)
-                local lookDir = Vector3.new(offsetX, 0, offsetZ).Unit
-                
-                pcall(function()
-                    sparkler:PivotTo(CFrame.lookAt(targetPos, targetPos + lookDir))
-                end)
-
-                -- Stuck Detection
-                local currentPos = sparkler:GetPivot().Position
-                if (currentPos - targetPos).Magnitude > 4 then
-                    stuckTimers[sparkler] = (stuckTimers[sparkler] or 0) + 1
+                    local offsetAngle = orbitAngle + (i * (math.pi * 2 / count))
+                    local offsetX = math.cos(offsetAngle) * radius
+                    local offsetZ = math.sin(offsetAngle) * radius
                     
-                    -- If stuck for ~15 frames (roughly 0.25 seconds), delete it
-                    if stuckTimers[sparkler] > 15 then
-                        destroySparkler(sparkler)
-                        table.remove(activeSparklers, i)
+                    local targetPos = root.Position + Vector3.new(offsetX, 2, offsetZ)
+                    local lookDir = Vector3.new(offsetX, 0, offsetZ).Unit
+                    local targetCFrame = CFrame.lookAt(targetPos, targetPos + lookDir)
+
+                    -- 1. Update the CFrame locally
+                    base.CFrame = targetCFrame
+                    
+                    -- 2. Force the server to accept this exact CFrame for everyone else
+                    local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+                    local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
+                    if setNet then
+                        pcall(function() setNet:FireServer(base, targetCFrame) end)
                     end
-                else
-                    stuckTimers[sparkler] = 0
+
+                    -- 3. Stuck Detection
+                    local currentPos = base.Position
+                    if (currentPos - targetPos).Magnitude > 4 then
+                        stuckTimers[sparkler] = (stuckTimers[sparkler] or 0) + 1
+                        if stuckTimers[sparkler] > 15 then
+                            destroySparkler(sparkler)
+                            table.remove(activeSparklers, i)
+                        end
+                    else
+                        stuckTimers[sparkler] = 0
+                    end
                 end
             else
                 table.remove(activeSparklers, i)
