@@ -16,6 +16,7 @@ local activeSparklers = {}
 local orbitAngle = 0
 local lastSpawnTime = 0
 local stuckTimers = {}
+local lastCharacter = nil
 
 local function isPlayerInPlot()
     local char = LocalPlayer.Character
@@ -70,6 +71,19 @@ local function destroySparkler(sparkler)
     stuckTimers[sparkler] = nil
 end
 
+local function clearAllSparklers()
+    local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+    if toysFolder then
+        for _, child in ipairs(toysFolder:GetChildren()) do
+            if child.Name == "FireworkSparkler" then
+                destroySparkler(child)
+            end
+        end
+    end
+    activeSparklers = {}
+    stuckTimers = {}
+end
+
 local function syncSparklers()
     if not sparklerEnabled then return end
     
@@ -118,7 +132,7 @@ local function syncSparklers()
                 table.insert(activeSparklers, sparkler)
                 local base = sparkler:FindFirstChild("Base")
                 if base then
-                    base.CanCollide = false -- Prevent server from blocking it on walls
+                    base.CanCollide = false
                 end
             end
         end
@@ -139,6 +153,7 @@ local function startSparklers()
     stuckTimers = {}
     orbitAngle = 0
     lastSpawnTime = 0
+    lastCharacter = LocalPlayer.Character
     
     syncTask = task.spawn(function()
         while sparklerEnabled do
@@ -179,17 +194,14 @@ local function startSparklers()
                     local lookDir = Vector3.new(offsetX, 0, offsetZ).Unit
                     local targetCFrame = CFrame.lookAt(targetPos, targetPos + lookDir)
 
-                    -- 1. Update the CFrame locally
                     base.CFrame = targetCFrame
                     
-                    -- 2. Force the server to accept this exact CFrame for everyone else
                     local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
                     local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
                     if setNet then
                         pcall(function() setNet:FireServer(base, targetCFrame) end)
                     end
 
-                    -- 3. Stuck Detection
                     local currentPos = base.Position
                     if (currentPos - targetPos).Magnitude > 4 then
                         stuckTimers[sparkler] = (stuckTimers[sparkler] or 0) + 1
@@ -218,9 +230,32 @@ local function stopSparklers()
         task.cancel(syncTask)
         syncTask = nil
     end
-    activeSparklers = {}
-    stuckTimers = {}
+    clearAllSparklers()
 end
+
+-- Death / Respawn Handler
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    if not sparklerEnabled then return end
+    
+    -- Wait for the new character to load in
+    task.wait(1.5)
+    
+    if not sparklerEnabled then return end
+    
+    -- Clear any old/dead sparklers
+    clearAllSparklers()
+    
+    -- Wait for the new HumanoidRootPart
+    local root = newChar:WaitForChild("HumanoidRootPart", 5)
+    if root then
+        lastCharacter = newChar
+        lastSpawnTime = tick()
+        -- Spawn fresh sparklers around the new body
+        for i = 1, MAX_SPARKLERS do
+            spawnSparkler()
+        end
+    end
+end)
 
 FunTab:Toggle({
     Title = "Sparkler Madness",
