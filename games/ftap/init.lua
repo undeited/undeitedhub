@@ -55,8 +55,7 @@ undeitedhub.WindUI = WindUI
 undeitedhub.Utils = utils
 undeitedhub.Config = config
 undeitedhub.MathUtils = MathUtils
-undeitedhub.Toggles = undeitedhub.Toggles or {}
-undeitedhub.SettingsFile = "undeitedhub/" .. GAME_FOLDER .. "/settings.json"
+undeitedhub.Toggles = {}
 
 local function ResolveThemeName(themeName)
     local available = config and config.themes or { "Default" }
@@ -74,47 +73,7 @@ local function ResolveThemeName(themeName)
     return available[1] or "Default"
 end
 
-local function LoadSettings()
-    pcall(function()
-        if isfile and isfile(undeitedhub.SettingsFile) then
-            local data = game:GetService("HttpService"):JSONDecode(readfile(undeitedhub.SettingsFile))
-            if data then
-                if data.toggles then
-                    for k, v in pairs(data.toggles) do
-                        undeitedhub.Toggles[k] = v
-                    end
-                end
-                if data.theme then
-                    undeitedhub.CurrentTheme = ResolveThemeName(data.theme)
-                end
-                if data.toggleKey then
-                    undeitedhub.ToggleKey = data.toggleKey
-                end
-                return
-            end
-        end
-
-        if _G.UNDEITEDHUB_STORAGE and _G.UNDEITEDHUB_STORAGE[game.PlaceId] then
-            local stored = _G.UNDEITEDHUB_STORAGE[game.PlaceId]
-            if stored.toggles then
-                for k, v in pairs(stored.toggles) do
-                    undeitedhub.Toggles[k] = v
-                end
-            end
-            if stored.theme then
-                undeitedhub.CurrentTheme = ResolveThemeName(stored.theme)
-            end
-            if stored.toggleKey then
-                undeitedhub.ToggleKey = stored.toggleKey
-            end
-        end
-    end)
-end
-
-LoadSettings()
-undeitedhub.ToggleKey = undeitedhub.ToggleKey or config.toggleKey or "K"
-
-local themeToApply = ResolveThemeName(undeitedhub.CurrentTheme or "Default")
+local themeToApply = ResolveThemeName("Default")
 WindUI:SetTheme(themeToApply)
 
 local Window = WindUI:CreateWindow({
@@ -125,6 +84,7 @@ local Window = WindUI:CreateWindow({
     MinSize = Vector2.new(560, 350),
     MaxSize = Vector2.new(850, 560),
     Transparent = false,
+    Acrylic = false,
     Theme = themeToApply,
     Resizable = true,
     SideBarWidth = 200,
@@ -132,7 +92,7 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
-Window:SetToggleKey(Enum.KeyCode[undeitedhub.ToggleKey])
+Window:SetToggleKey(Enum.KeyCode.K)
 
 undeitedhub.Window = Window
 
@@ -166,14 +126,3 @@ task.wait(0.05)
 SafeLoad("games/ftap/misc.lua")
 task.wait(0.05)
 SafeLoad("shared/settings.lua")
-
-if _G.UNDEITEDHUB_STATES then
-    for key, value in pairs(_G.UNDEITEDHUB_STATES) do
-        undeitedhub.Toggles[key] = value
-    end
-    _G.UNDEITEDHUB_STATES = nil
-end
-
-if undeitedhub.RestoreStates then
-    undeitedhub.RestoreStates()
-end
