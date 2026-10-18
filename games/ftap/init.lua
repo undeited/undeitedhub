@@ -144,6 +144,7 @@ local Window = WindUI:CreateWindow({
     MinSize = Vector2.new(560, 350),
     MaxSize = Vector2.new(850, 560),
     Transparent = false,
+    Acrylic = false,
     Theme = themeToApply,
     Resizable = true,
     SideBarWidth = 200,
