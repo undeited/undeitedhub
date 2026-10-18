@@ -164,7 +164,6 @@ VisualTab:Toggle({
         pcall(function()
             espEnabled = state
             undeitedhub.Toggles.espEnabled = state
-            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             if not espEnabled then
                 ClearHighlights()
             end
@@ -180,7 +179,6 @@ VisualTab:Toggle({
         pcall(function()
             espNamesEnabled = state
             undeitedhub.Toggles.espNamesEnabled = state
-            if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
             if not espNamesEnabled then
                 ClearNames()
             end
@@ -225,7 +223,6 @@ undeitedhub.DisableAll = function()
     undeitedhub.Toggles.espEnabled = false
     undeitedhub.Toggles.espNamesEnabled = false
     ClearESP()
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end
 
