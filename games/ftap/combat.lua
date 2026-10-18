@@ -1,77 +1,487 @@
 local WindUI = undeitedhub.WindUI
 local CombatTab = undeitedhub.Window:Tab({ Title = "Combat" })
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local AeroServices = ReplicatedStorage:WaitForChild("Aero"):WaitForChild("AeroRemoteServices"):WaitForChild("GameService")
-local AttackStart = AeroServices:WaitForChild("WeaponAttackStart")
-local AnimComplete = AeroServices:WaitForChild("WeaponAnimComplete")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Stats = game:GetService("Stats")
+local MarketplaceService = game:GetService("MarketplaceService")
 
-local autoSwingEnabled = undeitedhub.Toggles.AutoSwing or false
-local lastSwingTime = 0
-local SWING_COOLDOWN = 0.1
+local LocalPlayer = Players.LocalPlayer
 
-local superStrengthEnabled = undeitedhub.Toggles.SuperStrength or false
-local superStrengthValue = undeitedhub.Toggles.SuperStrengthValue or 400
-local superStrengthConnection = nil
+local function clamp(v, lo, hi)
+    if v < lo then return lo end
+    if v > hi then return hi end
+    return v
+end
 
-local function SwingWeapon()
-    AttackStart:FireServer()
-    AnimComplete:FireServer()
-    if typeof(getNil) == "function" then
+local Tuning = {
+    lastUpdate = 0,
+    refreshInterval = 2,
+    ping = 0,
+    pingFactor = 0,
+    playerFactor = 0,
+    players = 1,
+    aimDistance = 20,
+}
+
+local maxReach = 20
+
+local function readPing()
+    local ok, ping = pcall(function()
+        if Stats and Stats.Network and Stats.Network.ServerStatsItem then
+            local item = Stats.Network.ServerStatsItem["Data Ping"]
+            if item then return item:GetValue() / 1000 end
+        end
+        return 0
+    end)
+    if not ok or type(ping) ~= "number" or ping ~= ping then return 0 end
+    return ping
+end
+
+local function refreshTuning()
+    local now = tick()
+    if Tuning.lastUpdate > 0 and now - Tuning.lastUpdate < Tuning.refreshInterval then return end
+    Tuning.lastUpdate = now
+
+    local ping = readPing()
+    local players = math.max(1, #Players:GetPlayers())
+
+    local pingFactor = clamp(ping / 0.2, 0, 2)
+    local playerFactor = clamp((players - 1) / 12, 0, 2)
+
+    Tuning.ping = ping
+    Tuning.pingFactor = pingFactor
+    Tuning.playerFactor = playerFactor
+    Tuning.players = players
+
+    Tuning.aimDistance = maxReach
+    Tuning.cacheRebuildFrames = math.max(2, math.floor(5 - playerFactor * 2))
+    Tuning.maxCandidatesToCheck = math.max(3, math.floor(5 + playerFactor * 3))
+    Tuning.minLosDot = clamp(0.1 + pingFactor * 0.1, 0.05, 0.4)
+end
+
+task.spawn(function()
+    local success, owns = pcall(function()
+        return MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 20837132)
+    end)
+    if success and owns then
+        maxReach = 30
+    else
+        maxReach = 20
+    end
+    Tuning.lastUpdate = 0
+    refreshTuning()
+end)
+
+refreshTuning()
+
+local silentAimEnabled = false
+local selectedTargetName = "Nearby"
+local targetDropdown = nil
+local targetPosition = nil
+local checkingLOS = false
+
+local frameCounter = 0
+local cachedTargets = {}
+local cachedTargetsDirty = true
+
+local function getDropdownName(player)
+    return player.DisplayName .. " (@" .. player.Name .. ")"
+end
+
+local function markTargetsDirty()
+    cachedTargetsDirty = true
+end
+
+local function rebuildTargetCache()
+    cachedTargets = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local char = player.Character
+            if char then
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    local parts = {}
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            table.insert(parts, part)
+                        end
+                    end
+                    if #parts > 0 then
+                        table.insert(cachedTargets, {
+                            parts = parts,
+                            character = char,
+                            player = player,
+                        })
+                    end
+                end
+            end
+        end
+    end
+    cachedTargetsDirty = false
+end
+
+local function raycastNoHook(origin, direction, params)
+    checkingLOS = true
+    local ok, result = pcall(function()
+        return Workspace:Raycast(origin, direction, params)
+    end)
+    checkingLOS = false
+    if not ok then return nil end
+    return result
+end
+
+local function hasLineOfSight(origin, targetPos, targetCharacter)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local filter = {}
+    if LocalPlayer.Character then
+        table.insert(filter, LocalPlayer.Character)
+    end
+    if targetCharacter then
+        table.insert(filter, targetCharacter)
+    end
+    params.FilterDescendantsInstances = filter
+    params.IgnoreWater = true
+
+    local direction = targetPos - origin
+    local result = raycastNoHook(origin, direction, params)
+    return result == nil
+end
+
+local function getLosOrigin()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local head = char:FindFirstChild("Head")
+    if head and head:IsA("BasePart") then return head.Position end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp and hrp:IsA("BasePart") then return hrp.Position end
+    return nil
+end
+
+local function updateTarget()
+    if not silentAimEnabled then
+        targetPosition = nil
+        return
+    end
+
+    frameCounter = frameCounter + 1
+    if frameCounter % Tuning.cacheRebuildFrames ~= 0 then return end
+
+    if cachedTargetsDirty then
+        rebuildTargetCache()
+    end
+
+    local origin = getLosOrigin()
+    if not origin then
+        targetPosition = nil
+        return
+    end
+
+    if selectedTargetName ~= "Nearby" then
+        local targetPlayer = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and getDropdownName(p) == selectedTargetName then
+                targetPlayer = p
+                break
+            end
+        end
+
+        if not targetPlayer or not targetPlayer.Character then
+            targetPosition = nil
+            return
+        end
+
+        local char = targetPlayer.Character
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then
+            targetPosition = nil
+            return
+        end
+
+        local cam = Workspace.CurrentCamera
+        local cameraPos = cam and cam.CFrame.Position or origin
+
+        for _, entry in ipairs(cachedTargets) do
+            if entry.player == targetPlayer then
+                for _, part in ipairs(entry.parts) do
+                    if part.Parent then
+                        local partPos = part.Position
+                        local rel = partPos - cameraPos
+                        if rel.Magnitude <= Tuning.aimDistance then
+                            if hasLineOfSight(origin, partPos, char) then
+                                targetPosition = partPos
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        targetPosition = nil
+        return
+    end
+
+    local cam = Workspace.CurrentCamera
+    if not cam then
+        targetPosition = nil
+        return
+    end
+
+    local referencePos = UserInputService:GetMouseLocation()
+    if not referencePos then return end
+
+    local cameraPos = cam.CFrame.Position
+    local cameraLook = cam.CFrame.LookVector
+
+    local candidates = {}
+
+    for _, entry in ipairs(cachedTargets) do
+        for _, part in ipairs(entry.parts) do
+            if part.Parent then
+                local partPos = part.Position
+                local rel = partPos - cameraPos
+                local worldDist = rel.Magnitude
+                if worldDist <= Tuning.aimDistance then
+                    if rel.Unit:Dot(cameraLook) > 0 then
+                        local screenPos, onScreen = cam:WorldToViewportPoint(partPos)
+                        if onScreen then
+                            local dx = screenPos.X - referencePos.X
+                            local dy = screenPos.Y - referencePos.Y
+                            local screenDist = math.sqrt(dx * dx + dy * dy)
+                            table.insert(candidates, {
+                                part = part,
+                                pos = partPos,
+                                screenDist = screenDist,
+                                character = entry.character,
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if #candidates == 0 then
+        targetPosition = nil
+        return
+    end
+
+    table.sort(candidates, function(a, b)
+        return a.screenDist < b.screenDist
+    end)
+
+    local maxCheck = math.min(#candidates, Tuning.maxCandidatesToCheck)
+    for i = 1, maxCheck do
+        local candidate = candidates[i]
+        if hasLineOfSight(origin, candidate.pos, candidate.character) then
+            targetPosition = candidate.pos
+            return
+        end
+    end
+
+    targetPosition = nil
+end
+
+local oldNamecall
+local hookActive = false
+
+local function setupHook()
+    if hookActive then return end
+    if not pcall(function() return hookmetamethod end) then
+        return
+    end
+
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if silentAimEnabled and targetPosition and not checkingLOS and self == Workspace and method == "Raycast" then
+            local args = { ... }
+            if typeof(args[1]) == "Vector3" then
+                local origin = args[1]
+                local newDir = (targetPosition - origin).Unit * Tuning.aimDistance
+                args[2] = newDir
+                return oldNamecall(self, table.unpack(args))
+            end
+        end
+        return oldNamecall(self, ...)
+    end))
+    hookActive = true
+end
+
+local renderConnection = nil
+
+local function startUpdateLoop()
+    if renderConnection then return end
+    renderConnection = RunService.RenderStepped:Connect(function()
+        pcall(updateTarget)
+    end)
+end
+
+local function stopUpdateLoop()
+    if renderConnection then
+        renderConnection:Disconnect()
+        renderConnection = nil
+    end
+end
+
+local function buildTargetList()
+    local list = { "Nearby" }
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(list, getDropdownName(p))
+        end
+    end
+    table.sort(list, function(a, b)
+        if a == "Nearby" then return true end
+        if b == "Nearby" then return false end
+        return a < b
+    end)
+    return list
+end
+
+local function refreshTargetDropdown()
+    local list = buildTargetList()
+    if targetDropdown then
         pcall(function()
-            getNil("Event", "BindableEvent"):Fire()
+            targetDropdown:Refresh(list, true)
+            if selectedTargetName ~= "Nearby" and not table.find(list, selectedTargetName) then
+                selectedTargetName = "Nearby"
+                targetDropdown:Set("Nearby")
+            end
         end)
     end
 end
 
-local function ApplySuperStrength(character)
-    if not character then return end
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    local camera = workspace.CurrentCamera
+targetDropdown = CombatTab:Dropdown({
+    Title = "Target",
+    Values = buildTargetList(),
+    Value = "Nearby",
+    Callback = function(value)
+        selectedTargetName = value
+    end
+})
+
+Players.PlayerAdded:Connect(function(player)
+    markTargetsDirty()
+    task.wait(0.1)
+    refreshTargetDropdown()
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then return end
+    markTargetsDirty()
+    task.wait(0.1)
+    refreshTargetDropdown()
+end)
+
+local function watchCharacter(player)
+    if player == LocalPlayer then return end
+    player.CharacterAdded:Connect(function()
+        task.wait(0.2)
+        markTargetsDirty()
+        refreshTargetDropdown()
+    end)
+    player.CharacterRemoving:Connect(function()
+        markTargetsDirty()
+        refreshTargetDropdown()
+    end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    watchCharacter(player)
+end
+
+Players.PlayerAdded:Connect(watchCharacter)
+
+CombatTab:Toggle({
+    Title = "Silent Aim",
+    Value = silentAimEnabled,
+    Callback = function(state)
+        silentAimEnabled = state
+        if state then
+            if not hookActive then
+                setupHook()
+            end
+            refreshTuning()
+            markTargetsDirty()
+            startUpdateLoop()
+        else
+            targetPosition = nil
+            stopUpdateLoop()
+        end
+    end
+})
+
+local superStrengthEnabled = false
+local superStrengthValue = 400
+local superStrengthConnection = nil
+
+local function applySuperStrength()
+    if not superStrengthEnabled then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local grabParts = Workspace:FindFirstChild("GrabParts")
+    if not grabParts then return end
+    local grabPart = grabParts:FindFirstChild("GrabPart")
+    if not grabPart then return end
+    local weld = grabPart:FindFirstChild("WeldConstraint")
+    if not weld then return end
+    local part1 = weld.Part1
+    if not part1 or not part1:IsA("BasePart") then return end
+
+    local camera = Workspace.CurrentCamera
     if not camera then return end
-    local bodyVelocity = root:FindFirstChild("SuperStrengthBV")
+
+    local velocity = camera.CFrame.LookVector * superStrengthValue
+    local bodyVelocity = part1:FindFirstChild("SuperStrengthBV")
     if not bodyVelocity then
         bodyVelocity = Instance.new("BodyVelocity")
         bodyVelocity.Name = "SuperStrengthBV"
         bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-        bodyVelocity.Parent = root
+        bodyVelocity.Parent = part1
     end
-    bodyVelocity.Velocity = camera.CFrame.LookVector * superStrengthValue
-    task.delay(1, function()
-        if bodyVelocity and bodyVelocity.Parent then
-            bodyVelocity:Destroy()
-        end
-    end)
+    bodyVelocity.Velocity = velocity
 end
 
-game:GetService("RunService").Heartbeat:Connect(function()
-    if autoSwingEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
-        local now = tick()
-        if now - lastSwingTime >= SWING_COOLDOWN then
-            lastSwingTime = now
-            pcall(SwingWeapon)
+local function startSuperStrengthLoop()
+    if superStrengthConnection then return end
+    superStrengthConnection = RunService.Heartbeat:Connect(applySuperStrength)
+end
+
+local function stopSuperStrengthLoop()
+    if superStrengthConnection then
+        superStrengthConnection:Disconnect()
+        superStrengthConnection = nil
+    end
+    local grabParts = Workspace:FindFirstChild("GrabParts")
+    if grabParts then
+        local grabPart = grabParts:FindFirstChild("GrabPart")
+        if grabPart then
+            local weld = grabPart:FindFirstChild("WeldConstraint")
+            if weld then
+                local part1 = weld.Part1
+                if part1 then
+                    local bv = part1:FindFirstChild("SuperStrengthBV")
+                    if bv then bv:Destroy() end
+                end
+            end
         end
     end
-end)
+end
 
-CombatTab:Toggle({
-    Title = "Auto Swing",
-    Value = autoSwingEnabled,
-    Callback = function(state)
-        autoSwingEnabled = state
-        undeitedhub.Toggles.AutoSwing = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-        pcall(function()
-            WindUI:Notify({
-                Title = "Auto Swing",
-                Content = state and "Enabled" or "Disabled",
-                Duration = 2,
-            })
-        end)
-        if state then
-            lastSwingTime = tick()
-        end
+local strengthSlider = CombatTab:Slider({
+    Title = "Strength",
+    Value = 400,
+    Min = 300,
+    Max = 5000,
+    Callback = function(value)
+        superStrengthValue = value
     end
 })
 
@@ -80,47 +490,22 @@ CombatTab:Toggle({
     Value = superStrengthEnabled,
     Callback = function(state)
         superStrengthEnabled = state
-        undeitedhub.Toggles.SuperStrength = state
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
         if state then
-            superStrengthConnection = game:GetService("UserInputService").InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton2 and _G.UNDEITEDHUB_WINDOW_VISIBLE then
-                    local character = game.Players.LocalPlayer.Character
-                    ApplySuperStrength(character)
-                end
-            end)
+            startSuperStrengthLoop()
         else
-            if superStrengthConnection then
-                superStrengthConnection:Disconnect()
-                superStrengthConnection = nil
-            end
+            stopSuperStrengthLoop()
         end
     end
 })
 
-CombatTab:Slider({
-    Title = "Strength",
-    Value = superStrengthValue,
-    Min = 100,
-    Max = 5000,
-    Callback = function(value)
-        superStrengthValue = value
-        undeitedhub.Toggles.SuperStrengthValue = value
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    end
-})
-
-undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
-local oldDisable = undeitedhub.DisableAll
+local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
-    autoSwingEnabled = false
-    undeitedhub.Toggles.AutoSwing = false
-    superStrengthEnabled = false
-    undeitedhub.Toggles.SuperStrength = false
-    if superStrengthConnection then
-        superStrengthConnection:Disconnect()
-        superStrengthConnection = nil
+    silentAimEnabled = false
+    targetPosition = nil
+    stopUpdateLoop()
+    if superStrengthEnabled then
+        superStrengthEnabled = false
+        stopSuperStrengthLoop()
     end
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end
