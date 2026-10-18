@@ -447,7 +447,6 @@ local antiGrabActive = false
 local antiGrabHeartbeat = nil
 local antiGrabWorkspaceConn = nil
 local antiGrabCharConn = nil
-local antiGrabPeriodicTask = nil
 local lastStruggleFire = 0
 
 local function isForeignWeld(weld)
@@ -815,40 +814,50 @@ local function triggerBurgerAnti()
         local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
         local spawnRemote = menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
         
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then burgerSequenceActive = false return end
+        
         local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
         local burger = toysFolder and toysFolder:FindFirstChild("FoodHamburger")
         
         if not burger and spawnRemote then
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if root then
-                pcall(function() spawnRemote:InvokeServer("FoodHamburger", root.CFrame, Vector3.zero) end)
-                task.wait(0.05)
-                toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-                burger = toysFolder and toysFolder:FindFirstChild("FoodHamburger")
+            local success, result = pcall(function()
+                return spawnRemote:InvokeServer("FoodHamburger", root.CFrame, Vector3.zero)
+            end)
+            if success and typeof(result) == "Instance" then
+                burger = result
+            else
+                task.wait(0.1)
+                toysFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 1)
+                if toysFolder then
+                    burger = toysFolder:WaitForChild("FoodHamburger", 1)
+                end
             end
         end
         
         if burger then
-            local holdPart = burger:FindFirstChild("HoldPart")
-            local holdRemote = holdPart and holdPart:FindFirstChild("HoldItemRemoteFunction")
-            if holdRemote then
-                pcall(function() holdRemote:InvokeServer(burger, char) end)
-            end
-            task.wait(0.05)
-            
-            local root = char:FindFirstChild("HumanoidRootPart")
-            local dropRemote = holdPart and holdPart:FindFirstChild("DropItemRemoteFunction")
-            if dropRemote and root then
-                pcall(function() dropRemote:InvokeServer(burger, root.CFrame, Vector3.zero) end)
-            end
-            
-            task.wait(0.5)
-            if burger and burger.Parent then
-                local destroyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
-                if destroyRemote then
-                    pcall(function() destroyRemote:InvokeServer(burger) end)
-                else
-                    pcall(function() burger:Destroy() end)
+            local holdPart = burger:WaitForChild("HoldPart", 1)
+            if holdPart then
+                local holdRemote = holdPart:WaitForChild("HoldItemRemoteFunction", 1)
+                if holdRemote then
+                    pcall(function() holdRemote:InvokeServer(burger, char) end)
+                end
+                
+                task.wait(0.25)
+                
+                local dropRemote = holdPart:WaitForChild("DropItemRemoteFunction", 1)
+                if dropRemote then
+                    pcall(function() dropRemote:InvokeServer(burger, root.CFrame, Vector3.zero) end)
+                end
+                
+                task.wait(0.2)
+                if burger and burger.Parent then
+                    local destroyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
+                    if destroyRemote then
+                        pcall(function() destroyRemote:InvokeServer(burger) end)
+                    else
+                        pcall(function() burger:Destroy() end)
+                    end
                 end
             end
         end
