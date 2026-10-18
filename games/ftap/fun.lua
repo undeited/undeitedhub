@@ -7,10 +7,39 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
+local MAX_SPARKLERS = 4
+
 local sparklerEnabled = false
 local orbitTask = nil
+local refillTask = nil
 local activeSparklers = {}
 local orbitAngle = 0
+local lastRefillTime = 0
+
+local function isPlayerInPlot()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local pos = hrp.Position
+
+    local plotsFolder = Workspace:FindFirstChild("Plots")
+    if not plotsFolder then return false end
+
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        if plot:IsA("Model") then
+            local base = plot:FindFirstChild("PlotArea") or plot:FindFirstChild("Base") or plot:FindFirstChild("Floor")
+            if base and base:IsA("BasePart") then
+                local size = base.Size
+                local lp = base.CFrame:PointToObjectSpace(pos)
+                if math.abs(lp.X) <= size.X * 0.5 + 2 and math.abs(lp.Z) <= size.Z * 0.5 + 2 then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
 
 local function spawnSparkler()
     local char = LocalPlayer.Character
@@ -44,51 +73,84 @@ local function clearSparklers()
     activeSparklers = {}
 end
 
+local function refillSparklers()
+    if not sparklerEnabled then return end
+    if isPlayerInPlot() then return end
+    
+    local now = tick()
+    if now - lastRefillTime < 0.5 then return end
+    lastRefillTime = now
+
+    local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+    if not toysFolder then return end
+
+    local currentSparklers = {}
+    for _, child in ipairs(toysFolder:GetChildren()) do
+        if child.Name == "FireworkSparkler" then
+            table.insert(currentSparklers, child)
+        end
+    end
+
+    local missing = MAX_SPARKLERS - #currentSparklers
+    for i = 1, missing do
+        spawnSparkler()
+    end
+end
+
 local function startSparklers()
     sparklerEnabled = true
     activeSparklers = {}
     orbitAngle = 0
-
-    for i = 1, 10 do
-        if not sparklerEnabled then break end
-        spawnSparkler()
-        task.wait(0.1)
-    end
-
-    if not sparklerEnabled then return end
-
-    local toysFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 2)
-    if toysFolder then
-        local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
-        local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
-        
-        for _, child in ipairs(toysFolder:GetChildren()) do
-            if child.Name == "FireworkSparkler" then
-                local base = child:FindFirstChild("Base")
-                if base then
-                    table.insert(activeSparklers, child)
-                    if setNet then
-                        pcall(function() setNet:FireServer(base, base.CFrame) end)
-                    end
-                end
+    lastRefillTime = 0
+    
+    refillTask = task.spawn(function()
+        while sparklerEnabled do
+            if not isPlayerInPlot() then
+                refillSparklers()
+            else
+                clearSparklers()
             end
+            task.wait(0.5)
         end
-    end
+    end)
 
     orbitTask = RunService.Heartbeat:Connect(function(dt)
         if not sparklerEnabled then return end
+        if isPlayerInPlot() then return end
+
         local char = LocalPlayer.Character
         if not char then return end
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
+
+        if #activeSparklers == 0 then
+            local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+            if toysFolder then
+                local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+                local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
+                
+                for _, child in ipairs(toysFolder:GetChildren()) do
+                    if child.Name == "FireworkSparkler" then
+                        local base = child:FindFirstChild("Base")
+                        if base then
+                            table.insert(activeSparklers, child)
+                            if setNet then
+                                pcall(function() setNet:FireServer(base, base.CFrame) end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if #activeSparklers == 0 then return end
 
         orbitAngle = orbitAngle + 3 * dt
         local radius = 5
 
         for i, sparkler in ipairs(activeSparklers) do
             if sparkler and sparkler.Parent then
-                local offsetAngle = orbitAngle + (i * (math.pi * 2 / #activeSparklers))
-                
+                local offsetAngle = orbitAngle + (i * (math.pi * 2 / MAX_SPARKLERS))
                 local offsetX = math.cos(offsetAngle) * radius
                 local offsetZ = math.sin(offsetAngle) * radius
                 
@@ -108,6 +170,10 @@ local function stopSparklers()
     if orbitTask then
         orbitTask:Disconnect()
         orbitTask = nil
+    end
+    if refillTask then
+        task.cancel(refillTask)
+        refillTask = nil
     end
     clearSparklers()
 end
