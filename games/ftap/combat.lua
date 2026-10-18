@@ -77,7 +77,7 @@ end)
 
 refreshTuning()
 
-local silentAimEnabled = undeitedhub.Toggles.SilentAim or false
+local silentAimEnabled = false
 local selectedTargetName = "Nearby"
 local targetDropdown = nil
 local targetPosition = nil
@@ -401,7 +401,6 @@ CombatTab:Toggle({
     Value = silentAimEnabled,
     Callback = function(state)
         silentAimEnabled = state
-        undeitedhub.Toggles.SilentAim = state
         if state then
             if not hookActive then
                 setupHook()
@@ -420,7 +419,6 @@ local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     silentAimEnabled = false
     targetPosition = nil
-    undeitedhub.Toggles.SilentAim = false
     stopUpdateLoop()
     oldDisable()
 end
