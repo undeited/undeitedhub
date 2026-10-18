@@ -5,16 +5,9 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local PhysicsService = game:GetService("PhysicsService")
 local LocalPlayer = Players.LocalPlayer
 
 local MAX_SPARKLERS = 4
-local COLLISION_GROUP = "SparklerOrbit"
-
-pcall(function()
-    PhysicsService:RegisterCollisionGroup(COLLISION_GROUP)
-    PhysicsService:CollisionGroupSetCollidable(COLLISION_GROUP, "Default", false)
-end)
 
 local sparklerEnabled = false
 local orbitTask = nil
@@ -91,31 +84,8 @@ local function neutralizeSparkler(sparkler)
         if part:IsA("BasePart") then
             part.CanCollide = false
             part.CanTouch = false
-            part.CanQuery = false
             part.Massless = true
-            pcall(function() part.CollisionGroup = COLLISION_GROUP end)
             if part.Anchored then part.Anchored = false end
-            
-            for _, child in ipairs(part:GetChildren()) do
-                if child:IsA("TouchTransmitter") or child:IsA("TouchInterest") then
-                    child:Destroy()
-                end
-            end
-            
-            if not part:FindFirstChild("AntiFlingVelocity") then
-                local bv = Instance.new("BodyVelocity")
-                bv.Name = "AntiFlingVelocity"
-                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                bv.Velocity = Vector3.zero
-                bv.Parent = part
-            end
-            if not part:FindFirstChild("AntiFlingAngularVelocity") then
-                local bav = Instance.new("BodyAngularVelocity")
-                bav.Name = "AntiFlingAngularVelocity"
-                bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-                bav.AngularVelocity = Vector3.zero
-                bav.Parent = part
-            end
         end
     end
     
@@ -229,6 +199,9 @@ local function startSparklers()
         orbitAngle = orbitAngle + 3 * dt
         local radius = 5
 
+        local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+        local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
+
         for i = #activeSparklers, 1, -1 do
             local sparkler = activeSparklers[i]
             if sparkler and sparkler.Parent then
@@ -252,8 +225,7 @@ local function startSparklers()
                     base.Velocity = Vector3.zero
                     base.RotVelocity = Vector3.zero
 
-                    local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
-                    local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
+                    -- This is what forces the server to replicate your CFrame to everyone else
                     if setNet then
                         pcall(function() setNet:FireServer(base, targetCFrame) end)
                     end
