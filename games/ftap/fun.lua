@@ -11,10 +11,9 @@ local MAX_SPARKLERS = 4
 
 local sparklerEnabled = false
 local orbitTask = nil
-local refillTask = nil
+local syncTask = nil
 local activeSparklers = {}
 local orbitAngle = 0
-local lastRefillTime = 0
 
 local function isPlayerInPlot()
     local char = LocalPlayer.Character
@@ -41,59 +40,55 @@ local function isPlayerInPlot()
     return false
 end
 
-local function spawnSparkler()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    
-    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-    if not menuToys then return end
-    local spawnRemote = menuToys:FindFirstChild("SpawnToyRemoteFunction")
-    if spawnRemote then
-        pcall(function()
-            spawnRemote:InvokeServer("FireworkSparkler", root.CFrame, Vector3.new(0, 108.14399719238281, 0))
-        end)
-    end
-end
-
-local function clearSparklers()
-    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-    local destroyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
-    
-    for _, sparkler in ipairs(activeSparklers) do
-        if sparkler and sparkler.Parent then
-            if destroyRemote then
-                pcall(function() destroyRemote:InvokeServer(sparkler) end)
-            else
-                pcall(function() sparkler:Destroy() end)
-            end
-        end
-    end
-    activeSparklers = {}
-end
-
-local function refillSparklers()
+local function syncSparklers()
     if not sparklerEnabled then return end
-    if isPlayerInPlot() then return end
-    
-    local now = tick()
-    if now - lastRefillTime < 0.5 then return end
-    lastRefillTime = now
+    if isPlayerInPlot() then
+        activeSparklers = {}
+        return
+    end
 
     local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-    if not toysFolder then return end
+    if not toysFolder then
+        activeSparklers = {}
+        return
+    end
 
     local currentSparklers = {}
     for _, child in ipairs(toysFolder:GetChildren()) do
         if child.Name == "FireworkSparkler" then
-            table.insert(currentSparklers, child)
+            currentSparklers[child] = true
         end
     end
 
-    local missing = MAX_SPARKLERS - #currentSparklers
-    for i = 1, missing do
-        spawnSparkler()
+    -- Remove sparklers that were destroyed or removed from the folder
+    for i = #activeSparklers, 1, -1 do
+        local sp = activeSparklers[i]
+        if not currentSparklers[sp] or not sp.Parent then
+            table.remove(activeSparklers, i)
+        end
+    end
+
+    -- Add newly spawned sparklers
+    for sparkler in pairs(currentSparklers) do
+        if #activeSparklers < MAX_SPARKLERS then
+            local found = false
+            for _, sp in ipairs(activeSparklers) do
+                if sp == sparkler then
+                    found = true
+                    break
+                end
+            end
+
+            if not found then
+                table.insert(activeSparklers, sparkler)
+                local base = sparkler:FindFirstChild("Base")
+                local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+                local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
+                if base and setNet then
+                    pcall(function() setNet:FireServer(base, base.CFrame) end)
+                end
+            end
+        end
     end
 end
 
@@ -101,19 +96,16 @@ local function startSparklers()
     sparklerEnabled = true
     activeSparklers = {}
     orbitAngle = 0
-    lastRefillTime = 0
     
-    refillTask = task.spawn(function()
+    -- Loop to constantly check for new sparklers (every 0.2 seconds)
+    syncTask = task.spawn(function()
         while sparklerEnabled do
-            if not isPlayerInPlot() then
-                refillSparklers()
-            else
-                clearSparklers()
-            end
-            task.wait(0.5)
+            syncSparklers()
+            task.wait(0.2)
         end
     end)
 
+    -- Loop for the orbit physics
     orbitTask = RunService.Heartbeat:Connect(function(dt)
         if not sparklerEnabled then return end
         if isPlayerInPlot() then return end
@@ -123,34 +115,15 @@ local function startSparklers()
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
-        if #activeSparklers == 0 then
-            local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-            if toysFolder then
-                local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
-                local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
-                
-                for _, child in ipairs(toysFolder:GetChildren()) do
-                    if child.Name == "FireworkSparkler" then
-                        local base = child:FindFirstChild("Base")
-                        if base then
-                            table.insert(activeSparklers, child)
-                            if setNet then
-                                pcall(function() setNet:FireServer(base, base.CFrame) end)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        if #activeSparklers == 0 then return end
+        local count = #activeSparklers
+        if count == 0 then return end
 
         orbitAngle = orbitAngle + 3 * dt
         local radius = 5
 
         for i, sparkler in ipairs(activeSparklers) do
             if sparkler and sparkler.Parent then
-                local offsetAngle = orbitAngle + (i * (math.pi * 2 / MAX_SPARKLERS))
+                local offsetAngle = orbitAngle + (i * (math.pi * 2 / count))
                 local offsetX = math.cos(offsetAngle) * radius
                 local offsetZ = math.sin(offsetAngle) * radius
                 
@@ -171,11 +144,11 @@ local function stopSparklers()
         orbitTask:Disconnect()
         orbitTask = nil
     end
-    if refillTask then
-        task.cancel(refillTask)
-        refillTask = nil
+    if syncTask then
+        task.cancel(syncTask)
+        syncTask = nil
     end
-    clearSparklers()
+    activeSparklers = {}
 end
 
 FunTab:Toggle({
