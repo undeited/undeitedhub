@@ -127,9 +127,11 @@ local function syncSparklers()
 
             if not found then
                 table.insert(activeSparklers, sparkler)
-                local base = sparkler:FindFirstChild("Base")
-                if base then
-                    base.CanCollide = false
+                for _, p in ipairs(sparkler:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        p.CanCollide = false
+                        p.CanTouch = false
+                    end
                 end
             end
         end
@@ -169,6 +171,11 @@ local function startSparklers()
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
+        if root.AssemblyLinearVelocity.Magnitude > 150 then
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end
+
         local count = #activeSparklers
         if count == 0 then return end
 
@@ -181,7 +188,13 @@ local function startSparklers()
                 local base = sparkler:FindFirstChild("Base")
                 
                 if base then
-                    base.CanCollide = false
+                    for _, p in ipairs(sparkler:GetDescendants()) do
+                        if p:IsA("BasePart") then
+                            p.CanCollide = false
+                            p.CanTouch = false
+                        end
+                    end
+                    
                     if base.Anchored then base.Anchored = false end
 
                     local offsetAngle = orbitAngle + (i * (math.pi * 2 / count))
@@ -193,6 +206,9 @@ local function startSparklers()
                     local targetCFrame = CFrame.lookAt(targetPos, targetPos + lookDir)
 
                     base.CFrame = targetCFrame
+                    
+                    base.AssemblyLinearVelocity = Vector3.zero
+                    base.AssemblyAngularVelocity = Vector3.zero
                     
                     local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
                     local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
