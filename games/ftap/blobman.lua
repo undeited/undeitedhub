@@ -988,7 +988,7 @@ local function bringSelectedPlayer()
     if isPlayerInPlot(selectedBringPlayerObj) then
         return
     end
-    bringPlayer(selectedBringPlayerObj, false)
+    bringPlayer(selectedBringPlayerObj, true)
 end
 
 local lastRefresh = 0
