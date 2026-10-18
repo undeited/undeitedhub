@@ -337,7 +337,6 @@ targetDropdown = CombatTab:Dropdown({
     Value = "Nearby",
     Callback = function(value)
         selectedTarget = value
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     end
 })
 
@@ -390,7 +389,6 @@ CombatTab:Toggle({
             targetPosition = nil
             stopUpdateLoop()
         end
-        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     end
 })
 
@@ -400,7 +398,6 @@ undeitedhub.DisableAll = function()
     targetPosition = nil
     undeitedhub.Toggles.SilentAim = false
     stopUpdateLoop()
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     oldDisable()
 end
 
