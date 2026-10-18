@@ -36,13 +36,6 @@ local function CheckExecutor()
     if not (type(loadstring) == "function" or type(load) == "function") then table.insert(missing, "loadstring/load") end
     if not (game and (type(game.HttpGet) == "function" or type(game.HttpGetAsync) == "function")) then table.insert(missing, "game:HttpGet or game:HttpGetAsync") end
     if #missing > 0 then
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Executor Incompatible",
-                Text = "Missing executor support: " .. table.concat(missing, ", "),
-                Duration = 5,
-            })
-        end)
         return false
     end
     return true
@@ -150,7 +143,7 @@ local Window = WindUI:CreateWindow({
     Size = UDim2.fromOffset(580, 460),
     MinSize = Vector2.new(560, 350),
     MaxSize = Vector2.new(850, 560),
-    Transparent = true,
+    Transparent = false,
     Theme = themeToApply,
     Resizable = true,
     SideBarWidth = 200,
@@ -181,23 +174,6 @@ end
 
 local function SafeLoad(name)
     local success, err = pcall(LoadScript, name)
-    if not success then
-        local errMsg = tostring(err):sub(1, 200)
-        pcall(function()
-            WindUI:Notify({
-                Title = "Error: " .. name,
-                Content = errMsg,
-                Duration = 6,
-            })
-        end)
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Error: " .. name,
-                Text = errMsg,
-                Duration = 6,
-            })
-        end)
-    end
 end
 
 SafeLoad("games/ftap/esp.lua")
