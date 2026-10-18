@@ -40,6 +40,22 @@ local function isPlayerInPlot()
     return false
 end
 
+local function spawnSparkler()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
+    if not menuToys then return end
+    local spawnRemote = menuToys:FindFirstChild("SpawnToyRemoteFunction")
+    if spawnRemote then
+        pcall(function()
+            spawnRemote:InvokeServer("FireworkSparkler", root.CFrame, Vector3.new(0, 108.14399719238281, 0))
+        end)
+    end
+end
+
 local function syncSparklers()
     if not sparklerEnabled then return end
     if isPlayerInPlot() then
@@ -60,7 +76,6 @@ local function syncSparklers()
         end
     end
 
-    -- Remove sparklers that were destroyed or removed from the folder
     for i = #activeSparklers, 1, -1 do
         local sp = activeSparklers[i]
         if not currentSparklers[sp] or not sp.Parent then
@@ -68,7 +83,6 @@ local function syncSparklers()
         end
     end
 
-    -- Add newly spawned sparklers
     for sparkler in pairs(currentSparklers) do
         if #activeSparklers < MAX_SPARKLERS then
             local found = false
@@ -90,6 +104,11 @@ local function syncSparklers()
             end
         end
     end
+    
+    local missing = MAX_SPARKLERS - #activeSparklers
+    for i = 1, missing do
+        spawnSparkler()
+    end
 end
 
 local function startSparklers()
@@ -97,15 +116,13 @@ local function startSparklers()
     activeSparklers = {}
     orbitAngle = 0
     
-    -- Loop to constantly check for new sparklers (every 0.2 seconds)
     syncTask = task.spawn(function()
         while sparklerEnabled do
             syncSparklers()
-            task.wait(0.2)
+            task.wait(0.5)
         end
     end)
 
-    -- Loop for the orbit physics
     orbitTask = RunService.Heartbeat:Connect(function(dt)
         if not sparklerEnabled then return end
         if isPlayerInPlot() then return end
