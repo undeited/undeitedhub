@@ -78,6 +78,34 @@ local function clearAllSparklers()
     stuckTimers = {}
 end
 
+local function neutralizeSparkler(sparkler)
+    if not sparkler then return end
+    for _, part in ipairs(sparkler:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.CanTouch = false
+            part.CanQuery = false
+            part.Massless = true
+            if part.Anchored then part.Anchored = false end
+        end
+    end
+    
+    local char = LocalPlayer.Character
+    if char then
+        for _, desc in ipairs(sparkler:GetDescendants()) do
+            if desc:IsA("Weld") or desc:IsA("WeldConstraint") or desc:IsA("Motor6D") then
+                local p0 = desc.Part0
+                local p1 = desc.Part1
+                if p0 and p1 then
+                    if p0:IsDescendantOf(char) or p1:IsDescendantOf(char) then
+                        desc:Destroy()
+                    end
+                end
+            end
+        end
+    end
+end
+
 local function syncSparklers()
     if not sparklerEnabled then return end
     
@@ -127,12 +155,7 @@ local function syncSparklers()
 
             if not found then
                 table.insert(activeSparklers, sparkler)
-                for _, p in ipairs(sparkler:GetDescendants()) do
-                    if p:IsA("BasePart") then
-                        p.CanCollide = false
-                        p.CanTouch = false
-                    end
-                end
+                neutralizeSparkler(sparkler)
             end
         end
     end
@@ -171,11 +194,6 @@ local function startSparklers()
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
-        if root.AssemblyLinearVelocity.Magnitude > 150 then
-            root.AssemblyLinearVelocity = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-        end
-
         local count = #activeSparklers
         if count == 0 then return end
 
@@ -188,14 +206,7 @@ local function startSparklers()
                 local base = sparkler:FindFirstChild("Base")
                 
                 if base then
-                    for _, p in ipairs(sparkler:GetDescendants()) do
-                        if p:IsA("BasePart") then
-                            p.CanCollide = false
-                            p.CanTouch = false
-                        end
-                    end
-                    
-                    if base.Anchored then base.Anchored = false end
+                    neutralizeSparkler(sparkler)
 
                     local offsetAngle = orbitAngle + (i * (math.pi * 2 / count))
                     local offsetX = math.cos(offsetAngle) * radius
@@ -209,7 +220,9 @@ local function startSparklers()
                     
                     base.AssemblyLinearVelocity = Vector3.zero
                     base.AssemblyAngularVelocity = Vector3.zero
-                    
+                    base.Velocity = Vector3.zero
+                    base.RotVelocity = Vector3.zero
+
                     local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
                     local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
                     if setNet then
@@ -248,7 +261,7 @@ local function stopSparklers()
 end
 
 FunTab:Toggle({
-    Title = "Sparkler Madness",
+    Title = "Sparkler Orbit",
     Value = sparklerEnabled,
     Callback = function(state)
         if state then
