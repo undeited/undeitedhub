@@ -78,33 +78,6 @@ local function clearAllSparklers()
     stuckTimers = {}
 end
 
-local function neutralizeSparkler(sparkler)
-    if not sparkler then return end
-    for _, part in ipairs(sparkler:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = false
-            part.CanTouch = false
-            part.Massless = true
-            if part.Anchored then part.Anchored = false end
-        end
-    end
-    
-    local char = LocalPlayer.Character
-    if char then
-        for _, desc in ipairs(sparkler:GetDescendants()) do
-            if desc:IsA("Weld") or desc:IsA("WeldConstraint") or desc:IsA("Motor6D") then
-                local p0 = desc.Part0
-                local p1 = desc.Part1
-                if p0 and p1 then
-                    if p0:IsDescendantOf(char) or p1:IsDescendantOf(char) then
-                        desc:Destroy()
-                    end
-                end
-            end
-        end
-    end
-end
-
 local function syncSparklers()
     if not sparklerEnabled then return end
     
@@ -154,7 +127,10 @@ local function syncSparklers()
 
             if not found then
                 table.insert(activeSparklers, sparkler)
-                neutralizeSparkler(sparkler)
+                local base = sparkler:FindFirstChild("Base")
+                if base then
+                    base.CanCollide = false
+                end
             end
         end
     end
@@ -182,7 +158,7 @@ local function startSparklers()
         end
     end)
 
-    orbitTask = RunService.RenderStepped:Connect(function(dt)
+    orbitTask = RunService.Heartbeat:Connect(function(dt)
         if not sparklerEnabled then return end
         if isPlayerInPlot() then return end
 
@@ -199,16 +175,14 @@ local function startSparklers()
         orbitAngle = orbitAngle + 3 * dt
         local radius = 5
 
-        local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
-        local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
-
         for i = #activeSparklers, 1, -1 do
             local sparkler = activeSparklers[i]
             if sparkler and sparkler.Parent then
                 local base = sparkler:FindFirstChild("Base")
                 
                 if base then
-                    neutralizeSparkler(sparkler)
+                    base.CanCollide = false
+                    if base.Anchored then base.Anchored = false end
 
                     local offsetAngle = orbitAngle + (i * (math.pi * 2 / count))
                     local offsetX = math.cos(offsetAngle) * radius
@@ -225,7 +199,8 @@ local function startSparklers()
                     base.Velocity = Vector3.zero
                     base.RotVelocity = Vector3.zero
 
-                    -- This is what forces the server to replicate your CFrame to everyone else
+                    local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+                    local setNet = grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
                     if setNet then
                         pcall(function() setNet:FireServer(base, targetCFrame) end)
                     end
