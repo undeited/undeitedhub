@@ -848,10 +848,7 @@ end
 local function bringPlayer(target, dropAfter)
     if not target or target == LocalPlayer then return end
     if not isPlayerValid(target) then return end
-
-    if isPlayerInPlot(target) then
-        return
-    end
+    if isPlayerInPlot(target) then return end
 
     local blobman = getSeatedBlobman()
     if not blobman then
@@ -874,87 +871,16 @@ local function bringPlayer(target, dropAfter)
         return
     end
 
-    local localCharacter = getPlayerCharacter()
-    if not localCharacter then return end
-    local localRoot = localCharacter:FindFirstChild("HumanoidRootPart")
-    if not localRoot then return end
-    local targetCharacter = target.Character
-    local targetRoot = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
-    local targetHum = targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
-    if not targetRoot or not targetHum then return end
-
-    local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
-    local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
-    local createLine = GE and GE:FindFirstChild("CreateGrabLine")
-
-    local pullPos = localRoot.CFrame * CFrame.new(0, 0, -3)
-
-    pcall(function()
-        targetRoot.CFrame = pullPos
-        targetRoot.AssemblyLinearVelocity = Vector3.zero
-        targetRoot.AssemblyAngularVelocity = Vector3.zero
-    end)
-
-    for i = 1, 10 do
-        pcall(function()
-            if setNet then
-                setNet:FireServer(targetRoot, pullPos)
-            end
-        end)
-        task.wait(0.01)
-    end
-
-    pcall(function()
-        if createLine then
-            createLine:FireServer(targetRoot, Vector3.zero, targetRoot.Position, false)
-        end
-    end)
-
-    local success = false
-    for i = 1, 3 do
-        local callSuccess, result = pcall(function()
-            return grabPlayer(blobman, target, hand)
-        end)
-        if callSuccess and result then
-            success = true
-            break
-        end
-        task.wait(0.2)
-    end
-
-    if not success then
-        return
-    end
-
-    local currentBlobman = getSeatedBlobman() or blobman
-    local handDet
-    if currentBlobman then
-        if hand == "left" then
-            handDet = currentBlobman:FindFirstChild("LeftDetector")
+    local success = grabPlayer(blobman, target, hand)
+    
+    if success then
+        task.wait(0.25)
+        if dropAfter then
+            local currentBlobman = getSeatedBlobman() or blobman
+            dropHeldTarget(currentBlobman, hand)
         else
-            handDet = currentBlobman:FindFirstChild("RightDetector")
+            startHeldHover(target, hand)
         end
-    end
-
-    for i = 1, 15 do
-        if not targetRoot or not targetRoot.Parent or not targetHum.Parent then break end
-        if handDet and handDet.Parent then
-            pcall(function()
-                targetHum.PlatformStand = true
-                targetRoot.CFrame = handDet.CFrame
-                targetRoot.AssemblyLinearVelocity = Vector3.zero
-                targetRoot.AssemblyAngularVelocity = Vector3.zero
-                if setNet then
-                    setNet:FireServer(targetRoot, handDet.CFrame)
-                end
-            end)
-        end
-        task.wait(0.02)
-    end
-
-    local finalBlobman = getSeatedBlobman() or blobman
-    if finalBlobman then
-        dropHeldTarget(finalBlobman, hand)
     end
 end
 
