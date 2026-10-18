@@ -6,6 +6,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Stats = game:GetService("Stats")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -22,7 +23,10 @@ local Tuning = {
     pingFactor = 0,
     playerFactor = 0,
     players = 1,
+    aimDistance = 20,
 }
+
+local maxReach = 20
 
 local function readPing()
     local ok, ping = pcall(function()
@@ -52,16 +56,29 @@ local function refreshTuning()
     Tuning.playerFactor = playerFactor
     Tuning.players = players
 
-    Tuning.aimDistance = clamp(30 * (1 + playerFactor * 0.4), 25, 80)
+    Tuning.aimDistance = maxReach
     Tuning.cacheRebuildFrames = math.max(2, math.floor(5 - playerFactor * 2))
     Tuning.maxCandidatesToCheck = math.max(3, math.floor(5 + playerFactor * 3))
     Tuning.minLosDot = clamp(0.1 + pingFactor * 0.1, 0.05, 0.4)
 end
 
+task.spawn(function()
+    local success, owns = pcall(function()
+        return MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 20837132)
+    end)
+    if success and owns then
+        maxReach = 30
+    else
+        maxReach = 20
+    end
+    Tuning.lastUpdate = 0
+    refreshTuning()
+end)
+
 refreshTuning()
 
 local silentAimEnabled = undeitedhub.Toggles.SilentAim or false
-local selectedTarget = "Nearby"
+local selectedTargetName = "Nearby"
 local targetDropdown = nil
 local targetPosition = nil
 local checkingLOS = false
@@ -163,10 +180,10 @@ local function updateTarget()
         return
     end
 
-    if selectedTarget ~= "Nearby" then
+    if selectedTargetName ~= "Nearby" then
         local targetPlayer = nil
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and getDropdownName(p) == selectedTarget then
+            if p ~= LocalPlayer and getDropdownName(p) == selectedTargetName then
                 targetPlayer = p
                 break
             end
@@ -184,13 +201,20 @@ local function updateTarget()
             return
         end
 
+        local cam = Workspace.CurrentCamera
+        local cameraPos = cam and cam.CFrame.Position or origin
+
         for _, entry in ipairs(cachedTargets) do
             if entry.player == targetPlayer then
                 for _, part in ipairs(entry.parts) do
                     if part.Parent then
-                        if hasLineOfSight(origin, part.Position, char) then
-                            targetPosition = part.Position
-                            return
+                        local partPos = part.Position
+                        local rel = partPos - cameraPos
+                        if rel.Magnitude <= Tuning.aimDistance then
+                            if hasLineOfSight(origin, partPos, char) then
+                                targetPosition = partPos
+                                return
+                            end
                         end
                     end
                 end
@@ -323,8 +347,8 @@ local function refreshTargetDropdown()
     if targetDropdown then
         pcall(function()
             targetDropdown:Refresh(list, true)
-            if selectedTarget ~= "Nearby" and not table.find(list, selectedTarget) then
-                selectedTarget = "Nearby"
+            if selectedTargetName ~= "Nearby" and not table.find(list, selectedTargetName) then
+                selectedTargetName = "Nearby"
                 targetDropdown:Set("Nearby")
             end
         end)
@@ -336,7 +360,7 @@ targetDropdown = CombatTab:Dropdown({
     Values = buildTargetList(),
     Value = "Nearby",
     Callback = function(value)
-        selectedTarget = value
+        selectedTargetName = value
     end
 })
 
