@@ -723,171 +723,103 @@ LocalPlayer.CharacterAdded:Connect(function(char)
 end)
 
 local antiBlobmanActive = false
-local antiBlobmanHeartbeat = nil
-local antiBlobmanConnections = {}
-local lastGrabTime = 0
-local burgerSequenceActive = false
+local antiBlobmanTask = nil
+local antiBlobmanRootAttachment = nil
+local antiBlobmanFakeValue = nil
+local antiBlobmanCharacter = nil
 
-local function isBlobmanPart(part)
-    if not part then return false end
-    local current = part
-    while current do
-        if current.Name == "CreatureBlobman" then return true end
-        current = current.Parent
-    end
-    return false
-end
-
-local function isBlobmanWeld(child)
-    if not (child:IsA("Weld") or child:IsA("WeldConstraint") or child:IsA("RigidConstraint") or child:IsA("Motor6D")) then
-        return false
-    end
-    
-    local p0, p1 = getWeldConnectedParts(child)
-    if not p0 or not p1 then return false end
-    
-    local char = LocalPlayer.Character
-    if not char then return false end
-    
-    local aIsChar = p0:IsDescendantOf(char)
-    local bIsChar = p1:IsDescendantOf(char)
-    if not (aIsChar or bIsChar) then return false end
-    
-    local opposite = aIsChar and p1 or p0
-    return isBlobmanPart(opposite)
-end
-
-local function checkIfGrabbed()
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    
-    if hum.PlatformStand then return true end
-    local state = hum:GetState()
-    if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.FallingDown then 
-        return true 
-    end
-    return false
-end
-
-local function triggerBurgerAnti()
-    if burgerSequenceActive then return end
-    burgerSequenceActive = true
-    
-    task.spawn(function()
-        local char = LocalPlayer.Character
-        if not char then burgerSequenceActive = false return end
-        
-        local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-        local spawnRemote = menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
-        
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then burgerSequenceActive = false return end
-        
-        local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-        local burger = toysFolder and toysFolder:FindFirstChild("FoodHamburger")
-        
-        if not burger and spawnRemote then
-            local success, result = pcall(function()
-                return spawnRemote:InvokeServer("FoodHamburger", root.CFrame, Vector3.zero)
-            end)
-            if success and typeof(result) == "Instance" then
-                burger = result
+local function cleanupAntiBlobman()
+    if antiBlobmanRootAttachment then
+        if antiBlobmanRootAttachment.Parent then
+            if antiBlobmanCharacter and antiBlobmanCharacter.Parent then
+                antiBlobmanRootAttachment.Parent = antiBlobmanCharacter
             else
-                task.wait(0.1)
-                toysFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 1)
-                if toysFolder then
-                    burger = toysFolder:WaitForChild("FoodHamburger", 1)
-                end
+                antiBlobmanRootAttachment:Destroy()
             end
         end
-        
-        if burger then
-            local holdPart = burger:WaitForChild("HoldPart", 1)
-            if holdPart then
-                local holdRemote = holdPart:WaitForChild("HoldItemRemoteFunction", 1)
-                if holdRemote then
-                    pcall(function() holdRemote:InvokeServer(burger, char) end)
-                end
-                
-                task.wait(0.25)
-                
-                local dropRemote = holdPart:WaitForChild("DropItemRemoteFunction", 1)
-                if dropRemote then
-                    pcall(function() dropRemote:InvokeServer(burger, root.CFrame, Vector3.zero) end)
-                end
-                
-                task.wait(0.2)
-                if burger and burger.Parent then
-                    local destroyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
-                    if destroyRemote then
-                        pcall(function() destroyRemote:InvokeServer(burger) end)
-                    else
-                        pcall(function() burger:Destroy() end)
-                    end
-                end
-            end
+        antiBlobmanRootAttachment = nil
+    end
+    if antiBlobmanFakeValue then
+        if antiBlobmanFakeValue.Parent then
+            antiBlobmanFakeValue:Destroy()
         end
-        
-        burgerSequenceActive = false
-    end)
+        antiBlobmanFakeValue = nil
+    end
+    antiBlobmanCharacter = nil
 end
 
-local function proBlobmanHeartbeat()
-    if not antiBlobmanActive then return end
-    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+local function runAntiBlobman()
+    while antiBlobmanActive do
+        if not _G.UNDEITEDHUB_WINDOW_VISIBLE then
+            task.wait(0.1)
+            continue
+        end
 
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp or hum.Health <= 0 then return end
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-    local isGrabbed = checkIfGrabbed()
-    local now = tick()
-    
-    if isGrabbed then
-        lastGrabTime = now
-        clearPartOwnersDeep(char)
-        reclaimCharacterOwnership()
-        fireRecovery(char, hum)
-        triggerBurgerAnti()
+        if not char or not hum or not hrp or hum.Health <= 0 then
+            cleanupAntiBlobman()
+            task.wait(0.1)
+            continue
+        end
+
+        if antiBlobmanCharacter ~= char then
+            cleanupAntiBlobman()
+            antiBlobmanCharacter = char
+        end
+
+        if antiBlobmanRootAttachment and not antiBlobmanRootAttachment.Parent then
+            antiBlobmanRootAttachment = nil
+            if antiBlobmanFakeValue and antiBlobmanFakeValue.Parent then
+                antiBlobmanFakeValue:Destroy()
+            end
+            antiBlobmanFakeValue = nil
+        end
+
+        if not antiBlobmanRootAttachment then
+            local found = hrp:FindFirstChild("RootAttachment")
+            if found and found:IsA("Attachment") then
+                task.wait(0.5)
+                if not antiBlobmanActive then
+                    break
+                end
+                if not found.Parent then
+                    task.wait()
+                    continue
+                end
+                antiBlobmanRootAttachment = found
+                found.Parent = ReplicatedStorage
+                antiBlobmanFakeValue = Instance.new("BoolValue")
+                antiBlobmanFakeValue.Name = "RootAttachment"
+                antiBlobmanFakeValue.Parent = hrp
+            end
+        end
+
+        if hrp.Massless then
+            hrp.Massless = false
+        end
+
+        task.wait()
     end
+    cleanupAntiBlobman()
 end
 
 local function ToggleAntiBlobman(state)
     antiBlobmanActive = state
 
     if state then
-        if antiBlobmanHeartbeat then
-            pcall(function() antiBlobmanHeartbeat:Disconnect() end)
-            antiBlobmanHeartbeat = nil
+        if antiBlobmanTask then
+            return
         end
-        antiBlobmanHeartbeat = RunService.Heartbeat:Connect(proBlobmanHeartbeat)
-
-        table.insert(antiBlobmanConnections, Workspace.DescendantAdded:Connect(function(obj)
-            if not antiBlobmanActive then return end
-            if obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("RigidConstraint") or obj:IsA("Motor6D") then
-                if isBlobmanWeld(obj) then
-                    pcall(function() obj:Destroy() end)
-                    local char = LocalPlayer.Character
-                    if char then
-                        local hum = char:FindFirstChildOfClass("Humanoid")
-                        if hum then fireRecovery(char, hum) end
-                    end
-                end
-            end
-        end))
+        antiBlobmanTask = task.spawn(runAntiBlobman)
     else
-        if antiBlobmanHeartbeat then
-            pcall(function() antiBlobmanHeartbeat:Disconnect() end)
-            antiBlobmanHeartbeat = nil
+        if antiBlobmanTask then
+            task.cancel(antiBlobmanTask)
+            antiBlobmanTask = nil
         end
-        for _, conn in ipairs(antiBlobmanConnections) do
-            pcall(function() conn:Disconnect() end)
-        end
-        antiBlobmanConnections = {}
+        cleanupAntiBlobman()
     end
 end
 
