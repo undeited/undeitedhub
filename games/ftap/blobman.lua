@@ -887,28 +887,18 @@ local function bringPlayer(target, dropAfter)
     local setNet = GE and GE:FindFirstChild("SetNetworkOwner")
     local createLine = GE and GE:FindFirstChild("CreateGrabLine")
 
-    local originalCFrame = localRoot.CFrame
+    local pullPos = localRoot.CFrame * CFrame.new(0, 0, -3)
 
-    localRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
-    task.wait(0.25)
-
-    local seated = getSeatedBlobman()
-    for _ = 1, 3 do
-        if seated then break end
-        sitOnBlobman()
-        task.wait(0.25)
-        seated = getSeatedBlobman()
-    end
-    if not seated then
-        localRoot.CFrame = originalCFrame
-        return
-    end
-    blobman = seated
+    pcall(function()
+        targetRoot.CFrame = pullPos
+        targetRoot.AssemblyLinearVelocity = Vector3.zero
+        targetRoot.AssemblyAngularVelocity = Vector3.zero
+    end)
 
     for i = 1, 10 do
         pcall(function()
             if setNet then
-                setNet:FireServer(targetRoot, localRoot.CFrame)
+                setNet:FireServer(targetRoot, pullPos)
             end
         end)
         task.wait(0.01)
@@ -933,14 +923,10 @@ local function bringPlayer(target, dropAfter)
     end
 
     if not success then
-        localRoot.CFrame = originalCFrame
         return
     end
 
-    localRoot.CFrame = originalCFrame
-    task.wait(0.05)
-
-    local currentBlobman = getSeatedBlobman()
+    local currentBlobman = getSeatedBlobman() or blobman
     local handDet
     if currentBlobman then
         if hand == "left" then
@@ -950,7 +936,7 @@ local function bringPlayer(target, dropAfter)
         end
     end
 
-    for i = 1, 25 do
+    for i = 1, 15 do
         if not targetRoot or not targetRoot.Parent or not targetHum.Parent then break end
         if handDet and handDet.Parent then
             pcall(function()
@@ -967,10 +953,8 @@ local function bringPlayer(target, dropAfter)
     end
 
     local finalBlobman = getSeatedBlobman() or blobman
-    if dropAfter then
+    if finalBlobman then
         dropHeldTarget(finalBlobman, hand)
-    else
-        startHeldHover(target, hand)
     end
 end
 
