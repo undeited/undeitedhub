@@ -137,6 +137,20 @@ local function clearPartOwnersDeep(character)
     return found
 end
 
+local function getWeldConnectedParts(weld)
+    if not weld then return nil, nil end
+    if weld:IsA("RigidConstraint") then
+        local a0 = weld.Attachment0
+        local a1 = weld.Attachment1
+        if a0 and a1 then
+            return a0.Parent, a1.Parent
+        end
+        return nil, nil
+    else
+        return weld.Part0, weld.Part1
+    end
+end
+
 -- ANTI FIRE
 
 local antiFireActive = false
@@ -446,8 +460,8 @@ local function isForeignWeld(weld)
         or weld:IsA("ManualWeld")) then
         return false
     end
-    local p0 = weld.Part0
-    local p1 = weld.Part1
+
+    local p0, p1 = getWeldConnectedParts(weld)
     if not p0 or not p1 then return false end
 
     local char = LocalPlayer.Character
@@ -745,14 +759,17 @@ local function isBlobmanWeld(child)
     if not (child:IsA("Weld") or child:IsA("WeldConstraint") or child:IsA("RigidConstraint") or child:IsA("Motor6D")) then
         return false
     end
-    local p0 = child.Part0
-    local p1 = child.Part1
+    
+    local p0, p1 = getWeldConnectedParts(child)
     if not p0 or not p1 then return false end
+    
     local char = LocalPlayer.Character
     if not char then return false end
+    
     local aIsChar = p0:IsDescendantOf(char)
     local bIsChar = p1:IsDescendantOf(char)
     if not (aIsChar or bIsChar) then return false end
+    
     local opposite = aIsChar and p1 or p0
     return isBlobmanPart(opposite)
 end
