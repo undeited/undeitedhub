@@ -6,39 +6,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 MiscTab:Button({
     Title = "Delete All Toys",
     Callback = function()
         pcall(function()
             local player = Players.LocalPlayer
-            if not player then
-                SafeNotify({ Title = "Error", Content = "Local player not found", Duration = 2 })
-                return
-            end
+            if not player then return end
 
             local destroyRemote = ReplicatedStorage:FindFirstChild("MenuToys") and ReplicatedStorage.MenuToys:FindFirstChild("DestroyToy")
 
             local playerFolderName = player.Name .. "SpawnedInToys"
             local playerFolder = Workspace:FindFirstChild(playerFolderName)
-            if not playerFolder then
-                SafeNotify({ Title = "Delete Toys", Content = "No toys found for you.", Duration = 2 })
-                return
-            end
+            if not playerFolder then return end
 
             local toys = {}
             for _, child in ipairs(playerFolder:GetChildren()) do
@@ -47,10 +26,7 @@ MiscTab:Button({
                 end
             end
 
-            if #toys == 0 then
-                SafeNotify({ Title = "Delete Toys", Content = "No toys found in your folder.", Duration = 2 })
-                return
-            end
+            if #toys == 0 then return end
 
             if destroyRemote and destroyRemote:IsA("RemoteEvent") then
                 for _, toy in ipairs(toys) do
@@ -58,14 +34,12 @@ MiscTab:Button({
                         destroyRemote:FireServer(toy)
                     end)
                 end
-                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys via remote.", Duration = 2 })
             else
                 for _, toy in ipairs(toys) do
                     pcall(function()
                         toy:Destroy()
                     end)
                 end
-                SafeNotify({ Title = "Delete Toys", Content = "Deleted " .. #toys .. " of your toys locally.", Duration = 2 })
             end
         end)
     end
