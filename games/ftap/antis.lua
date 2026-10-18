@@ -151,8 +151,6 @@ local function getWeldConnectedParts(weld)
     end
 end
 
--- ANTI FIRE
-
 local antiFireActive = false
 local antiFireTask = nil
 local antiFireConnections = {}
@@ -313,8 +311,6 @@ AntisTab:Toggle({
     end
 })
 
--- ANTI LAG
-
 local antiLagActive = false
 local antiLagTask = nil
 local antiLagConnections = {}
@@ -440,8 +436,6 @@ Players.PlayerAdded:Connect(function(plr)
         if antiLagActive then attachLagWatcher(char) end
     end)
 end)
-
--- ANTI GRAB
 
 local antiGrabActive = false
 local antiGrabHeartbeat = nil
@@ -728,8 +722,6 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     if antiGrabActive then attachAntiGrabToCharacter(char) end
 end)
 
--- ANTI BLOBMAN
-
 local antiBlobmanActive = false
 local antiBlobmanHeartbeat = nil
 local antiBlobmanConnections = {}
@@ -907,8 +899,6 @@ AntisTab:Toggle({
     end
 })
 
--- ANTI VOID
-
 local ANTI_VOID_OFFSET = Vector3.new(0, 3, 0)
 
 local antiVoidActive = false
@@ -1073,6 +1063,372 @@ AntisTab:Toggle({
     end
 })
 
+local antiExplosionActive = false
+local antiExplosionConn = nil
+local antiExplosionHeartbeat = nil
+
+local function onExplosionPartAdded(part)
+    if not antiExplosionActive then return end
+    if not part:IsA("BasePart") or part.Name ~= "Part" then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local distance = (part.Position - hrp.Position).Magnitude
+    if distance > 20 then return end
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hrp.Anchored = true
+        task.wait(0.02)
+        if not hum.SeatPart then hum.Sit = false end
+        for _, limb in ipairs(getCharacterParts(char)) do
+            limb.CanCollide = false
+        end
+        zeroVelocity(hrp)
+        hrp.Anchored = false
+    end
+end
+
+local function ToggleAntiExplosion(state)
+    antiExplosionActive = state
+
+    if state then
+        if antiExplosionConn then antiExplosionConn:Disconnect() end
+        antiExplosionConn = Workspace.ChildAdded:Connect(onExplosionPartAdded)
+    else
+        if antiExplosionConn then
+            antiExplosionConn:Disconnect()
+            antiExplosionConn = nil
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Explosion",
+    Value = false,
+    Callback = function(state)
+        ToggleAntiExplosion(state)
+    end
+})
+
+local antiKickActive = false
+local antiKickTask = nil
+local antiKickShuriken = nil
+local antiKickHighlight = nil
+
+local function getPCLD(player)
+    if not player then return nil end
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj.Name == "PlayerCharacterLocationDetector" and obj:IsA("BasePart") then
+            local attribute = obj:GetAttribute("CurrentlyAssignedTo")
+            if attribute == player.Name then
+                return obj
+            end
+        end
+    end
+    return nil
+end
+
+local function createShuriken(targetPart)
+    if not targetPart then return nil end
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
+    local spawnRemote = menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
+    if not spawnRemote then return nil end
+
+    local cframe = targetPart.CFrame + Vector3.new(0, 15, 0)
+    local success, shuriken = pcall(function()
+        return spawnRemote:InvokeServer("NinjaShuriken", cframe, Vector3.zero)
+    end)
+
+    if not success or not shuriken or not shuriken:IsA("Model") then
+        return nil
+    end
+
+    local stickyPart = shuriken:WaitForChild("StickyPart", 1.5)
+    local stickyWeld = stickyPart and stickyPart:WaitForChild("StickyWeld", 1.5)
+    if not stickyPart or not stickyWeld then
+        shuriken:Destroy()
+        return nil
+    end
+
+    local grabEvent = ReplicatedStorage:FindFirstChild("PlayerEvents")
+    grabEvent = grabEvent and grabEvent:FindFirstChild("StickyPartEvent")
+    if grabEvent then
+        pcall(function()
+            grabEvent:FireServer(stickyPart, targetPart, CFrame.new(0, -0.3, 0) * CFrame.Angles(math.rad(90), 0, 0))
+        end)
+    end
+
+    return shuriken, stickyPart, stickyWeld
+end
+
+local function onAntiKickHeartbeat()
+    if not antiKickActive then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then return end
+
+    local hitbox = hrp:FindFirstChild("RagdollTouchedHitbox")
+    if not hitbox then return end
+
+    if antiKickShuriken and antiKickShuriken.Parent then
+        local stickyWeld = antiKickShuriken:FindFirstChild("StickyPart")
+        stickyWeld = stickyWeld and stickyWeld:FindFirstChild("StickyWeld")
+        if stickyWeld and stickyWeld.Part1 == hitbox then
+            return
+        end
+        antiKickShuriken:Destroy()
+        antiKickShuriken = nil
+    end
+
+    local pcl = getPCLD(LocalPlayer)
+    local targetPart = pcl or hrp
+
+    local shuriken, stickyPart, stickyWeld = createShuriken(targetPart)
+    if shuriken and stickyWeld and stickyWeld.Part1 == hitbox then
+        antiKickShuriken = shuriken
+        antiKickShuriken.Name = "ShurikenRSC"
+
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ShurHighlight"
+        highlight.Adornee = shuriken
+        highlight.Parent = shuriken
+        highlight.FillColor = Color3.new(1, 0, 0)
+        highlight.OutlineColor = Color3.new(1, 1, 1)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        antiKickHighlight = highlight
+
+        for _, child in ipairs(shuriken:GetChildren()) do
+            if child:IsA("BasePart") then
+                child.CanCollide = false
+                child.CanQuery = false
+                child.Transparency = 0.9
+            end
+        end
+    elseif shuriken then
+        shuriken:Destroy()
+    end
+end
+
+local function ToggleAntiKick(state)
+    antiKickActive = state
+
+    if state then
+        if antiKickTask then return end
+        antiKickTask = task.spawn(function()
+            while antiKickActive do
+                onAntiKickHeartbeat()
+                task.wait(0.03)
+            end
+        end)
+    else
+        if antiKickTask then
+            task.cancel(antiKickTask)
+            antiKickTask = nil
+        end
+        if antiKickShuriken then
+            antiKickShuriken:Destroy()
+            antiKickShuriken = nil
+        end
+        if antiKickHighlight then
+            antiKickHighlight:Destroy()
+            antiKickHighlight = nil
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Kick",
+    Value = false,
+    Callback = function(state)
+        ToggleAntiKick(state)
+    end
+})
+
+local antiSnowballActive = false
+local antiSnowballConn = nil
+
+local function onSnowballHit(child)
+    if not antiSnowballActive then return end
+    if not child:IsA("BasePart") or child.Name ~= "SnowRagdollPart" then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+end
+
+local function ToggleAntiSnowball(state)
+    antiSnowballActive = state
+
+    if state then
+        if antiSnowballConn then antiSnowballConn:Disconnect() end
+        antiSnowballConn = Workspace.DescendantAdded:Connect(onSnowballHit)
+    else
+        if antiSnowballConn then
+            antiSnowballConn:Disconnect()
+            antiSnowballConn = nil
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Snowball",
+    Value = false,
+    Callback = function(state)
+        ToggleAntiSnowball(state)
+    end
+})
+
+local antiBananaActive = false
+local antiBananaTask = nil
+
+local function onAntiBananaHeartbeat()
+    if not antiBananaActive then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then return end
+
+    local rightLeg = char:FindFirstChild("Right Leg")
+    if not rightLeg then return end
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj.Name == "HitboxPart" and obj:IsA("BasePart") then
+            local banana = obj.Parent
+            if banana and banana.Name == "FoodBanana" then
+                local main = banana:FindFirstChild("Main")
+                if main and (main.Position - rightLeg.Position).Magnitude < 5 then
+                    main.CFrame = CFrame.new(0, -1000, 0)
+                    banana:Destroy()
+                end
+            end
+        end
+    end
+end
+
+local function ToggleAntiBanana(state)
+    antiBananaActive = state
+
+    if state then
+        if antiBananaTask then return end
+        antiBananaTask = task.spawn(function()
+            while antiBananaActive do
+                onAntiBananaHeartbeat()
+                task.wait(0.1)
+            end
+        end)
+    else
+        if antiBananaTask then
+            task.cancel(antiBananaTask)
+            antiBananaTask = nil
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Banana",
+    Value = false,
+    Callback = function(state)
+        ToggleAntiBanana(state)
+    end
+})
+
+local antiPaintActive = false
+local antiPaintConn = nil
+
+local function disablePaintPart(part)
+    if not antiPaintActive then return end
+    if part:IsA("BasePart") and part.Name == "PaintPlayerPart" then
+        part.CanTouch = false
+    end
+end
+
+local function ToggleAntiPaint(state)
+    antiPaintActive = state
+
+    if state then
+        for _, part in ipairs(Workspace:GetDescendants()) do
+            disablePaintPart(part)
+        end
+
+        if antiPaintConn then antiPaintConn:Disconnect() end
+        antiPaintConn = Workspace.DescendantAdded:Connect(disablePaintPart)
+    else
+        if antiPaintConn then
+            antiPaintConn:Disconnect()
+            antiPaintConn = nil
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Paint",
+    Value = false,
+    Callback = function(state)
+        ToggleAntiPaint(state)
+    end
+})
+
+local antiPoisonActive = false
+local antiPoisonConn = nil
+
+local function disablePoisonPart(part)
+    if not antiPoisonActive then return end
+    if part:IsA("BasePart") and (part.Name == "PoisonHurtPart" or part.Name == "PaintPlayerPart") then
+        part.CanTouch = false
+    end
+end
+
+local function ToggleAntiPoison(state)
+    antiPoisonActive = state
+
+    if state then
+        local hole = Workspace:FindFirstChild("Map")
+        hole = hole and hole:FindFirstChild("Hole")
+        if hole then
+            local poisonBig = hole:FindFirstChild("PoisonBigHole")
+            local poisonSmall = hole:FindFirstChild("PoisonSmallHole")
+            if poisonBig then disablePoisonPart(poisonBig) end
+            if poisonSmall then disablePoisonPart(poisonSmall) end
+        end
+
+        if antiPoisonConn then antiPoisonConn:Disconnect() end
+        antiPoisonConn = Workspace.DescendantAdded:Connect(disablePoisonPart)
+    else
+        if antiPoisonConn then
+            antiPoisonConn:Disconnect()
+            antiPoisonConn = nil
+        end
+    end
+end
+
+AntisTab:Toggle({
+    Title = "Anti Poison",
+    Value = false,
+    Callback = function(state)
+        ToggleAntiPoison(state)
+    end
+})
+
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if antiFireActive then ToggleAntiFire(false) end
@@ -1080,5 +1436,11 @@ undeitedhub.DisableAll = function()
     if antiGrabActive then ToggleAntiGrab(false) end
     if antiBlobmanActive then ToggleAntiBlobman(false) end
     if antiVoidActive then ToggleAntiVoid(false) end
+    if antiExplosionActive then ToggleAntiExplosion(false) end
+    if antiKickActive then ToggleAntiKick(false) end
+    if antiSnowballActive then ToggleAntiSnowball(false) end
+    if antiBananaActive then ToggleAntiBanana(false) end
+    if antiPaintActive then ToggleAntiPaint(false) end
+    if antiPoisonActive then ToggleAntiPoison(false) end
     oldDisable()
 end
