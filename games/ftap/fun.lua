@@ -5,13 +5,20 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
+
 local LocalPlayer = Players.LocalPlayer
 
-local MAX_SPARKLERS_FALLBACK = 4
-local SPARKLER_SPAWN_TIMEOUT = 0.6
-local SPARKLER_SPAWN_INTERVAL = 0.05
-local DETECTION_CONSECUTIVE_FAILURES = 3
-local DETECTION_HARD_CAP = 200
+local MAX_SPARKLERS = 5
+
+task.spawn(function()
+    local success, owns = pcall(function()
+        return MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 39635504)
+    end)
+    if success and owns then
+        MAX_SPARKLERS = 10
+    end
+end)
 
 local sparklerEnabled = false
 local orbitTask = nil
@@ -20,26 +27,6 @@ local activeSparklers = {}
 local orbitAngle = 0
 local lastSpawnTime = 0
 local stuckTimers = {}
-local detectedMaxSparklers = nil
-local detectionInProgress = false
-
-local function getToysFolder(waitTime)
-    local folder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-    if folder or not waitTime then return folder end
-    return Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", waitTime)
-end
-
-local function countExistingSparklers()
-    local folder = getToysFolder()
-    if not folder then return 0 end
-    local count = 0
-    for _, child in ipairs(folder:GetChildren()) do
-        if child.Name == "FireworkSparkler" then
-            count = count + 1
-        end
-    end
-    return count
-end
 
 local function isPlayerInPlot()
     local char = LocalPlayer.Character
@@ -71,7 +58,7 @@ local function spawnSparkler()
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-
+    
     local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
     if not menuToys then return end
     local spawnRemote = menuToys:FindFirstChild("SpawnToyRemoteFunction")
@@ -86,7 +73,7 @@ local function destroySparkler(sparkler)
     if not sparkler then return end
     local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
     local destroyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
-
+    
     if destroyRemote then
         pcall(function() destroyRemote:InvokeServer(sparkler) end)
     end
@@ -102,93 +89,9 @@ local function clearAllSparklers()
     stuckTimers = {}
 end
 
-local function trySpawnSparkler()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return nil end
-
-    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-    local spawnRemote = menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
-    if not spawnRemote then return nil end
-
-    local folder = getToysFolder()
-    if not folder then return nil end
-
-    local existing = {}
-    for _, child in ipairs(folder:GetChildren()) do
-        if child.Name == "FireworkSparkler" then
-            existing[child] = true
-        end
-    end
-
-    pcall(function()
-        spawnRemote:InvokeServer("FireworkSparkler", root.CFrame, Vector3.new(0, 108.14399719238281, 0))
-    end)
-
-    local startTime = tick()
-    while tick() - startTime < SPARKLER_SPAWN_TIMEOUT do
-        task.wait(SPARKLER_SPAWN_INTERVAL)
-        local currentFolder = getToysFolder()
-        if currentFolder then
-            for _, child in ipairs(currentFolder:GetChildren()) do
-                if child.Name == "FireworkSparkler" and not existing[child] then
-                    return child
-                end
-            end
-        end
-    end
-
-    return nil
-end
-
-local function detectMaxSparklers()
-    if detectionInProgress then
-        return detectedMaxSparklers or MAX_SPARKLERS_FALLBACK
-    end
-    detectionInProgress = true
-
-    local folder = getToysFolder(2)
-    if not folder then
-        detectionInProgress = false
-        detectedMaxSparklers = MAX_SPARKLERS_FALLBACK
-        return detectedMaxSparklers
-    end
-
-    task.wait(0.3)
-
-    local testSparklers = {}
-    local spawned = 0
-    local consecutiveFails = 0
-
-    while spawned < DETECTION_HARD_CAP and consecutiveFails < DETECTION_CONSECUTIVE_FAILURES do
-        if not sparklerEnabled then break end
-        local sparkler = trySpawnSparkler()
-        if sparkler then
-            spawned = spawned + 1
-            consecutiveFails = 0
-            table.insert(testSparklers, sparkler)
-        else
-            consecutiveFails = consecutiveFails + 1
-        end
-    end
-
-    for _, sp in ipairs(testSparklers) do
-        destroySparkler(sp)
-    end
-
-    detectionInProgress = false
-    if spawned <= 0 then
-        detectedMaxSparklers = 1
-    else
-        detectedMaxSparklers = spawned
-    end
-    return detectedMaxSparklers
-end
-
-local function syncSparklers(maxCount)
+local function syncSparklers()
     if not sparklerEnabled then return end
-
+    
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not char or not hum or hum.Health <= 0 then return end
@@ -198,7 +101,7 @@ local function syncSparklers(maxCount)
         return
     end
 
-    local toysFolder = getToysFolder()
+    local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
     if not toysFolder then
         activeSparklers = {}
         if tick() - lastSpawnTime > 1 then
@@ -224,7 +127,7 @@ local function syncSparklers(maxCount)
     end
 
     for sparkler in pairs(currentSparklers) do
-        if #activeSparklers < maxCount then
+        if #activeSparklers < MAX_SPARKLERS then
             local found = false
             for _, sp in ipairs(activeSparklers) do
                 if sp == sparkler then
@@ -243,7 +146,7 @@ local function syncSparklers(maxCount)
         end
     end
 
-    local missing = maxCount - #activeSparklers
+    local missing = MAX_SPARKLERS - #activeSparklers
     if missing > 0 and tick() - lastSpawnTime > 0.5 then
         lastSpawnTime = tick()
         for i = 1, missing do
@@ -258,14 +161,10 @@ local function startSparklers()
     stuckTimers = {}
     orbitAngle = 0
     lastSpawnTime = 0
-
-    local maxCount = detectMaxSparklers()
-    if not sparklerEnabled then return end
-    if not maxCount or maxCount <= 0 then maxCount = 1 end
-
+    
     syncTask = task.spawn(function()
         while sparklerEnabled do
-            syncSparklers(maxCount)
+            syncSparklers()
             task.wait(0.2)
         end
     end)
@@ -291,7 +190,7 @@ local function startSparklers()
             local sparkler = activeSparklers[i]
             if sparkler and sparkler.Parent then
                 local base = sparkler:FindFirstChild("Base")
-
+                
                 if base then
                     base.CanCollide = false
                     if base.Anchored then base.Anchored = false end
@@ -299,13 +198,13 @@ local function startSparklers()
                     local offsetAngle = orbitAngle + (i * (math.pi * 2 / count))
                     local offsetX = math.cos(offsetAngle) * radius
                     local offsetZ = math.sin(offsetAngle) * radius
-
+                    
                     local targetPos = root.Position + Vector3.new(offsetX, 2, offsetZ)
                     local lookDir = Vector3.new(offsetX, 0, offsetZ).Unit
                     local targetCFrame = CFrame.lookAt(targetPos, targetPos + lookDir)
 
                     base.CFrame = targetCFrame
-
+                    
                     base.AssemblyLinearVelocity = Vector3.zero
                     base.AssemblyAngularVelocity = Vector3.zero
                     base.Velocity = Vector3.zero
@@ -369,7 +268,7 @@ local function onCharacterAdded(char)
             end
         end)
     end
-
+    
     if sparklerEnabled then
         lastSpawnTime = 0
     end
