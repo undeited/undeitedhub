@@ -16,7 +16,6 @@ local activeSparklers = {}
 local orbitAngle = 0
 local lastSpawnTime = 0
 local stuckTimers = {}
-local lastCharacter = nil
 
 local function isPlayerInPlot()
     local char = LocalPlayer.Character
@@ -72,13 +71,8 @@ local function destroySparkler(sparkler)
 end
 
 local function clearAllSparklers()
-    local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-    if toysFolder then
-        for _, child in ipairs(toysFolder:GetChildren()) do
-            if child.Name == "FireworkSparkler" then
-                destroySparkler(child)
-            end
-        end
+    for _, sparkler in ipairs(activeSparklers) do
+        destroySparkler(sparkler)
     end
     activeSparklers = {}
     stuckTimers = {}
@@ -87,9 +81,12 @@ end
 local function syncSparklers()
     if not sparklerEnabled then return end
     
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not char or not hum or hum.Health <= 0 then return end
+
     if isPlayerInPlot() then
-        activeSparklers = {}
-        stuckTimers = {}
+        clearAllSparklers()
         return
     end
 
@@ -153,7 +150,6 @@ local function startSparklers()
     stuckTimers = {}
     orbitAngle = 0
     lastSpawnTime = 0
-    lastCharacter = LocalPlayer.Character
     
     syncTask = task.spawn(function()
         while sparklerEnabled do
@@ -167,7 +163,9 @@ local function startSparklers()
         if isPlayerInPlot() then return end
 
         local char = LocalPlayer.Character
-        if not char then return end
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not char or not hum or hum.Health <= 0 then return end
+
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
@@ -233,30 +231,6 @@ local function stopSparklers()
     clearAllSparklers()
 end
 
--- Death / Respawn Handler
-LocalPlayer.CharacterAdded:Connect(function(newChar)
-    if not sparklerEnabled then return end
-    
-    -- Wait for the new character to load in
-    task.wait(1.5)
-    
-    if not sparklerEnabled then return end
-    
-    -- Clear any old/dead sparklers
-    clearAllSparklers()
-    
-    -- Wait for the new HumanoidRootPart
-    local root = newChar:WaitForChild("HumanoidRootPart", 5)
-    if root then
-        lastCharacter = newChar
-        lastSpawnTime = tick()
-        -- Spawn fresh sparklers around the new body
-        for i = 1, MAX_SPARKLERS do
-            spawnSparkler()
-        end
-    end
-end)
-
 FunTab:Toggle({
     Title = "Sparkler Madness",
     Value = sparklerEnabled,
@@ -268,6 +242,26 @@ FunTab:Toggle({
         end
     end
 })
+
+local function onCharacterAdded(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if hum then
+        hum.Died:Connect(function()
+            if sparklerEnabled then
+                clearAllSparklers()
+            end
+        end)
+    end
+    
+    if sparklerEnabled then
+        lastSpawnTime = 0
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+if LocalPlayer.Character then
+    onCharacterAdded(LocalPlayer.Character)
+end
 
 undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
 local oldDisable = undeitedhub.DisableAll
