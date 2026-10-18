@@ -36,6 +36,13 @@ local function CheckExecutor()
     if not (type(loadstring) == "function" or type(load) == "function") then table.insert(missing, "loadstring/load") end
     if not (game and (type(game.HttpGet) == "function" or type(game.HttpGetAsync) == "function")) then table.insert(missing, "game:HttpGet or game:HttpGetAsync") end
     if #missing > 0 then
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Executor Incompatible",
+                Text = "Missing executor support: " .. table.concat(missing, ", "),
+                Duration = 5,
+            })
+        end)
         return false
     end
     return true
