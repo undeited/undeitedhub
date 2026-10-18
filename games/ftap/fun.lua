@@ -15,6 +15,7 @@ local syncTask = nil
 local activeSparklers = {}
 local orbitAngle = 0
 local lastSpawnTime = 0
+local stuckTimers = {}
 
 local function isPlayerInPlot()
     local char = LocalPlayer.Character
@@ -57,19 +58,30 @@ local function spawnSparkler()
     end
 end
 
+local function destroySparkler(sparkler)
+    if not sparkler then return end
+    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
+    local destroyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
+    
+    if destroyRemote then
+        pcall(function() destroyRemote:InvokeServer(sparkler) end)
+    end
+    pcall(function() sparkler:Destroy() end)
+    stuckTimers[sparkler] = nil
+end
+
 local function syncSparklers()
     if not sparklerEnabled then return end
     
-    -- If in a plot, clear the active list so we don't orbit them
     if isPlayerInPlot() then
         activeSparklers = {}
+        stuckTimers = {}
         return
     end
 
     local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
     if not toysFolder then
         activeSparklers = {}
-        -- Spawn immediately if folder doesn't exist (no toys spawned yet)
         if tick() - lastSpawnTime > 1 then
             lastSpawnTime = tick()
             spawnSparkler()
@@ -84,15 +96,16 @@ local function syncSparklers()
         end
     end
 
-    -- 1. Remove destroyed sparklers from active list
+    -- Remove invalid sparklers from active list
     for i = #activeSparklers, 1, -1 do
         local sp = activeSparklers[i]
         if not currentSparklers[sp] or not sp.Parent then
             table.remove(activeSparklers, i)
+            stuckTimers[sp] = nil
         end
     end
 
-    -- 2. Add newly spawned sparklers to active list
+    -- Add newly spawned sparklers
     for sparkler in pairs(currentSparklers) do
         if #activeSparklers < MAX_SPARKLERS then
             local found = false
@@ -115,7 +128,7 @@ local function syncSparklers()
         end
     end
 
-    -- 3. Auto-spawn missing sparklers if they were deleted
+    -- Auto-spawn missing sparklers
     local missing = MAX_SPARKLERS - #activeSparklers
     if missing > 0 and tick() - lastSpawnTime > 0.5 then
         lastSpawnTime = tick()
@@ -128,10 +141,10 @@ end
 local function startSparklers()
     sparklerEnabled = true
     activeSparklers = {}
+    stuckTimers = {}
     orbitAngle = 0
     lastSpawnTime = 0
     
-    -- Run sync loop fast (every 0.2s) to instantly catch deletions
     syncTask = task.spawn(function()
         while sparklerEnabled do
             syncSparklers()
@@ -139,7 +152,6 @@ local function startSparklers()
         end
     end)
 
-    -- Orbit loop
     orbitTask = RunService.Heartbeat:Connect(function(dt)
         if not sparklerEnabled then return end
         if isPlayerInPlot() then return end
@@ -155,8 +167,17 @@ local function startSparklers()
         orbitAngle = orbitAngle + 3 * dt
         local radius = 5
 
-        for i, sparkler in ipairs(activeSparklers) do
+        -- Iterate backwards so we can safely remove elements
+        for i = #activeSparklers, 1, -1 do
+            local sparkler = activeSparklers[i]
             if sparkler and sparkler.Parent then
+                local base = sparkler:FindFirstChild("Base")
+                
+                -- Force unanchor just in case the game anchored it
+                if base and base.Anchored then
+                    base.Anchored = false
+                end
+
                 local offsetAngle = orbitAngle + (i * (math.pi * 2 / count))
                 local offsetX = math.cos(offsetAngle) * radius
                 local offsetZ = math.sin(offsetAngle) * radius
@@ -167,6 +188,22 @@ local function startSparklers()
                 pcall(function()
                     sparkler:PivotTo(CFrame.lookAt(targetPos, targetPos + lookDir))
                 end)
+
+                -- Stuck Detection
+                local currentPos = sparkler:GetPivot().Position
+                if (currentPos - targetPos).Magnitude > 4 then
+                    stuckTimers[sparkler] = (stuckTimers[sparkler] or 0) + 1
+                    
+                    -- If stuck for ~15 frames (roughly 0.25 seconds), delete it
+                    if stuckTimers[sparkler] > 15 then
+                        destroySparkler(sparkler)
+                        table.remove(activeSparklers, i)
+                    end
+                else
+                    stuckTimers[sparkler] = 0
+                end
+            else
+                table.remove(activeSparklers, i)
             end
         end
     end)
@@ -183,6 +220,7 @@ local function stopSparklers()
         syncTask = nil
     end
     activeSparklers = {}
+    stuckTimers = {}
 end
 
 FunTab:Toggle({
