@@ -738,13 +738,13 @@ if undeitedhub.Toggles.antiGrab then
     ToggleAntiGrab(true)
 end
 
--- PRO ANTI BLOBMAN
+-- REACTIVE ANTI BLOBMAN (Burger Anti)
 
 local antiBlobmanActive = false
 local antiBlobmanHeartbeat = nil
 local antiBlobmanConnections = {}
-local currentBurger = nil
-local isSpawningBurger = false
+local lastGrabTime = 0
+local burgerSequenceActive = false
 
 local function isBlobmanPart(part)
     if not part then return false end
@@ -784,63 +784,76 @@ local function breakBlobmanWeldsOn(character)
     return count
 end
 
-local function spawnBurger()
-    if isSpawningBurger then return end
+local function checkIfGrabbed()
     local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-    if not menuToys then return end
-    local spawnRemote = menuToys:FindFirstChild("SpawnToyRemoteFunction")
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
     
-    if spawnRemote then
-        isSpawningBurger = true
-        pcall(function()
-            spawnRemote:InvokeServer("FoodHamburger", root.CFrame, Vector3.zero)
-        end)
-        task.delay(0.1, function() isSpawningBurger = false end)
+    if hum.PlatformStand then return true end
+    local state = hum:GetState()
+    if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.FallingDown then 
+        return true 
     end
+    
+    for _, d in ipairs(char:GetDescendants()) do
+        if isBlobmanWeld(d) then return true end
+    end
+    
+    return false
 end
 
-local function holdBurger()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-    if not toysFolder then return end
+local function triggerBurgerAnti()
+    if burgerSequenceActive then return end
+    burgerSequenceActive = true
     
-    local burger = toysFolder:FindFirstChild("FoodHamburger")
-    if not burger then return end
-    currentBurger = burger
-    
-    local holdPart = burger:FindFirstChild("HoldPart")
-    if not holdPart then return end
-    
-    local holdRemote = holdPart:FindFirstChild("HoldItemRemoteFunction")
-    if holdRemote then
-        pcall(function()
-            holdRemote:InvokeServer(burger, char)
-        end)
-    end
-end
-
-local function dropBurger()
-    if not currentBurger or not currentBurger.Parent then return end
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    
-    local holdPart = currentBurger:FindFirstChild("HoldPart")
-    if not holdPart then return end
-    
-    local dropRemote = holdPart:FindFirstChild("DropItemRemoteFunction")
-    if dropRemote then
-        pcall(function()
-            dropRemote:InvokeServer(currentBurger, root.CFrame, Vector3.zero)
-        end)
-    end
-    currentBurger = nil
+    task.spawn(function()
+        local char = LocalPlayer.Character
+        if not char then burgerSequenceActive = false return end
+        
+        local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
+        local spawnRemote = menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
+        
+        local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+        local burger = toysFolder and toysFolder:FindFirstChild("FoodHamburger")
+        
+        if not burger and spawnRemote then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                pcall(function() spawnRemote:InvokeServer("FoodHamburger", root.CFrame, Vector3.zero) end)
+                task.wait(0.05)
+                toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+                burger = toysFolder and toysFolder:FindFirstChild("FoodHamburger")
+            end
+        end
+        
+        if burger then
+            local holdPart = burger:FindFirstChild("HoldPart")
+            local holdRemote = holdPart and holdPart:FindFirstChild("HoldItemRemoteFunction")
+            if holdRemote then
+                pcall(function() holdRemote:InvokeServer(burger, char) end)
+            end
+            task.wait(0.05)
+            
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local dropRemote = holdPart and holdPart:FindFirstChild("DropItemRemoteFunction")
+            if dropRemote and root then
+                pcall(function() dropRemote:InvokeServer(burger, root.CFrame, Vector3.zero) end)
+            end
+            
+            task.wait(0.5)
+            if burger and burger.Parent then
+                local destroyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
+                if destroyRemote then
+                    pcall(function() destroyRemote:InvokeServer(burger) end)
+                else
+                    pcall(function() burger:Destroy() end)
+                end
+            end
+        end
+        
+        burgerSequenceActive = false
+    end)
 end
 
 local function proBlobmanHeartbeat()
@@ -853,37 +866,18 @@ local function proBlobmanHeartbeat()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hum or not hrp or hum.Health <= 0 then return end
 
-    local broken = breakBlobmanWeldsOn(char)
-    local cleared = clearPartOwnersDeep(char)
-    local isGrabbed = hum.PlatformStand or hum:GetState() == Enum.HumanoidStateType.Ragdoll or hum:GetState() == Enum.HumanoidStateType.Physics
-
-    if broken > 0 or cleared or isGrabbed then
+    local isGrabbed = checkIfGrabbed()
+    local now = tick()
+    
+    if isGrabbed then
+        lastGrabTime = now
+        breakBlobmanWeldsOn(char)
+        clearPartOwnersDeep(char)
         fireRecovery(char, hum)
-        if isGrabbed then
-            dropBurger()
-        end
-    end
-
-    if not currentBurger or not currentBurger.Parent then
-        local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-        local burger = toysFolder and toysFolder:FindFirstChild("FoodHamburger")
-        if not burger then
-            spawnBurger()
-        else
-            holdBurger()
-        end
-    else
-        local holdPart = currentBurger:FindFirstChild("HoldPart")
-        if not holdPart or not holdPart:FindFirstChild("Weld") then
-            holdBurger()
-        end
-        
-        if (currentBurger.Position - hrp.Position).Magnitude > 5 then
-            pcall(function()
-                currentBurger:PivotTo(hrp.CFrame)
-                currentBurger.AssemblyLinearVelocity = Vector3.zero
-            end)
-        end
+        triggerBurgerAnti()
+    elseif now - lastGrabTime < 2.0 then
+        breakBlobmanWeldsOn(char)
+        clearPartOwnersDeep(char)
     end
 end
 
@@ -910,14 +904,6 @@ local function ToggleAntiBlobman(state)
                 end
             end
         end))
-        
-        task.spawn(function()
-            local char = LocalPlayer.Character
-            if char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then fireRecovery(char, hum) end
-            end
-        end)
     else
         if antiBlobmanHeartbeat then
             pcall(function() antiBlobmanHeartbeat:Disconnect() end)
@@ -927,7 +913,6 @@ local function ToggleAntiBlobman(state)
             pcall(function() conn:Disconnect() end)
         end
         antiBlobmanConnections = {}
-        dropBurger()
     end
 end
 
