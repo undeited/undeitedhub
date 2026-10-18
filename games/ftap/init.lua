@@ -92,7 +92,8 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
-Window:SetToggleKey(Enum.KeyCode.K)
+local toggleKey = config.toggleKey or "Z"
+Window:SetToggleKey(Enum.KeyCode[toggleKey])
 
 undeitedhub.Window = Window
 
