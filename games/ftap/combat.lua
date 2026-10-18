@@ -422,12 +422,3 @@ undeitedhub.DisableAll = function()
     stopUpdateLoop()
     oldDisable()
 end
-
-if silentAimEnabled then
-    task.spawn(function()
-        task.wait(0.5)
-        setupHook()
-        markTargetsDirty()
-        startUpdateLoop()
-    end)
-end
