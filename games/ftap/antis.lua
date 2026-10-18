@@ -296,13 +296,8 @@ AntisTab:Toggle({
     Value = false,
     Callback = function(state)
         ToggleAntiFire(state)
-        undeitedhub.Toggles.antiFire = state
     end
 })
-
-if undeitedhub.Toggles.antiFire then
-    ToggleAntiFire(true)
-end
 
 -- ANTI LAG
 
@@ -421,7 +416,6 @@ AntisTab:Toggle({
     Value = false,
     Callback = function(state)
         ToggleAntiLag(state)
-        undeitedhub.Toggles.antiLag = state
     end
 })
 
@@ -432,10 +426,6 @@ Players.PlayerAdded:Connect(function(plr)
         if antiLagActive then attachLagWatcher(char) end
     end)
 end)
-
-if undeitedhub.Toggles.antiLag then
-    ToggleAntiLag(true)
-end
 
 -- ANTI GRAB
 
@@ -725,7 +715,6 @@ AntisTab:Toggle({
     Value = false,
     Callback = function(state)
         ToggleAntiGrab(state)
-        undeitedhub.Toggles.antiGrab = state
     end
 })
 
@@ -734,11 +723,7 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     if antiGrabActive then attachAntiGrabToCharacter(char) end
 end)
 
-if undeitedhub.Toggles.antiGrab then
-    ToggleAntiGrab(true)
-end
-
--- REACTIVE ANTI BLOBMAN (Burger Anti)
+-- REACTIVE ANTI BLOBMAN
 
 local antiBlobmanActive = false
 local antiBlobmanHeartbeat = nil
@@ -921,13 +906,8 @@ AntisTab:Toggle({
     Value = false,
     Callback = function(state)
         ToggleAntiBlobman(state)
-        undeitedhub.Toggles.antiBlobman = state
     end
 })
-
-if undeitedhub.Toggles.antiBlobman then
-    ToggleAntiBlobman(true)
-end
 
 -- ANTI VOID
 
@@ -1089,16 +1069,11 @@ end
 
 AntisTab:Toggle({
     Title = "Anti Void",
-    Value = antiVoidActive,
+    Value = false,
     Callback = function(state)
         ToggleAntiVoid(state)
-        undeitedhub.Toggles.antiVoid = state
     end
 })
-
-if undeitedhub.Toggles.antiVoid then
-    ToggleAntiVoid(true)
-end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
