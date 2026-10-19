@@ -290,10 +290,94 @@ MiscTab:Toggle({
 
 if autoLiftEnabled then startAutoLift() end
 
+local autoConsumeEnabled = undeitedhub.Toggles.AutoConsume or false
+local autoConsumeTask = nil
+local CONSUME_WAIT = 0.2
+local CONSUME_AMOUNT = 10
+local CONSUME_LOOP_INTERVAL = 0.5
+
+local function getConsumablesFolder()
+    return LocalPlayer:FindFirstChild("consumablesFolder")
+end
+
+local function getConsumeEvent()
+    local rEvents = ReplicatedStorage:FindFirstChild("rEvents")
+    return rEvents and rEvents:FindFirstChild("consumeBoostEvent")
+end
+
+local function consumeAllOnce()
+    local folder = getConsumablesFolder()
+    local event = getConsumeEvent()
+    if not folder or not event then return false end
+
+    local groups = {}
+    local order = {}
+
+    for _, item in ipairs(folder:GetChildren()) do
+        if not groups[item.Name] then
+            groups[item.Name] = { items = {}, count = 0 }
+            table.insert(order, item.Name)
+        end
+        local g = groups[item.Name]
+        g.count = g.count + 1
+        table.insert(g.items, item)
+    end
+
+    for _, name in ipairs(order) do
+        for _, instance in ipairs(groups[name].items) do
+            if not autoConsumeEnabled then return true end
+            if not instance or not instance.Parent then continue end
+            pcall(function()
+                event:FireServer(instance, CONSUME_AMOUNT)
+            end)
+            task.wait(CONSUME_WAIT)
+        end
+    end
+    return true
+end
+
+local function startAutoConsume()
+    if autoConsumeTask then return end
+    autoConsumeEnabled = true
+    undeitedhub.Toggles.AutoConsume = true
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+
+    autoConsumeTask = task.spawn(function()
+        while autoConsumeEnabled do
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+                pcall(consumeAllOnce)
+            end
+            task.wait(CONSUME_LOOP_INTERVAL)
+        end
+        autoConsumeTask = nil
+    end)
+end
+
+local function stopAutoConsume()
+    autoConsumeEnabled = false
+    undeitedhub.Toggles.AutoConsume = false
+    if autoConsumeTask then
+        task.cancel(autoConsumeTask)
+        autoConsumeTask = nil
+    end
+    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+end
+
+MiscTab:Toggle({
+    Title = "Auto Consumables",
+    Value = autoConsumeEnabled,
+    Callback = function(state)
+        if state then startAutoConsume() else stopAutoConsume() end
+    end
+})
+
+if autoConsumeEnabled then startAutoConsume() end
+
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
     if autoSpinEnabled then stopAutoSpin() end
     if autoGiftEnabled then stopAutoGift() end
     if autoLiftEnabled then stopAutoLift() end
+    if autoConsumeEnabled then stopAutoConsume() end
     oldDisable()
 end
