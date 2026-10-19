@@ -295,6 +295,8 @@ local autoConsumeTask = nil
 local CONSUME_WAIT = 0.2
 local CONSUME_AMOUNT = 10
 local CONSUME_LOOP_INTERVAL = 0.5
+local CONSUME_ITEM_COOLDOWN = 2.5
+local consumeRequestedAt = {}
 
 local function getConsumablesFolder()
     return LocalPlayer:FindFirstChild("consumablesFolder")
@@ -305,10 +307,28 @@ local function getConsumeEvent()
     return rEvents and rEvents:FindFirstChild("consumeBoostEvent")
 end
 
+local function pruneConsumeTracking()
+    for instance in pairs(consumeRequestedAt) do
+        if not instance or not instance.Parent then
+            consumeRequestedAt[instance] = nil
+        end
+    end
+end
+
+local function hasConsumables()
+    local folder = getConsumablesFolder()
+    if not folder then return false end
+    return #folder:GetChildren() > 0
+end
+
 local function consumeAllOnce()
+    if not hasConsumables() then return false end
+
     local folder = getConsumablesFolder()
     local event = getConsumeEvent()
     if not folder or not event then return false end
+
+    pruneConsumeTracking()
 
     local groups = {}
     local order = {}
@@ -327,6 +347,12 @@ local function consumeAllOnce()
         for _, instance in ipairs(groups[name].items) do
             if not autoConsumeEnabled then return true end
             if not instance or not instance.Parent then continue end
+            local now = tick()
+            local last = consumeRequestedAt[instance]
+            if last and (now - last) < CONSUME_ITEM_COOLDOWN then
+                continue
+            end
+            consumeRequestedAt[instance] = now
             pcall(function()
                 event:FireServer(instance, CONSUME_AMOUNT)
             end)
@@ -340,11 +366,12 @@ local function startAutoConsume()
     if autoConsumeTask then return end
     autoConsumeEnabled = true
     undeitedhub.Toggles.AutoConsume = true
+    consumeRequestedAt = {}
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     autoConsumeTask = task.spawn(function()
         while autoConsumeEnabled do
-            if _G.UNDEITEDHUB_WINDOW_VISIBLE then
+            if _G.UNDEITEDHUB_WINDOW_VISIBLE and hasConsumables() then
                 pcall(consumeAllOnce)
             end
             task.wait(CONSUME_LOOP_INTERVAL)
@@ -360,6 +387,7 @@ local function stopAutoConsume()
         task.cancel(autoConsumeTask)
         autoConsumeTask = nil
     end
+    consumeRequestedAt = {}
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
