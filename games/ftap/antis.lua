@@ -1051,12 +1051,24 @@ local antiKickTask = nil
 local antiKickShuriken = nil
 local antiKickHighlight = nil
 
-local function getPCLD(player)
-    if not player then return nil end
-    for _, obj in ipairs(Workspace:GetDescendants()) do
+local AntiKickSettings = {
+    Highlight = false,
+    HighlightFill = Color3.new(1, 0, 0),
+    HighlightOutl = Color3.new(1, 1, 1),
+    HighlightFT = 0.5,
+    HighlightOT = 0,
+    Transparency = 0.9,
+}
+
+local function isWaitingPCLD(part)
+    return part and part.Position == Vector3.zero
+end
+
+local function findPCLDForLocal()
+    for _, obj in ipairs(Workspace:GetChildren()) do
         if obj.Name == "PlayerCharacterLocationDetector" and obj:IsA("BasePart") then
-            local attribute = obj:GetAttribute("CurrentlyAssignedTo")
-            if attribute == player.Name then
+            local attr = obj:GetAttribute("CurrentlyAssignedTo")
+            if attr == LocalPlayer.Name and not isWaitingPCLD(obj) then
                 return obj
             end
         end
@@ -1064,45 +1076,145 @@ local function getPCLD(player)
     return nil
 end
 
-local function createShuriken(targetPart)
-    if not targetPart then return nil end
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return nil end
+local function findPCLDWithTimeout()
+    local deadline = os.clock() + 0.35
+    repeat
+        local pcl = findPCLDForLocal()
+        if pcl and pcl.Parent and not isWaitingPCLD(pcl) then
+            return pcl
+        end
+        task.wait(0.05)
+    until not antiKickActive or os.clock() >= deadline
+    return nil
+end
 
+local function isPartOwner(part)
+    if not part or not part:IsA("BasePart") then return false end
+    local root = part.AssemblyRootPart or part
+    return not root.Anchored and root.ReceiveAge == 0
+end
+
+local function getSetNetworkOwnerEvent()
+    local grabEvents = ReplicatedStorage:FindFirstChild("GrabEvents")
+    return grabEvents and grabEvents:FindFirstChild("SetNetworkOwner")
+end
+
+local function requestNetworkOwner(part)
+    if not part or not part.Parent then return end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local ev = getSetNetworkOwnerEvent()
+    if not ev then return end
+    local cframe = CFrame.new(hrp.CFrame * CFrame.new(0, 1.593, 0).Position, part.Position)
+    pcall(function() ev:FireServer(part, cframe) end)
+end
+
+local function ensureOwnership(part, timeout)
+    local deadline = os.clock() + (timeout or 0.65)
+    repeat
+        if not antiKickActive then return false end
+        if not part or not part.Parent then return false end
+        if isPartOwner(part) then return true end
+        requestNetworkOwner(part)
+        task.wait()
+    until os.clock() >= deadline
+    return isPartOwner(part)
+end
+
+local function spawnShurikenAt(targetPart)
+    if not targetPart or not targetPart.Parent then return nil end
     local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
     local spawnRemote = menuToys and menuToys:FindFirstChild("SpawnToyRemoteFunction")
     if not spawnRemote then return nil end
 
     local cframe = targetPart.CFrame + Vector3.new(0, 15, 0)
-    local success, shuriken = pcall(function()
+    local ok, shuriken = pcall(function()
         return spawnRemote:InvokeServer("NinjaShuriken", cframe, Vector3.zero)
     end)
 
-    if not success or not shuriken or not shuriken:IsA("Model") then
+    if not ok or not shuriken or not shuriken:IsA("Model") or not shuriken.Parent then
         return nil
     end
 
     local stickyPart = shuriken:WaitForChild("StickyPart", 1.5)
     local stickyWeld = stickyPart and stickyPart:WaitForChild("StickyWeld", 1.5)
+
     if not stickyPart or not stickyWeld then
-        shuriken:Destroy()
+        pcall(function() shuriken:Destroy() end)
         return nil
     end
 
-    local grabEvent = ReplicatedStorage:FindFirstChild("PlayerEvents")
-    grabEvent = grabEvent and grabEvent:FindFirstChild("StickyPartEvent")
-    if grabEvent then
-        pcall(function()
-            grabEvent:FireServer(stickyPart, targetPart, CFrame.new(0, -0.3, 0) * CFrame.Angles(math.rad(90), 0, 0))
-        end)
+    if not ensureOwnership(stickyPart) then
+        pcall(function() shuriken:Destroy() end)
+        return nil
     end
 
     return shuriken, stickyPart, stickyWeld
 end
 
-local function onAntiKickHeartbeat()
+local function applyShurikenVisuals(shuriken)
+    if not shuriken or not shuriken.Parent then return end
+
+    local highlight = shuriken:FindFirstChild("ShurHighlight")
+    if not highlight then
+        highlight = Instance.new("Highlight")
+        highlight.Name = "ShurHighlight"
+        highlight.Adornee = shuriken
+        highlight.Parent = shuriken
+    end
+
+    highlight.FillColor = AntiKickSettings.HighlightFill
+    highlight.OutlineColor = AntiKickSettings.HighlightOutl
+    highlight.FillTransparency = AntiKickSettings.HighlightFT
+    highlight.OutlineTransparency = AntiKickSettings.HighlightOT
+    highlight.Enabled = AntiKickSettings.Highlight
+    antiKickHighlight = highlight
+
+    for _, child in ipairs(shuriken:GetChildren()) do
+        if child:IsA("BasePart") then
+            if child.CanCollide then child.CanCollide = false end
+            if child.CanQuery then child.CanQuery = false end
+            if child.Transparency ~= AntiKickSettings.Transparency and (child:IsA("MeshPart") or child.Name == "Part") then
+                child.Transparency = AntiKickSettings.Transparency
+            end
+        end
+    end
+end
+
+local function destroyAntiKickShuriken()
+    if antiKickShuriken and antiKickShuriken.Parent then
+        pcall(function() antiKickShuriken:Destroy() end)
+    end
+    antiKickShuriken = nil
+    if antiKickHighlight and antiKickHighlight.Parent then
+        pcall(function() antiKickHighlight:Destroy() end)
+    end
+    antiKickHighlight = nil
+end
+
+local function waitForWeldSet(stickyWeld, hitbox, hum)
+    local deadline = tick() + 0.5
+    while antiKickActive and tick() < deadline do
+        if stickyWeld.Part1 == hitbox then return true end
+        if not stickyWeld.Parent or not hitbox.Parent then return false end
+        if not hum or not hum.Parent or hum.Health <= 0 then return false end
+        RunService.Heartbeat:Wait()
+    end
+    return stickyWeld.Part1 == hitbox
+end
+
+local function fireStickyPart(stickyPart, hitbox)
+    local ev = ReplicatedStorage:FindFirstChild("PlayerEvents")
+    ev = ev and ev:FindFirstChild("StickyPartEvent")
+    if not ev then return false end
+    local ok = pcall(function()
+        ev:FireServer(stickyPart, hitbox, CFrame.new(0, -0.3, 0) * CFrame.Angles(math.rad(90), 0, 0))
+    end)
+    return ok
+end
+
+local function antiKickStep()
     if not antiKickActive then return end
 
     local char = LocalPlayer.Character
@@ -1114,44 +1226,56 @@ local function onAntiKickHeartbeat()
     local hitbox = hrp:FindFirstChild("RagdollTouchedHitbox")
     if not hitbox then return end
 
-    if antiKickShuriken and antiKickShuriken.Parent then
-        local stickyWeld = antiKickShuriken:FindFirstChild("StickyPart")
-        stickyWeld = stickyWeld and stickyWeld:FindFirstChild("StickyWeld")
-        if stickyWeld and stickyWeld.Part1 == hitbox then
-            return
+    local inPlot = LocalPlayer:FindFirstChild("InPlot")
+    local inOwnedPlot = LocalPlayer:FindFirstChild("InOwnedPlot")
+    if inPlot and inPlot.Value and inOwnedPlot and not inOwnedPlot.Value then
+        while antiKickActive and inPlot.Value and not inOwnedPlot.Value do
+            task.wait(0.1)
         end
-        antiKickShuriken:Destroy()
-        antiKickShuriken = nil
+        if not antiKickActive then return end
     end
 
-    local pcl = getPCLD(LocalPlayer)
-    local targetPart = pcl or hrp
-
-    local shuriken, stickyPart, stickyWeld = createShuriken(targetPart)
-    if shuriken and stickyWeld and stickyWeld.Part1 == hitbox then
-        antiKickShuriken = shuriken
-        antiKickShuriken.Name = "ShurikenRSC"
-
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "ShurHighlight"
-        highlight.Adornee = shuriken
-        highlight.Parent = shuriken
-        highlight.FillColor = Color3.new(1, 0, 0)
-        highlight.OutlineColor = Color3.new(1, 1, 1)
-        highlight.FillTransparency = 0.5
-        highlight.OutlineTransparency = 0
-        antiKickHighlight = highlight
-
-        for _, child in ipairs(shuriken:GetChildren()) do
-            if child:IsA("BasePart") then
-                child.CanCollide = false
-                child.CanQuery = false
-                child.Transparency = 0.9
+    if antiKickShuriken then
+        if antiKickShuriken.Parent and antiKickShuriken.Name == "ShurikenRSC" then
+            local sp = antiKickShuriken:FindFirstChild("StickyPart")
+            local sw = sp and sp:FindFirstChild("StickyWeld")
+            if sw and sw.Part1 == hitbox then
+                applyShurikenVisuals(antiKickShuriken)
+                return
             end
         end
-    elseif shuriken then
-        shuriken:Destroy()
+        destroyAntiKickShuriken()
     end
+
+    local shuriken, stickyPart, stickyWeld = spawnShurikenAt(findPCLDWithTimeout())
+    if not shuriken then
+        shuriken, stickyPart, stickyWeld = spawnShurikenAt(hrp)
+    end
+    if not shuriken then return end
+
+    shuriken.Name = "ShurikenRSC"
+    antiKickShuriken = shuriken
+
+    task.spawn(function()
+        local touchInterest = stickyPart:WaitForChild("TouchInterest", 2.5)
+        if touchInterest then touchInterest:Destroy() end
+    end)
+
+    fireStickyPart(stickyPart, hitbox)
+
+    local welded = waitForWeldSet(stickyWeld, hitbox, hum)
+
+    if not antiKickActive or not shuriken.Parent then
+        destroyAntiKickShuriken()
+        return
+    end
+
+    if not welded or not stickyWeld.Parent or stickyWeld.Part1 ~= hitbox then
+        destroyAntiKickShuriken()
+        return
+    end
+
+    applyShurikenVisuals(shuriken)
 end
 
 local function ToggleAntiKick(state)
@@ -1161,7 +1285,7 @@ local function ToggleAntiKick(state)
         if antiKickTask then return end
         antiKickTask = task.spawn(function()
             while antiKickActive do
-                onAntiKickHeartbeat()
+                antiKickStep()
                 task.wait(0.03)
             end
         end)
@@ -1170,14 +1294,7 @@ local function ToggleAntiKick(state)
             task.cancel(antiKickTask)
             antiKickTask = nil
         end
-        if antiKickShuriken then
-            antiKickShuriken:Destroy()
-            antiKickShuriken = nil
-        end
-        if antiKickHighlight then
-            antiKickHighlight:Destroy()
-            antiKickHighlight = nil
-        end
+        destroyAntiKickShuriken()
     end
 end
 
