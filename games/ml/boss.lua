@@ -559,7 +559,7 @@ BossTab:Toggle({
 
 if autoBossEnabled then startAutoBoss() end
 
-local HALLOWEEN_BOSS_OPTIONS = { "Grim Reaper", "Pumpkin Titan" }
+local HALLOWEEN_BOSS_OPTIONS = { "Grim Reaper", "Pumpkin Titan", "Frankenbrute" }
 
 local function findBossOption(value)
     if type(value) == "string" then
@@ -576,7 +576,7 @@ local halloweenFarmers = {}
 
 local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
     orbitSpeed = orbitSpeed or 3
-    orbitBuffer = orbitBuffer or 4
+    orbitBuffer = orbitBuffer or 2
 
     local enabled = false
     local connection = nil
@@ -671,10 +671,10 @@ local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
         lastHeartbeat = now
         if dt <= 0 or dt > 0.5 then dt = 1 / 60 end
         orbitAngle = orbitAngle + orbitSpeed * dt
-        local radius = math.max(anchor.Size.Magnitude / 2 + orbitBuffer, 8)
+        local radius = ORBIT_RADIUS
         local orbitPos = Vector3.new(
             center.X + math.cos(orbitAngle) * radius,
-            anchorPos.Y + 2,
+            anchorPos.Y,
             center.Z + math.sin(orbitAngle) * radius
         )
         local aimCFrame = CFrame.lookAt(orbitPos, aimPoint)
@@ -776,14 +776,17 @@ local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
     }
 end
 
-local grimReaperFarmer = createHalloweenBossFarmer("Grim Reaper", 3, 4)
-local pumpkinTitanFarmer = createHalloweenBossFarmer("Pumpkin Titan", 3, 4)
+local grimReaperFarmer = createHalloweenBossFarmer("Grim Reaper", 3, 2)
+local pumpkinTitanFarmer = createHalloweenBossFarmer("Pumpkin Titan", 3, 2)
+local frankenbruteFarmer = createHalloweenBossFarmer("Frankenbrute", 3, 2)
 table.insert(halloweenFarmers, grimReaperFarmer)
 table.insert(halloweenFarmers, pumpkinTitanFarmer)
+table.insert(halloweenFarmers, frankenbruteFarmer)
 
 local function getFarmerForBoss(name)
     if name == "Grim Reaper" then return grimReaperFarmer end
     if name == "Pumpkin Titan" then return pumpkinTitanFarmer end
+    if name == "Frankenbrute" then return frankenbruteFarmer end
     return nil
 end
 
