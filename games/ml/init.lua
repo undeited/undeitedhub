@@ -7,7 +7,7 @@ local function HttpGet(url)
     if game and type(game.HttpGetAsync) == "function" then
         return game:HttpGetAsync(url)
     end
-    error("Unsupported executor: missing game:HttpGet or game:HttpGetAsync")
+    return nil
 end
 
 local function LoadString(script, chunkName)
@@ -17,34 +17,21 @@ local function LoadString(script, chunkName)
     if type(load) == "function" then
         return load(script, chunkName)
     end
-    error("Unsupported executor: missing loadstring or load")
+    return nil
 end
 
 local function LoadScript(name)
     local script = HttpGet(BASE_URL .. name)
+    if not script then return nil end
     local fn, err = LoadString(script, name)
-    if not fn then error(err) end
+    if not fn then return nil end
     return fn()
 end
 
 local function CheckExecutor()
-    local missing = {}
-    if not game then table.insert(missing, "game") end
-    if not Instance then table.insert(missing, "Instance") end
-    if not task then table.insert(missing, "task") end
-    if not pcall then table.insert(missing, "pcall") end
-    if not (type(loadstring) == "function" or type(load) == "function") then table.insert(missing, "loadstring/load") end
-    if not (game and (type(game.HttpGet) == "function" or type(game.HttpGetAsync) == "function")) then table.insert(missing, "game:HttpGet or game:HttpGetAsync") end
-    if #missing > 0 then
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Executor Incompatible",
-                Text = "Missing executor support: " .. table.concat(missing, ", "),
-                Duration = 5,
-            })
-        end)
-        return false
-    end
+    if not game or not Instance or not task or not pcall then return false end
+    if not (type(loadstring) == "function" or type(load) == "function") then return false end
+    if not (type(game.HttpGet) == "function" or type(game.HttpGetAsync) == "function") then return false end
     return true
 end
 
@@ -56,6 +43,8 @@ local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
 local config = LoadScript("shared/config.lua")
 local MathUtils = LoadScript("shared/math_utils.lua")
+
+if not WindUI then return end
 
 undeitedhub = undeitedhub or {}
 undeitedhub.WindUI = WindUI
@@ -180,24 +169,7 @@ if frame then
 end
 
 local function SafeLoad(name)
-    local success, err = pcall(LoadScript, name)
-    if not success then
-        local errMsg = tostring(err):sub(1, 200)
-        pcall(function()
-            WindUI:Notify({
-                Title = "Error: " .. name,
-                Content = errMsg,
-                Duration = 6,
-            })
-        end)
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Error: " .. name,
-                Text = errMsg,
-                Duration = 6,
-            })
-        end)
-    end
+    pcall(LoadScript, name)
 end
 
 SafeLoad("games/ml/esp.lua")
