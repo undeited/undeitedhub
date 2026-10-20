@@ -10,6 +10,31 @@ local INTERACT_KEY = Enum.KeyCode.E
 local holdingE = false
 local nextPunchSide = "rightHand"
 
+local cameraScriptableUsers = 0
+local originalCameraType = nil
+
+local function acquireScriptableCamera()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    if cameraScriptableUsers == 0 then
+        originalCameraType = cam.CameraType
+        pcall(function() cam.CameraType = Enum.CameraType.Scriptable end)
+    end
+    cameraScriptableUsers = cameraScriptableUsers + 1
+end
+
+local function releaseScriptableCamera()
+    if cameraScriptableUsers <= 0 then return end
+    cameraScriptableUsers = cameraScriptableUsers - 1
+    if cameraScriptableUsers == 0 then
+        local cam = workspace.CurrentCamera
+        if cam and originalCameraType then
+            pcall(function() cam.CameraType = originalCameraType end)
+        end
+        originalCameraType = nil
+    end
+end
+
 local function getPunchTool(player)
     local char = player.Character
     if char then
@@ -36,9 +61,7 @@ local function equipPunch(player)
     if not backpack then return false end
     punch = backpack:FindFirstChild("Punch")
     if punch then
-        pcall(function()
-            hum:EquipTool(punch)
-        end)
+        pcall(function() hum:EquipTool(punch) end)
         task.wait(0.02)
         return true
     end
@@ -66,9 +89,7 @@ local function firePunch()
     if muscleEvent then
         local side = nextPunchSide
         nextPunchSide = (side == "rightHand") and "leftHand" or "rightHand"
-        pcall(function()
-            muscleEvent:FireServer("punch", side)
-        end)
+        pcall(function() muscleEvent:FireServer("punch", side) end)
         return true
     end
 
@@ -130,21 +151,15 @@ end
 
 local function getBossAnchor(bossFolder)
     if not bossFolder or not bossFolder.Parent then return nil end
-
     local hitbox = bossFolder:FindFirstChild("BossDamageHitbox", true)
     if hitbox and hitbox:IsA("BasePart") then return hitbox end
-
     local boss = bossFolder:FindFirstChild("Boss")
     if not boss then return nil end
-
     local pelvis = boss:FindFirstChild("pelvis", true)
     if pelvis and pelvis:IsA("BasePart") then return pelvis end
-
     local hrp = boss:FindFirstChild("HumanoidRootPart", true)
     if hrp and hrp:IsA("BasePart") then return hrp end
-
     if boss.PrimaryPart then return boss.PrimaryPart end
-
     for _, part in ipairs(boss:GetDescendants()) do
         if part:IsA("BasePart") then return part end
     end
@@ -169,7 +184,6 @@ local function isBossAlive(bossFolder)
     if not bossFolder or not bossFolder.Parent then return false end
     local boss = bossFolder:FindFirstChild("Boss")
     if not boss then return false end
-
     local stats = bossFolder:FindFirstChild("stats")
     if stats then
         local health = stats:FindFirstChild("Health")
@@ -177,26 +191,19 @@ local function isBossAlive(bossFolder)
             return health.Value > 0
         end
     end
-
     local hum = boss:FindFirstChildOfClass("Humanoid")
-    if hum then
-        return hum.Health > 0
-    end
-
+    if hum then return hum.Health > 0 end
     return true
 end
 
 local function getActiveBoss()
     local arena = getBossArena()
     if not arena then return nil end
-
     for i = 1, BOSS_COUNT do
         local bossFolder = arena:FindFirstChild("Boss" .. i)
         if bossFolder and isBossAlive(bossFolder) then
             local boss = bossFolder:FindFirstChild("Boss")
-            if boss then
-                return boss, bossFolder, i
-            end
+            if boss then return boss, bossFolder, i end
         end
     end
     return nil
@@ -208,9 +215,7 @@ local function getBossChest()
     local events = workspace:FindFirstChild("Events")
     if events then
         local arena = events:FindFirstChild("BossArena")
-        if arena then
-            return arena:FindFirstChild("BossChest")
-        end
+        if arena then return arena:FindFirstChild("BossChest") end
     end
     return nil
 end
@@ -220,9 +225,7 @@ local function getChestHandle(chest)
     local part = chest:FindFirstChild("Root")
         or chest:FindFirstChild("ChestCenterHandle")
         or chest:FindFirstChild("ChestOpenHandle")
-    if part and part:IsA("BasePart") then
-        return part
-    end
+    if part and part:IsA("BasePart") then return part end
     for _, d in ipairs(chest:GetDescendants()) do
         if d:IsA("BasePart") then return d end
     end
@@ -279,7 +282,7 @@ local activePrompt = nil
 local promptStartedAt = 0
 local lastClickTime = 0
 
-local ORBIT_RADIUS = 2.5
+local ORBIT_RADIUS = 6
 local ORBIT_SPEED = 3
 local CHEST_RANGE = 6
 local CHEST_PROMPT_TIMEOUT = 1.5
@@ -291,9 +294,7 @@ local savedCanCollide = nil
 
 local function releaseE()
     if activePrompt then
-        pcall(function()
-            activePrompt:InputHoldEnd()
-        end)
+        pcall(function() activePrompt:InputHoldEnd() end)
         activePrompt = nil
     end
     if holdingE then
@@ -310,9 +311,7 @@ local function holdE(prompt)
             releaseE()
             activePrompt = prompt
             promptStartedAt = tick()
-            pcall(function()
-                prompt:InputHoldBegin()
-            end)
+            pcall(function() prompt:InputHoldBegin() end)
         end
     else
         if not holdingE then
@@ -330,41 +329,36 @@ local function disablePlayerCollision()
     if savedCanCollide == nil then
         savedCanCollide = hrp.CanCollide
     end
-    pcall(function()
-        hrp.CanCollide = false
-    end)
+    pcall(function() hrp.CanCollide = false end)
 end
 
 local function restorePlayerCollision()
     if savedCanCollide == nil then return end
     local hrp = getHRP()
     if hrp then
-        pcall(function()
-            hrp.CanCollide = savedCanCollide
-        end)
+        pcall(function() hrp.CanCollide = savedCanCollide end)
     end
     savedCanCollide = nil
 end
 
 local function getBossAimPoint(anchor, boss)
     local anchorPos = anchor.Position
-
     local head = boss:FindFirstChild("head", true)
     if head and head:IsA("BasePart") then
         return anchorPos:Lerp(head.Position, 0.5)
     end
-
     local spineUpper = boss:FindFirstChild("spine_upper", true)
     if spineUpper and spineUpper:IsA("BasePart") then
         return anchorPos:Lerp(spineUpper.Position, 0.5)
     end
-
     return anchorPos
 end
 
 local function syncCameraToAim(orbitPos, aimPoint)
     local cam = workspace.CurrentCamera
     if not cam then return end
+    local dir = aimPoint - orbitPos
+    if dir.Magnitude < 0.5 then return end
     pcall(function()
         cam.CFrame = CFrame.lookAt(orbitPos + Vector3.new(0, 1.5, 0), aimPoint)
     end)
@@ -381,9 +375,7 @@ local function orbitBoss(anchor, boss)
     local now = tick()
     local dt = now - lastHeartbeat
     lastHeartbeat = now
-    if dt <= 0 or dt > 0.5 then
-        dt = 1 / 60
-    end
+    if dt <= 0 or dt > 0.5 then dt = 1 / 60 end
 
     orbitAngle = orbitAngle + ORBIT_SPEED * dt
 
@@ -393,17 +385,7 @@ local function orbitBoss(anchor, boss)
         center.Z + math.sin(orbitAngle) * ORBIT_RADIUS
     )
 
-    local flatDX = orbitPos.X - aimPoint.X
-    local flatDZ = orbitPos.Z - aimPoint.Z
-    local flatDist = math.sqrt(flatDX * flatDX + flatDZ * flatDZ)
-
-    local aimCFrame
-    if flatDist < 0.05 then
-        aimCFrame = CFrame.new(orbitPos) * CFrame.Angles(0, orbitAngle + math.pi, 0)
-    else
-        aimCFrame = CFrame.lookAt(orbitPos, aimPoint)
-    end
-
+    local aimCFrame = CFrame.lookAt(orbitPos, aimPoint)
     pcall(function()
         hrp.CFrame = aimCFrame
         hrp.AssemblyLinearVelocity = Vector3.zero
@@ -414,33 +396,16 @@ local function orbitBoss(anchor, boss)
 end
 
 local function performPunch(anchor, boss)
-    local hrp = getHRP()
-    if not hrp or not anchor then return end
-
-    local anchorPos = anchor.Position
-    local aimPoint = getBossAimPoint(anchor, boss)
-
-    local punchPos = anchorPos + Vector3.new(0, 1.5, 0)
-
-    pcall(function()
-        hrp.CFrame = CFrame.lookAt(punchPos, aimPoint)
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end)
-
-    syncCameraToAim(punchPos, aimPoint)
-
+    if not anchor then return end
     firePunch()
 end
 
 local function handleChest(chest)
     if not chest then return false end
     if not isChestVisible(chest) then return true end
-
     local hrp = getHRP()
     local chestPart = getChestHandle(chest)
     if not hrp or not chestPart then return true end
-
     local chestPos = chestPart.Position
     local distance = (hrp.Position - chestPos).Magnitude
     if distance > CHEST_RANGE then
@@ -450,23 +415,19 @@ local function handleChest(chest)
             hrp.AssemblyAngularVelocity = Vector3.zero
         end)
     end
-
     local prompt = findProximityPrompt(chest)
     if prompt then
         if activePrompt ~= prompt then
             releaseE()
             activePrompt = prompt
             promptStartedAt = tick()
-            pcall(function()
-                prompt:InputHoldBegin()
-            end)
+            pcall(function() prompt:InputHoldBegin() end)
         end
         if tick() - promptStartedAt > CHEST_PROMPT_TIMEOUT then
             releaseE()
         end
         return true
     end
-
     local detector = findClickDetector(chest)
     if detector then
         local now = tick()
@@ -484,7 +445,6 @@ local function handleChest(chest)
         end
         return true
     end
-
     holdE(nil)
     return true
 end
@@ -512,12 +472,9 @@ local function onBossHeartbeat()
             chestClaimed = false
             releaseE()
         end
-
         if not chestClaimed and isChestVisible(chest) then
             local stillThere = handleChest(chest)
-            if stillThere then
-                return
-            end
+            if stillThere then return end
         end
     else
         currentChest = nil
@@ -561,6 +518,7 @@ local function startAutoBoss()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 
     setBodyMovementEnabled(false)
+    acquireScriptableCamera()
 
     lastPunchTime = 0
     lastClickTime = 0
@@ -587,6 +545,7 @@ local function stopAutoBoss()
     restorePlayerCollision()
     releaseE()
     setBodyMovementEnabled(true)
+    releaseScriptableCamera()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end
 
@@ -594,17 +553,11 @@ BossTab:Toggle({
     Title = "Auto Boss Farm",
     Value = autoBossEnabled,
     Callback = function(state)
-        if state then
-            startAutoBoss()
-        else
-            stopAutoBoss()
-        end
+        if state then startAutoBoss() else stopAutoBoss() end
     end
 })
 
-if autoBossEnabled then
-    startAutoBoss()
-end
+if autoBossEnabled then startAutoBoss() end
 
 local HALLOWEEN_BOSS_OPTIONS = { "Grim Reaper", "Pumpkin Titan" }
 
@@ -649,7 +602,6 @@ local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
 
     local function isTargetAlive(boss)
         if not boss or not boss.Parent then return false end
-
         local billboard = boss:FindFirstChild("halloweenBossHealth")
             or boss:FindFirstChild("bossHealth")
             or boss:FindFirstChild("BossHealth")
@@ -673,12 +625,8 @@ local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
                 end
             end
         end
-
         local hum = boss:FindFirstChildOfClass("Humanoid")
-        if hum then
-            return hum.Health > 0
-        end
-
+        if hum then return hum.Health > 0 end
         return true
     end
 
@@ -738,25 +686,6 @@ local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
         syncCameraToAim(orbitPos, aimPoint)
     end
 
-    local function punch(anchor, boss)
-        local hrp = getHRP()
-        if not hrp or not anchor then return end
-        local anchorPos = anchor.Position
-        local aimPoint = anchorPos
-        local dir = hrp.Position - anchorPos
-        dir = Vector3.new(dir.X, 0, dir.Z)
-        if dir.Magnitude < 0.1 then dir = Vector3.new(1, 0, 0) end
-        dir = dir.Unit
-        local punchPos = anchorPos + dir * 6 + Vector3.new(0, 2, 0)
-        pcall(function()
-            hrp.CFrame = CFrame.lookAt(punchPos, aimPoint)
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end)
-        syncCameraToAim(punchPos, aimPoint)
-        firePunch()
-    end
-
     local function onHeartbeat()
         if not enabled then return end
         if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
@@ -793,7 +722,7 @@ local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
         local now = tick()
         if now - lastPunch >= getPunchAttackTime() then
             lastPunch = now
-            punch(anchor, boss)
+            firePunch()
         end
     end
 
@@ -804,6 +733,7 @@ local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
         activeHalloweenFarmers = activeHalloweenFarmers + 1
         if activeHalloweenFarmers == 1 then
             setBodyMovementEnabled(false)
+            acquireScriptableCamera()
             local hrp = getHRP()
             if hrp then
                 sharedSavedCanCollide = hrp.CanCollide
@@ -835,6 +765,7 @@ local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
             end
             sharedSavedCanCollide = nil
             setBodyMovementEnabled(true)
+            releaseScriptableCamera()
         end
     end
 
@@ -883,9 +814,7 @@ local function applyHalloweenSelection()
     end
 end
 
-local halloweenDropdown
-
-halloweenDropdown = BossTab:Dropdown({
+local halloweenDropdown = BossTab:Dropdown({
     Title = "Halloween Boss",
     Values = HALLOWEEN_BOSS_OPTIONS,
     Value = selectedHalloweenBoss,
@@ -909,14 +838,10 @@ BossTab:Toggle({
 })
 
 task.defer(function()
-    pcall(function()
-        halloweenDropdown:Set(selectedHalloweenBoss)
-    end)
+    pcall(function() halloweenDropdown:Set(selectedHalloweenBoss) end)
 end)
 
-if autoHalloweenEnabled then
-    applyHalloweenSelection()
-end
+if autoHalloweenEnabled then applyHalloweenSelection() end
 
 local oldDisable = undeitedhub.DisableAll or function() end
 undeitedhub.DisableAll = function()
@@ -933,6 +858,7 @@ undeitedhub.DisableAll = function()
         restorePlayerCollision()
         releaseE()
         setBodyMovementEnabled(true)
+        releaseScriptableCamera()
     end
 
     if autoHalloweenEnabled then
