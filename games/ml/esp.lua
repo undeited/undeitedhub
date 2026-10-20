@@ -1,20 +1,5 @@
 local WindUI = undeitedhub.WindUI
 
-local function SafeNotify(data)
-    if type(data) ~= "table" then return end
-    if WindUI and type(WindUI.Notify) == "function" then
-        pcall(WindUI.Notify, WindUI, data)
-    else
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = data.Title or "",
-                Text = data.Content or "",
-                Duration = data.Duration or 3,
-            })
-        end)
-    end
-end
-
 local VisualTab = undeitedhub.Window:Tab({ Title = "Visual" })
 
 local espEnabled = undeitedhub.Toggles.espEnabled or false
@@ -177,7 +162,6 @@ VisualTab:Toggle({
             espEnabled = state
             undeitedhub.Toggles.espEnabled = state
             if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-            SafeNotify({ Title = "Player Highlight", Content = espEnabled and "Enabled" or "Disabled", Duration = 2 })
             if not espEnabled then ClearHighlights() end
             if state then startESPLoop(); pcall(UpdateESP) end
         end)
@@ -192,7 +176,6 @@ VisualTab:Toggle({
             espNamesEnabled = state
             undeitedhub.Toggles.espNamesEnabled = state
             if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-            SafeNotify({ Title = "Player Names", Content = espNamesEnabled and "Enabled" or "Disabled", Duration = 2 })
             if not espNamesEnabled then ClearNames() end
             if state then startESPLoop(); pcall(UpdateESP) end
         end)
