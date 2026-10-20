@@ -103,23 +103,6 @@ local function setBodyMovementEnabled(enabled)
     end
 end
 
-local function teleportAndAim(hrp, targetPos)
-    if not hrp or not targetPos then return end
-    local attackPos = targetPos + Vector3.new(0, 0.5, 0)
-    local look = CFrame.lookAt(attackPos, targetPos)
-    pcall(function()
-        hrp.CFrame = look
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end)
-    local cam = workspace.CurrentCamera
-    if cam then
-        pcall(function()
-            cam.CFrame = CFrame.lookAt(attackPos + Vector3.new(0, 1.5, 0), targetPos)
-        end)
-    end
-end
-
 local BOSS_ARENA_RADIUS = 60
 
 local function getBossArena()
@@ -311,7 +294,19 @@ local function startKill()
                         resetVelocity(myRoot)
 
                         local targetPos = targetRoot.Position
-                        teleportAndAim(myRoot, targetPos)
+                        local attackPos = targetPos + Vector3.new(0, 0.5, 0)
+                        local look = CFrame.lookAt(attackPos, targetPos)
+                        pcall(function()
+                            myRoot.CFrame = look
+                            myRoot.AssemblyLinearVelocity = Vector3.zero
+                            myRoot.AssemblyAngularVelocity = Vector3.zero
+                        end)
+                        local cam = workspace.CurrentCamera
+                        if cam then
+                            pcall(function()
+                                cam.CFrame = CFrame.lookAt(attackPos + Vector3.new(0, 1.5, 0), targetPos)
+                            end)
+                        end
 
                         pcall(function()
                             currentPunch:Activate()
