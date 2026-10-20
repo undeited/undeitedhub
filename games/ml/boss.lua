@@ -8,6 +8,7 @@ local LocalPlayer = Players.LocalPlayer
 
 local INTERACT_KEY = Enum.KeyCode.E
 local holdingE = false
+local nextPunchSide = "rightHand"
 
 local function getPunchTool(player)
     local char = player.Character
@@ -42,6 +43,37 @@ local function equipPunch(player)
         return true
     end
     return false
+end
+
+local function getPunchAttackTime()
+    local punch = getPunchTool(LocalPlayer)
+    if punch then
+        local at = punch:FindFirstChild("attackTime")
+        if at and (at:IsA("NumberValue") or at:IsA("IntValue")) then
+            local v = tonumber(at.Value)
+            if v and v > 0 then return v end
+        end
+    end
+    return 0.25
+end
+
+local function firePunch()
+    if not equipPunch(LocalPlayer) then return false end
+    local punch = getPunchTool(LocalPlayer)
+    if not punch or punch.Parent ~= LocalPlayer.Character then return false end
+
+    local muscleEvent = LocalPlayer:FindFirstChild("muscleEvent")
+    if muscleEvent then
+        local side = nextPunchSide
+        nextPunchSide = (side == "rightHand") and "leftHand" or "rightHand"
+        pcall(function()
+            muscleEvent:FireServer("punch", side)
+        end)
+        return true
+    end
+
+    pcall(function() punch:Activate() end)
+    return true
 end
 
 local function getHumanoid()
@@ -249,7 +281,6 @@ local lastClickTime = 0
 
 local ORBIT_RADIUS = 2.5
 local ORBIT_SPEED = 3
-local PUNCH_COOLDOWN = 0.2
 local CHEST_RANGE = 6
 local CHEST_PROMPT_TIMEOUT = 1.5
 local CLICK_COOLDOWN = 0.5
@@ -399,14 +430,7 @@ local function performPunch(anchor, boss)
 
     syncCameraToAim(punchPos, aimPoint)
 
-    if equipPunch(LocalPlayer) then
-        local punch = getPunchTool(LocalPlayer)
-        if punch and punch.Parent == LocalPlayer.Character then
-            pcall(function()
-                punch:Activate()
-            end)
-        end
-    end
+    firePunch()
 end
 
 local function handleChest(chest)
@@ -524,7 +548,7 @@ local function onBossHeartbeat()
     orbitBoss(anchor, boss)
 
     local now = tick()
-    if now - lastPunchTime >= PUNCH_COOLDOWN then
+    if now - lastPunchTime >= getPunchAttackTime() then
         lastPunchTime = now
         performPunch(anchor, boss)
     end
@@ -582,249 +606,316 @@ if autoBossEnabled then
     startAutoBoss()
 end
 
-local autoHalloweenEnabled = undeitedhub.Toggles.autoHalloweenBoss or false
-local halloweenConnection = nil
-local halloweenReaper = nil
-local halloweenOrbitAngle = 0
-local halloweenLastHeartbeat = 0
-local halloweenLastPunch = 0
-local halloweenSavedCanCollide = nil
+local HALLOWEEN_BOSS_OPTIONS = { "Grim Reaper", "Pumpkin Titan" }
 
-local HALLOWEEN_ORBIT_SPEED = 3
-local HALLOWEEN_PUNCH_COOLDOWN = 0.2
-local HALLOWEEN_ORBIT_BUFFER = 4
-
-local function parseDisplayNumber(str)
-    if type(str) ~= "string" then return 0 end
-    local num = str:match("([%d%.]+)")
-    if not num then return 0 end
-    local n = tonumber(num) or 0
-    if str:find("K") then n = n * 1000
-    elseif str:find("M") then n = n * 1000000
-    elseif str:find("B") then n = n * 1000000000 end
-    return n
-end
-
-local function getGrimReaper()
-    return workspace:FindFirstChild("Grim Reaper")
-end
-
-local function isGrimReaperAlive(reaper)
-    if not reaper or not reaper.Parent then return false end
-    local billboard = reaper:FindFirstChild("halloweenBossHealth")
-    if billboard and billboard:IsA("BillboardGui") then
-        if not billboard.Enabled then return false end
-        local bar = billboard:FindFirstChild("Bar")
-        local healthLabel = bar and bar:FindFirstChild("Health")
-        if healthLabel and healthLabel:IsA("TextLabel") then
-            local text = healthLabel.Text or ""
-            local curStr = text:match("([%d%.]+%a*)%s*/")
-            if curStr then
-                return parseDisplayNumber(curStr) > 0
-            end
+local function findBossOption(value)
+    if type(value) == "string" then
+        for _, v in ipairs(HALLOWEEN_BOSS_OPTIONS) do
+            if v == value then return v end
         end
     end
-    return true
+    return HALLOWEEN_BOSS_OPTIONS[1]
 end
 
-local function getGrimReaperAnchor(reaper)
-    if not reaper then return nil end
-    local hitbox = reaper:FindFirstChild("BossDamageHitbox")
-    if hitbox and hitbox:IsA("BasePart") then return hitbox end
-    local root = reaper:FindFirstChild("RootPart")
-    if root and root:IsA("BasePart") then return root end
-    if reaper.PrimaryPart then return reaper.PrimaryPart end
-    for _, d in ipairs(reaper:GetDescendants()) do
-        if d:IsA("BasePart") then return d end
+local activeHalloweenFarmers = 0
+local sharedSavedCanCollide = nil
+local halloweenFarmers = {}
+
+local function createHalloweenBossFarmer(bossName, orbitSpeed, orbitBuffer)
+    orbitSpeed = orbitSpeed or 3
+    orbitBuffer = orbitBuffer or 4
+
+    local enabled = false
+    local connection = nil
+    local trackedBoss = nil
+    local orbitAngle = 0
+    local lastHeartbeat = 0
+    local lastPunch = 0
+
+    local function parseDisplayNumber(str)
+        if type(str) ~= "string" then return 0 end
+        local num = str:match("([%d%.]+)")
+        if not num then return 0 end
+        local n = tonumber(num) or 0
+        if str:find("K") then n = n * 1000
+        elseif str:find("M") then n = n * 1000000
+        elseif str:find("B") then n = n * 1000000000 end
+        return n
     end
+
+    local function getBoss()
+        return workspace:FindFirstChild(bossName)
+    end
+
+    local function isTargetAlive(boss)
+        if not boss or not boss.Parent then return false end
+
+        local billboard = boss:FindFirstChild("halloweenBossHealth")
+            or boss:FindFirstChild("bossHealth")
+            or boss:FindFirstChild("BossHealth")
+        if not billboard then
+            for _, d in ipairs(boss:GetChildren()) do
+                if d:IsA("BillboardGui") then
+                    billboard = d
+                    break
+                end
+            end
+        end
+        if billboard and billboard:IsA("BillboardGui") then
+            if not billboard.Enabled then return false end
+            local bar = billboard:FindFirstChild("Bar", true)
+            local healthLabel = bar and bar:FindFirstChild("Health", true)
+            if healthLabel and healthLabel:IsA("TextLabel") then
+                local text = healthLabel.Text or ""
+                local curStr = text:match("([%d%.]+%a*)%s*/")
+                if curStr then
+                    return parseDisplayNumber(curStr) > 0
+                end
+            end
+        end
+
+        local hum = boss:FindFirstChildOfClass("Humanoid")
+        if hum then
+            return hum.Health > 0
+        end
+
+        return true
+    end
+
+    local function getTargetAnchor(boss)
+        if not boss then return nil end
+        local hitbox = boss:FindFirstChild("BossDamageHitbox")
+        if hitbox and hitbox:IsA("BasePart") then return hitbox end
+        local root = boss:FindFirstChild("RootPart")
+        if root and root:IsA("BasePart") then return root end
+        local hrp = boss:FindFirstChild("HumanoidRootPart")
+        if hrp and hrp:IsA("BasePart") then return hrp end
+        if boss.PrimaryPart then return boss.PrimaryPart end
+        for _, d in ipairs(boss:GetDescendants()) do
+            if d:IsA("BasePart") then return d end
+        end
+        return nil
+    end
+
+    local function getTargetCenter(boss)
+        if not boss then return nil end
+        local root = boss:FindFirstChild("RootPart")
+        if root and root:IsA("BasePart") then return root.Position end
+        local prim = boss.PrimaryPart
+        if prim then return prim.Position end
+        return getBossCenter(boss)
+    end
+
+    local function disableCollision()
+        local hrp = getHRP()
+        if not hrp then return end
+        pcall(function() hrp.CanCollide = false end)
+    end
+
+    local function orbit(anchor, boss)
+        local hrp = getHRP()
+        if not hrp or not anchor then return end
+        local anchorPos = anchor.Position
+        local center = getTargetCenter(boss) or anchorPos
+        local aimPoint = anchorPos
+        local now = tick()
+        local dt = now - lastHeartbeat
+        lastHeartbeat = now
+        if dt <= 0 or dt > 0.5 then dt = 1 / 60 end
+        orbitAngle = orbitAngle + orbitSpeed * dt
+        local radius = math.max(anchor.Size.Magnitude / 2 + orbitBuffer, 8)
+        local orbitPos = Vector3.new(
+            center.X + math.cos(orbitAngle) * radius,
+            anchorPos.Y + 2,
+            center.Z + math.sin(orbitAngle) * radius
+        )
+        local aimCFrame = CFrame.lookAt(orbitPos, aimPoint)
+        pcall(function()
+            hrp.CFrame = aimCFrame
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end)
+        syncCameraToAim(orbitPos, aimPoint)
+    end
+
+    local function punch(anchor, boss)
+        local hrp = getHRP()
+        if not hrp or not anchor then return end
+        local anchorPos = anchor.Position
+        local aimPoint = anchorPos
+        local dir = hrp.Position - anchorPos
+        dir = Vector3.new(dir.X, 0, dir.Z)
+        if dir.Magnitude < 0.1 then dir = Vector3.new(1, 0, 0) end
+        dir = dir.Unit
+        local punchPos = anchorPos + dir * 6 + Vector3.new(0, 2, 0)
+        pcall(function()
+            hrp.CFrame = CFrame.lookAt(punchPos, aimPoint)
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end)
+        syncCameraToAim(punchPos, aimPoint)
+        firePunch()
+    end
+
+    local function onHeartbeat()
+        if not enabled then return end
+        if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+
+        local hum = getHumanoid()
+        if not hum or hum.Health <= 0 then
+            trackedBoss = nil
+            return
+        end
+
+        clearMachineInUse()
+
+        local boss = getBoss()
+        if not boss or not isTargetAlive(boss) then
+            trackedBoss = nil
+            return
+        end
+
+        local anchor = getTargetAnchor(boss)
+        if not anchor or not anchor.Parent then
+            trackedBoss = nil
+            return
+        end
+
+        if trackedBoss ~= boss then
+            trackedBoss = boss
+            orbitAngle = 0
+            lastHeartbeat = tick()
+        end
+
+        disableCollision()
+        orbit(anchor, boss)
+
+        local now = tick()
+        if now - lastPunch >= getPunchAttackTime() then
+            lastPunch = now
+            punch(anchor, boss)
+        end
+    end
+
+    local function start()
+        if enabled then return end
+        enabled = true
+
+        activeHalloweenFarmers = activeHalloweenFarmers + 1
+        if activeHalloweenFarmers == 1 then
+            setBodyMovementEnabled(false)
+            local hrp = getHRP()
+            if hrp then
+                sharedSavedCanCollide = hrp.CanCollide
+                pcall(function() hrp.CanCollide = false end)
+            end
+        end
+
+        trackedBoss = nil
+        orbitAngle = 0
+        lastHeartbeat = tick()
+        lastPunch = 0
+        connection = RunService.Heartbeat:Connect(onHeartbeat)
+    end
+
+    local function stop()
+        if not enabled then return end
+        enabled = false
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        trackedBoss = nil
+
+        activeHalloweenFarmers = math.max(0, activeHalloweenFarmers - 1)
+        if activeHalloweenFarmers == 0 then
+            local hrp = getHRP()
+            if hrp and sharedSavedCanCollide ~= nil then
+                pcall(function() hrp.CanCollide = sharedSavedCanCollide end)
+            end
+            sharedSavedCanCollide = nil
+            setBodyMovementEnabled(true)
+        end
+    end
+
+    return {
+        start = start,
+        stop = stop,
+        isEnabled = function() return enabled end,
+    }
+end
+
+local grimReaperFarmer = createHalloweenBossFarmer("Grim Reaper", 3, 4)
+local pumpkinTitanFarmer = createHalloweenBossFarmer("Pumpkin Titan", 3, 4)
+table.insert(halloweenFarmers, grimReaperFarmer)
+table.insert(halloweenFarmers, pumpkinTitanFarmer)
+
+local function getFarmerForBoss(name)
+    if name == "Grim Reaper" then return grimReaperFarmer end
+    if name == "Pumpkin Titan" then return pumpkinTitanFarmer end
     return nil
 end
 
-local function getGrimReaperCenter(reaper)
-    if not reaper then return nil end
-    local root = reaper:FindFirstChild("RootPart")
-    if root and root:IsA("BasePart") then return root.Position end
-    local prim = reaper.PrimaryPart
-    if prim then return prim.Position end
-    return getBossCenter(reaper)
+local selectedHalloweenBoss = findBossOption(undeitedhub.Toggles.halloweenBossSelection)
+local autoHalloweenEnabled = undeitedhub.Toggles.autoHalloweenBoss or false
+
+undeitedhub.Toggles.halloweenBossSelection = selectedHalloweenBoss
+undeitedhub.Toggles.autoHalloweenBoss = autoHalloweenEnabled
+
+local function stopAllHalloween()
+    for _, farmer in ipairs(halloweenFarmers) do
+        if farmer.isEnabled() then farmer.stop() end
+    end
 end
 
-local function disableHalloweenCollision()
-    local hrp = getHRP()
-    if not hrp then return end
-    if halloweenSavedCanCollide == nil then
-        halloweenSavedCanCollide = hrp.CanCollide
+local function applyHalloweenSelection()
+    if not autoHalloweenEnabled then
+        stopAllHalloween()
+        return
     end
-    pcall(function()
-        hrp.CanCollide = false
-    end)
-end
-
-local function restoreHalloweenCollision()
-    if halloweenSavedCanCollide == nil then return end
-    local hrp = getHRP()
-    if hrp then
-        pcall(function()
-            hrp.CanCollide = halloweenSavedCanCollide
-        end)
-    end
-    halloweenSavedCanCollide = nil
-end
-
-local function orbitHalloween(anchor, reaper)
-    local hrp = getHRP()
-    if not hrp or not anchor then return end
-
-    local anchorPos = anchor.Position
-    local center = getGrimReaperCenter(reaper) or anchorPos
-    local aimPoint = anchorPos
-
-    local now = tick()
-    local dt = now - halloweenLastHeartbeat
-    halloweenLastHeartbeat = now
-    if dt <= 0 or dt > 0.5 then
-        dt = 1 / 60
-    end
-
-    halloweenOrbitAngle = halloweenOrbitAngle + HALLOWEEN_ORBIT_SPEED * dt
-
-    local radius = math.max(anchor.Size.Magnitude / 2 + HALLOWEEN_ORBIT_BUFFER, 8)
-    local orbitPos = Vector3.new(
-        center.X + math.cos(halloweenOrbitAngle) * radius,
-        anchorPos.Y + 2,
-        center.Z + math.sin(halloweenOrbitAngle) * radius
-    )
-
-    local aimCFrame = CFrame.lookAt(orbitPos, aimPoint)
-    pcall(function()
-        hrp.CFrame = aimCFrame
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end)
-
-    syncCameraToAim(orbitPos, aimPoint)
-end
-
-local function performHalloweenPunch(anchor, reaper)
-    local hrp = getHRP()
-    if not hrp or not anchor then return end
-
-    local anchorPos = anchor.Position
-    local aimPoint = anchorPos
-
-    local dir = hrp.Position - anchorPos
-    dir = Vector3.new(dir.X, 0, dir.Z)
-    if dir.Magnitude < 0.1 then
-        dir = Vector3.new(1, 0, 0)
-    end
-    dir = dir.Unit
-
-    local punchPos = anchorPos + dir * 6 + Vector3.new(0, 2, 0)
-
-    pcall(function()
-        hrp.CFrame = CFrame.lookAt(punchPos, aimPoint)
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end)
-
-    syncCameraToAim(punchPos, aimPoint)
-
-    if equipPunch(LocalPlayer) then
-        local punch = getPunchTool(LocalPlayer)
-        if punch and punch.Parent == LocalPlayer.Character then
-            pcall(function()
-                punch:Activate()
-            end)
+    local target = getFarmerForBoss(selectedHalloweenBoss)
+    for _, farmer in ipairs(halloweenFarmers) do
+        if farmer == target then
+            if not farmer.isEnabled() then farmer.start() end
+        else
+            if farmer.isEnabled() then farmer.stop() end
         end
     end
 end
 
-local function onHalloweenHeartbeat()
-    if not autoHalloweenEnabled then return end
-    if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
+local halloweenDropdown
 
-    local hum = getHumanoid()
-    if not hum or hum.Health <= 0 then
-        halloweenReaper = nil
-        restoreHalloweenCollision()
-        return
+halloweenDropdown = BossTab:Dropdown({
+    Title = "Halloween Boss",
+    Values = HALLOWEEN_BOSS_OPTIONS,
+    Value = selectedHalloweenBoss,
+    Callback = function(value)
+        selectedHalloweenBoss = findBossOption(value)
+        undeitedhub.Toggles.halloweenBossSelection = selectedHalloweenBoss
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        applyHalloweenSelection()
     end
-
-    clearMachineInUse()
-
-    local reaper = getGrimReaper()
-    if not reaper or not isGrimReaperAlive(reaper) then
-        halloweenReaper = nil
-        restoreHalloweenCollision()
-        return
-    end
-
-    local anchor = getGrimReaperAnchor(reaper)
-    if not anchor or not anchor.Parent then
-        halloweenReaper = nil
-        return
-    end
-
-    if halloweenReaper ~= reaper then
-        halloweenReaper = reaper
-        halloweenOrbitAngle = 0
-        halloweenLastHeartbeat = tick()
-    end
-
-    disableHalloweenCollision()
-    orbitHalloween(anchor, reaper)
-
-    local now = tick()
-    if now - halloweenLastPunch >= HALLOWEEN_PUNCH_COOLDOWN then
-        halloweenLastPunch = now
-        performHalloweenPunch(anchor, reaper)
-    end
-end
-
-local function startAutoHalloween()
-    if halloweenConnection then return end
-    autoHalloweenEnabled = true
-    undeitedhub.Toggles.autoHalloweenBoss = true
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-
-    setBodyMovementEnabled(false)
-
-    halloweenReaper = nil
-    halloweenOrbitAngle = 0
-    halloweenLastHeartbeat = tick()
-    halloweenLastPunch = 0
-    halloweenSavedCanCollide = nil
-
-    halloweenConnection = RunService.Heartbeat:Connect(onHalloweenHeartbeat)
-end
-
-local function stopAutoHalloween()
-    autoHalloweenEnabled = false
-    undeitedhub.Toggles.autoHalloweenBoss = false
-    if halloweenConnection then
-        halloweenConnection:Disconnect()
-        halloweenConnection = nil
-    end
-    halloweenReaper = nil
-    restoreHalloweenCollision()
-    setBodyMovementEnabled(true)
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-end
+})
 
 BossTab:Toggle({
     Title = "Auto Halloween Boss Farm",
     Value = autoHalloweenEnabled,
     Callback = function(state)
-        if state then
-            startAutoHalloween()
-        else
-            stopAutoHalloween()
-        end
+        autoHalloweenEnabled = state
+        undeitedhub.Toggles.autoHalloweenBoss = state
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        applyHalloweenSelection()
     end
 })
 
+task.defer(function()
+    pcall(function()
+        halloweenDropdown:Set(selectedHalloweenBoss)
+    end)
+end)
+
 if autoHalloweenEnabled then
-    startAutoHalloween()
+    applyHalloweenSelection()
 end
 
 local oldDisable = undeitedhub.DisableAll or function() end
@@ -843,16 +934,12 @@ undeitedhub.DisableAll = function()
         releaseE()
         setBodyMovementEnabled(true)
     end
+
     if autoHalloweenEnabled then
         autoHalloweenEnabled = false
         undeitedhub.Toggles.autoHalloweenBoss = false
-        if halloweenConnection then
-            halloweenConnection:Disconnect()
-            halloweenConnection = nil
-        end
-        halloweenReaper = nil
-        restoreHalloweenCollision()
-        setBodyMovementEnabled(true)
+        stopAllHalloween()
     end
+
     oldDisable()
 end
