@@ -867,16 +867,56 @@ local function spawnShurikenAt(targetPart)
     if not targetPart or not targetPart.Parent then return nil end
     if not SpawnToyRemote then return nil end
     
-    -- FIX: Strip rotation and add +20 Z offset to bypass server distance check
+    -- Strip rotation and add +20 Z offset to bypass server distance check
     local hint = CFrame.new(targetPart.Position + Vector3.new(0, 15, 20))
     local rotPart = Workspace:FindFirstChild("RotateOrientPart")
     local rot = rotPart and rotPart.Rotation or Vector3.zero
 
-    local ok, shuriken = pcall(function()
-        return SpawnToyRemote:InvokeServer("NinjaShuriken", hint, rot)
-    end)
+    local foundToy = nil
+    local connections = {}
     
-    if not ok or not shuriken or not shuriken:IsA("Model") or not shuriken.Parent then return nil end
+    -- Listen for the new toy in the player's inventory or the plot items
+    local function checkModel(child)
+        if not foundToy and child.Name == "NinjaShuriken" and child:IsA("Model") then
+            foundToy = child
+        end
+    end
+
+    local inv = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+    if inv then
+        table.insert(connections, inv.ChildAdded:Connect(checkModel))
+    end
+    
+    local plotItems = Workspace:FindFirstChild("PlotItems")
+    if plotItems then
+        table.insert(connections, plotItems.DescendantAdded:Connect(function(desc)
+            if desc:IsA("Model") and desc.Name == "NinjaShuriken" then
+                checkModel(desc)
+            end
+        end))
+    end
+
+    -- Fire the remote in the background (don't rely on its return value)
+    task.spawn(function()
+        pcall(function()
+            SpawnToyRemote:InvokeServer("NinjaShuriken", hint, rot)
+        end)
+    end)
+
+    -- Wait for the toy to appear in the workspace
+    local timeout = tick() + 1.5
+    while tick() < timeout and not foundToy do
+        RunService.Heartbeat:Wait()
+        if not antiKickActive then break end
+    end
+
+    for _, conn in ipairs(connections) do
+        conn:Disconnect()
+    end
+
+    if not foundToy or not foundToy.Parent then return nil end
+    local shuriken = foundToy
+
     local stickyPart = shuriken:WaitForChild("StickyPart", 1.5)
     local stickyWeld = stickyPart and stickyPart:WaitForChild("StickyWeld", 1.5)
     if not stickyPart or not stickyWeld then
