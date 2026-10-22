@@ -866,10 +866,16 @@ end
 local function spawnShurikenAt(targetPart)
     if not targetPart or not targetPart.Parent then return nil end
     if not SpawnToyRemote then return nil end
-    local cframe = targetPart.CFrame + Vector3.new(0, 15, 0)
+    
+    -- FIX: Strip rotation and add +20 Z offset to bypass server distance check
+    local hint = CFrame.new(targetPart.Position + Vector3.new(0, 15, 20))
+    local rotPart = Workspace:FindFirstChild("RotateOrientPart")
+    local rot = rotPart and rotPart.Rotation or Vector3.zero
+
     local ok, shuriken = pcall(function()
-        return SpawnToyRemote:InvokeServer("NinjaShuriken", cframe, Vector3.zero)
+        return SpawnToyRemote:InvokeServer("NinjaShuriken", hint, rot)
     end)
+    
     if not ok or not shuriken or not shuriken:IsA("Model") or not shuriken.Parent then return nil end
     local stickyPart = shuriken:WaitForChild("StickyPart", 1.5)
     local stickyWeld = stickyPart and stickyPart:WaitForChild("StickyWeld", 1.5)
