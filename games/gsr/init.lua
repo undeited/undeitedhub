@@ -57,7 +57,7 @@ pcall(LoadScript, "shared/adonisbypass.lua")
 local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
 local config = LoadScript("shared/config.lua")
-local MathUtils = LoadScript("shared/math_utils.lua")
+local MathUtils = LoadScript("shared/mathutils.lua")
 
 undeitedhub = undeitedhub or {}
 undeitedhub.WindUI = WindUI
