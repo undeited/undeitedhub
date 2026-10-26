@@ -293,7 +293,7 @@ if autoLiftEnabled then startAutoLift() end
 local autoConsumeEnabled = undeitedhub.Toggles.AutoConsume or false
 local autoConsumeTask = nil
 local CONSUME_WAIT = 0.2
-local CONSUME_AMOUNT = 10
+local CONSUME_AMOUNT = 1
 local CONSUME_LOOP_INTERVAL = 0.5
 local CONSUME_ITEM_COOLDOWN = 2.5
 local consumeRequestedAt = {}
