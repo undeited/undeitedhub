@@ -68,6 +68,12 @@ local function LoadScript(name)
     return fn()
 end
 
+pcall(function()
+    local bypass = Fetch(BASE_URL .. "shared/adonisbypass.lua")
+    local fn = LoadString(bypass, "shared/adonisbypass.lua")
+    if fn then fn() end
+end)
+
 local gamesList = Fetch(BASE_URL .. "games.lua")
 local games = assert(LoadString(gamesList, "games"))()
 
