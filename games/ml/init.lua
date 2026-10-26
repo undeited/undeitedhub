@@ -39,6 +39,8 @@ if not CheckExecutor() then return end
 
 local GAME_FOLDER = "ml"
 
+pcall(LoadScript, "shared/adonisbypass.lua")
+
 local WindUI = LoadScript("shared/windui.lua")
 local utils = LoadScript("shared/utils.lua")
 local config = LoadScript("shared/config.lua")
