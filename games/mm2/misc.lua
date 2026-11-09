@@ -126,6 +126,109 @@ MiscTab:Button({
     end
 })
 
+local spectateMurdererEnabled = undeitedhub.Toggles.spectateMurdererEnabled or false
+local spectateSheriffEnabled = undeitedhub.Toggles.spectateSheriffEnabled or false
+local activeSpectateRole = nil
+local savedCameraSubject = nil
+local hasSavedCameraSubject = false
+local spectateConnection = nil
+local lastSpectateUpdate = 0
+
+local function GetPlayerHumanoid(player)
+    local character = player and player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return nil end
+    return humanoid
+end
+
+local function UpdateSpectateCamera()
+    local now = tick()
+    if lastSpectateUpdate > 0 and now - lastSpectateUpdate < 0.25 then return end
+    lastSpectateUpdate = now
+
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+
+    local target
+    if activeSpectateRole == "Murderer" and spectateMurdererEnabled then
+        target = undeitedhub.GetCurrentMurderer and undeitedhub.GetCurrentMurderer()
+    elseif activeSpectateRole == "Sheriff" and spectateSheriffEnabled then
+        target = undeitedhub.GetCurrentSheriff and undeitedhub.GetCurrentSheriff()
+    end
+
+    local subject = GetPlayerHumanoid(target) or GetPlayerHumanoid(game.Players.LocalPlayer)
+    if subject and camera.CameraSubject ~= subject then
+        camera.CameraSubject = subject
+    end
+end
+
+local function SetupSpectate()
+    if spectateConnection then
+        spectateConnection:Disconnect()
+        spectateConnection = nil
+    end
+
+    if spectateMurdererEnabled or spectateSheriffEnabled then
+        local camera = workspace.CurrentCamera
+        if camera and not hasSavedCameraSubject then
+            savedCameraSubject = camera.CameraSubject
+            hasSavedCameraSubject = true
+        end
+        lastSpectateUpdate = 0
+        UpdateSpectateCamera()
+        spectateConnection = undeitedhub.Track(game:GetService("RunService").RenderStepped:Connect(UpdateSpectateCamera))
+        return
+    end
+
+    local camera = workspace.CurrentCamera
+    if camera and hasSavedCameraSubject then
+        local subject = savedCameraSubject
+        if not subject or not subject:IsDescendantOf(game) then
+            subject = GetPlayerHumanoid(game.Players.LocalPlayer)
+        end
+        if subject then
+            camera.CameraSubject = subject
+        end
+    end
+    savedCameraSubject = nil
+    hasSavedCameraSubject = false
+end
+
+MiscTab:Toggle({
+    Title = "Spectate Murderer",
+    Value = spectateMurdererEnabled,
+    Callback = function(state)
+        spectateMurdererEnabled = state
+        undeitedhub.Toggles.spectateMurdererEnabled = state
+        if state then activeSpectateRole = "Murderer" end
+        if not state and activeSpectateRole == "Murderer" then
+            activeSpectateRole = spectateSheriffEnabled and "Sheriff" or nil
+        end
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        SetupSpectate()
+    end
+})
+
+MiscTab:Toggle({
+    Title = "Spectate Sheriff",
+    Value = spectateSheriffEnabled,
+    Callback = function(state)
+        spectateSheriffEnabled = state
+        undeitedhub.Toggles.spectateSheriffEnabled = state
+        if state then activeSpectateRole = "Sheriff" end
+        if not state and activeSpectateRole == "Sheriff" then
+            activeSpectateRole = spectateMurdererEnabled and "Murderer" or nil
+        end
+        if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
+        SetupSpectate()
+    end
+})
+
+if spectateMurdererEnabled or spectateSheriffEnabled then
+    activeSpectateRole = spectateSheriffEnabled and "Sheriff" or "Murderer"
+    SetupSpectate()
+end
+
 local function TeleportToPlayer(target)
     if not target then return end
     local localPlayer = game.Players.LocalPlayer
@@ -833,6 +936,11 @@ MiscTab:Toggle({
 })
 
 undeitedhub.OnClose(function()
+    spectateMurdererEnabled = false
+    spectateSheriffEnabled = false
+    activeSpectateRole = nil
+    SetupSpectate()
+
     antiFlingEnabled = false
     if antiFlingHeartbeat then
         antiFlingHeartbeat:Disconnect()
