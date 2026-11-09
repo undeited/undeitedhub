@@ -18,12 +18,34 @@ local function LoadString(script, chunkName)
     error("Unsupported executor: missing loadstring or load")
 end
 
+local WINDUI_URLS = {
+    "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua",
+    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua",
+    "https://github.com/Footagesus/WindUI/releases/download/1.6.66/main.lua",
+}
+
 local WindUI = (function()
-    local url = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
-    local raw = HttpGet(url)
-    local fn, err = LoadString(raw, "WindUI")
-    if not fn then error(err) end
-    return fn()
+    local lastErr = "unknown error"
+    for attempt = 1, 2 do
+        for _, url in ipairs(WINDUI_URLS) do
+            local ok, raw = pcall(HttpGet, url)
+            -- GitHub sometimes returns an HTML error page (504/429/404) instead of Lua
+            if ok and type(raw) == "string" and #raw > 0 and not raw:match("^%s*<") then
+                local fn, err = LoadString(raw, "WindUI")
+                if fn then
+                    local okRun, lib = pcall(fn)
+                    if okRun and lib then return lib end
+                    lastErr = tostring(lib)
+                else
+                    lastErr = tostring(err)
+                end
+            else
+                lastErr = ok and ("non-Lua response from " .. url) or tostring(raw)
+            end
+        end
+        if task and task.wait then task.wait(1) end
+    end
+    error("WindUI failed to load: " .. lastErr)
 end)()
 
 local function DefineTheme(name, colors)
