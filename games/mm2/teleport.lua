@@ -159,6 +159,3 @@ TeleportTab:Button({
     Title = "Teleport to Current Map",
     Callback = TeleportToCurrentMap
 })
-
-undeitedhub.DisableAll = function()
-end

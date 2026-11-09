@@ -316,7 +316,8 @@ CombatTab:Button({
 local autoKillAllEnabled = undeitedhub.Toggles.autoKillAllEnabled or false
 local lastAutoKillAllTime = 0
 
-game:GetService("RunService").Heartbeat:Connect(function()
+undeitedhub.Track(game:GetService("RunService").Heartbeat:Connect(function()
+    if undeitedhub.IsClosed() then return end
     if autoKillAllEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastAutoKillAllTime >= 0.5 then
@@ -324,7 +325,7 @@ game:GetService("RunService").Heartbeat:Connect(function()
             pcall(KillAll)
         end
     end
-end)
+end))
 
 CombatTab:Toggle({
     Title = "Auto Kill All",
@@ -654,8 +655,6 @@ local function BuildShotContext()
     local currentPos = rootPart.Position
     UpdateMurdererHistory(murderer, currentPos)
 
-    -- Only pull out the gun when the murderer is actually visible.
-    -- Gun origin isn't reliable while the tool is in the backpack, so check from the head.
     local myChar = localPlayer.Character
     local eye = myChar and (myChar:FindFirstChild("Head") or myChar:FindFirstChild("HumanoidRootPart"))
     if not eye then return nil, "no character" end
@@ -771,7 +770,8 @@ local function ShootAtMurderer()
     FireShootRemote(ctx.shootRemote, ctx.originCFrame, targetCFrame)
 end
 
-game:GetService("RunService").Heartbeat:Connect(function()
+undeitedhub.Track(game:GetService("RunService").Heartbeat:Connect(function()
+    if undeitedhub.IsClosed() then return end
     if autoShootEnabled then
         local now = tick()
         local _, _, cooldown = AutoTuneConfig()
@@ -780,7 +780,7 @@ game:GetService("RunService").Heartbeat:Connect(function()
             pcall(ShootAtMurderer)
         end
     end
-end)
+end))
 
 CombatTab:Button({
     Title = "Shoot Murderer",
@@ -914,6 +914,7 @@ local function GrabGun(gunDrop, silent)
     local collected = false
     local offset = Vector3.new(0, 1, 0)
     while true do
+        if undeitedhub.IsClosed() then break end
         if not gunDrop.Parent then
             if not silent then notify("Grab Gun", "GunDrop disappeared") end
             break
@@ -997,11 +998,11 @@ local function ToggleAutoGrab(state)
             gunDropAddedConnection:Disconnect()
             gunDropAddedConnection = nil
         end
-        gunDropAddedConnection = workspace.DescendantAdded:Connect(function(obj)
+        gunDropAddedConnection = undeitedhub.Track(workspace.DescendantAdded:Connect(function(obj)
             if autoGrabGunEnabled and obj.Name == "GunDrop" then
                 pcall(AttemptAutoGrab)
             end
-        end)
+        end))
         SafeNotify({ Title = "Auto Grab Gun", Content = "Enabled", Duration = 2 })
     else
         if gunDropAddedConnection then
@@ -1061,18 +1062,14 @@ CombatTab:Toggle({
     end
 })
 
-undeitedhub.DisableAll = function()
+undeitedhub.OnClose(function()
     autoKillAllEnabled = false
-    undeitedhub.Toggles.autoKillAllEnabled = false
     autoShootEnabled = false
-    undeitedhub.Toggles.autoShootEnabled = false
     autoGrabGunEnabled = false
-    undeitedhub.Toggles.autoGrabGunEnabled = false
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
     if gunDropAddedConnection then
         gunDropAddedConnection:Disconnect()
         gunDropAddedConnection = nil
     end
     murdererHistory = {}
     pingHistory = {}
-end
+end)

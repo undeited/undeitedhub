@@ -100,6 +100,14 @@ Window:SetToggleKey(Enum.KeyCode[toggleKey])
 undeitedhub.Window = Window
 
 _G.UNDEITEDHUB_WINDOW_VISIBLE = true
+pcall(function()
+    Window:OnDestroy(function()
+        _G.UNDEITEDHUB_WINDOW_VISIBLE = false
+        if undeitedhub and undeitedhub.DisableAll then
+            pcall(undeitedhub.DisableAll)
+        end
+    end)
+end)
 local frame = Window.Frame
 if frame then
     frame:GetPropertyChangedSignal("Visible"):Connect(function()

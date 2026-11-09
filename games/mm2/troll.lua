@@ -218,6 +218,8 @@ local function IsSeated(player)
     return hum and (hum.SeatPart or hum:GetState() == Enum.HumanoidStateType.Seated)
 end
 
+local activeFling = nil
+
 local function FlingPlayer(target, silent)
     if not target or target == game.Players.LocalPlayer then
         return false
@@ -274,6 +276,7 @@ local function FlingPlayer(target, silent)
     flingManager.cFlingOldPos = rootPart.CFrame
 
     local flingPart = Instance.new("Part")
+    activeFling = { part = flingPart, fpdh = originalFPDH }
     flingPart.Anchored = false
     flingPart.CanCollide = false
     flingPart.Transparency = 1
@@ -304,10 +307,12 @@ local function FlingPlayer(target, silent)
     if not tChar:FindFirstChildWhichIsA("BasePart") then
         cleanupFlingPart()
         workspace.FallenPartsDestroyHeight = originalFPDH
+        activeFling = nil
         return false
     end
 
     local function FPos(BasePart, Pos, Ang)
+        if undeitedhub.IsClosed() then return end
         local targetCFrame = CFrame.new(BasePart.Position) * Pos * Ang
         flingPart.CFrame = targetCFrame
         character:PivotTo(targetCFrame)
@@ -366,6 +371,7 @@ local function FlingPlayer(target, silent)
             or target.Parent ~= game.Players
             or tHum.Health <= 0
             or tick() > startTime + timeLimit
+            or undeitedhub.IsClosed()
     end
 
     local bv = Instance.new("BodyVelocity")
@@ -407,8 +413,10 @@ local function FlingPlayer(target, silent)
         end
         task.wait()
     until (rootPart.Position - flingManager.cFlingOldPos.Position).Magnitude < 25
+        or undeitedhub.IsClosed()
 
     workspace.FallenPartsDestroyHeight = originalFPDH
+    activeFling = nil
 
     return true
 end
@@ -419,7 +427,8 @@ local autoFlingCooldown = 5
 local lastFlingMurdererTime = 0
 local lastFlingSheriffTime = 0
 
-game:GetService("RunService").Heartbeat:Connect(function()
+undeitedhub.Track(game:GetService("RunService").Heartbeat:Connect(function()
+    if undeitedhub.IsClosed() then return end
     if autoFlingMurdererEnabled and _G.UNDEITEDHUB_WINDOW_VISIBLE then
         local now = tick()
         if now - lastFlingMurdererTime >= autoFlingCooldown and IsRoundActive() then
@@ -455,7 +464,7 @@ game:GetService("RunService").Heartbeat:Connect(function()
             end
         end
     end
-end)
+end))
 
 TrollTab:Button({
     Title = "Fling Murderer",
@@ -508,10 +517,25 @@ TrollTab:Toggle({
     end
 })
 
-undeitedhub.DisableAll = function()
+undeitedhub.OnClose(function()
     autoFlingMurdererEnabled = false
-    undeitedhub.Toggles.autoFlingMurdererEnabled = false
     autoFlingSheriffEnabled = false
-    undeitedhub.Toggles.autoFlingSheriffEnabled = false
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-end
+
+    if activeFling then
+        local fling = activeFling
+        activeFling = nil
+        pcall(function() workspace.FallenPartsDestroyHeight = fling.fpdh end)
+        pcall(function()
+            if fling.part then fling.part:Destroy() end
+        end)
+        pcall(function()
+            local lp = game.Players.LocalPlayer
+            local hum = lp and lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            if hum and workspace.CurrentCamera then
+                workspace.CurrentCamera.CameraSubject = hum
+                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+            end
+        end)
+    end
+
+end)

@@ -167,6 +167,16 @@ undeitedhub.SaveSettings = SaveSettings
 undeitedhub.LoadSettings = LoadSettings
 
 _G.UNDEITEDHUB_WINDOW_VISIBLE = true
+-- WindUI windows have no .Frame, so the AncestryChanged hook below never fires.
+-- OnDestroy runs when the X button's "Close Window" is confirmed (minimize/toggle key don't trigger it).
+pcall(function()
+    Window:OnDestroy(function()
+        _G.UNDEITEDHUB_WINDOW_VISIBLE = false
+        if undeitedhub and undeitedhub.DisableAll then
+            pcall(undeitedhub.DisableAll)
+        end
+    end)
+end)
 local frame = Window.Frame
 if frame then
     frame:GetPropertyChangedSignal("Visible"):Connect(function()

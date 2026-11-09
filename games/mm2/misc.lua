@@ -466,7 +466,7 @@ local function SetupAntiFling()
         recoveryMode = false
         lastSafePosition = nil
         positionHistory = {}
-        antiFlingHeartbeat = game:GetService("RunService").Heartbeat:Connect(StrongAntiFling)
+        antiFlingHeartbeat = undeitedhub.Track(game:GetService("RunService").Heartbeat:Connect(StrongAntiFling))
     end
 end
 
@@ -510,16 +510,16 @@ local function StartNoclipLoop()
 
     local localPlayer = game.Players.LocalPlayer
     if localPlayer then
-        noclipCharacterConn = localPlayer.CharacterAdded:Connect(function(char)
+        noclipCharacterConn = undeitedhub.Track(localPlayer.CharacterAdded:Connect(function(char)
             task.wait(0.1)
             if noclipEnabled then
                 ApplyNoclip(char)
             end
-        end)
+        end))
     end
 
     local RunService = game:GetService("RunService")
-    noclipConnection = RunService.Stepped:Connect(function()
+    noclipConnection = undeitedhub.Track(RunService.Stepped:Connect(function()
         if not noclipEnabled then return end
         if not _G.UNDEITEDHUB_WINDOW_VISIBLE then return end
         local player = game.Players.LocalPlayer
@@ -527,7 +527,7 @@ local function StartNoclipLoop()
         if character then
             ApplyNoclip(character)
         end
-    end)
+    end))
 end
 
 local function StopNoclipLoop()
@@ -586,7 +586,6 @@ local function SafeNotify(data)
     end
 end
 
--- Walk Fling (ported from Source.lua "walkfling")
 local walkFlingEnabled = false
 local walkFlingConnection = nil
 local walkFlingSpeed = 10000
@@ -631,15 +630,16 @@ end
 local function StartWalkFling()
     if walkFlingConnection then return end
     walkFlingEnabled = true
-    walkFlingConnection = game:GetService("RunService").Heartbeat:Connect(function()
+    walkFlingConnection = undeitedhub.Track(game:GetService("RunService").Heartbeat:Connect(function()
         if not walkFlingEnabled then return end
+        if undeitedhub.IsClosed() then return end
         local lp = game.Players.LocalPlayer
         local char = lp and lp.Character
         local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso"))
         if root then
             WalkFlingBurst(root, walkFlingSpeed)
         end
-    end)
+    end))
 end
 
 MiscTab:Toggle({
@@ -659,7 +659,6 @@ MiscTab:Toggle({
     end
 })
 
--- Float (ported from Source.lua "airwalk"/"float")
 local floatEnabled = false
 local floatPart = nil
 local floatLoop = nil
@@ -710,6 +709,7 @@ local function CreateFloatGui()
     screenGui.Name = "UndeitedFloatGui"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = parent
+    undeitedhub.Track(screenGui)
     table.insert(floatGuis, screenGui)
 
     local function makeButton(text, position, down, up)
@@ -759,21 +759,21 @@ local function StartFloat()
     if isMobile then
         CreateFloatGui()
     else
-        table.insert(floatConnections, UserInputService.TextBoxFocused:Connect(function()
+        table.insert(floatConnections, undeitedhub.Track(UserInputService.TextBoxFocused:Connect(function()
             floatVars.isTyping = true
-        end))
-        table.insert(floatConnections, UserInputService.TextBoxFocusReleased:Connect(function()
+        end)))
+        table.insert(floatConnections, undeitedhub.Track(UserInputService.TextBoxFocusReleased:Connect(function()
             floatVars.isTyping = false
-        end))
-        table.insert(floatConnections, UserInputService.InputBegan:Connect(function(input, gpe)
+        end)))
+        table.insert(floatConnections, undeitedhub.Track(UserInputService.InputBegan:Connect(function(input, gpe)
             if gpe or floatVars.isTyping then return end
             if input.KeyCode == Enum.KeyCode.E then floatVars.increase = true end
             if input.KeyCode == Enum.KeyCode.Q then floatVars.decrease = true end
-        end))
-        table.insert(floatConnections, UserInputService.InputEnded:Connect(function(input)
+        end)))
+        table.insert(floatConnections, undeitedhub.Track(UserInputService.InputEnded:Connect(function(input)
             if input.KeyCode == Enum.KeyCode.E then floatVars.increase = false end
             if input.KeyCode == Enum.KeyCode.Q then floatVars.decrease = false end
-        end))
+        end)))
     end
 
     floatPart = Instance.new("Part")
@@ -783,8 +783,9 @@ local function StartFloat()
     floatPart.Anchored = true
     floatPart.CanCollide = true
     floatPart.Parent = workspace
+    undeitedhub.Track(floatPart)
 
-    floatLoop = RunService.RenderStepped:Connect(function()
+    floatLoop = undeitedhub.Track(RunService.RenderStepped:Connect(function()
         if not floatEnabled or not floatPart then return end
 
         local lp = game.Players.LocalPlayer
@@ -811,7 +812,7 @@ local function StartFloat()
         floatVars.offset = math.max(0, baseOffset + delta)
 
         floatPart.CFrame = CFrame.new(root.Position.X, root.Position.Y - floatVars.offset, root.Position.Z)
-    end)
+    end))
 end
 
 MiscTab:Toggle({
@@ -831,9 +832,8 @@ MiscTab:Toggle({
     end
 })
 
-undeitedhub.DisableAll = function()
+undeitedhub.OnClose(function()
     antiFlingEnabled = false
-    undeitedhub.Toggles.antiFlingEnabled = false
     if antiFlingHeartbeat then
         antiFlingHeartbeat:Disconnect()
         antiFlingHeartbeat = nil
@@ -856,9 +856,7 @@ undeitedhub.DisableAll = function()
     if noclipEnabled then
         StopNoclipLoop()
         noclipEnabled = false
-        undeitedhub.Toggles.noclipEnabled = false
     end
     StopWalkFling()
     StopFloat()
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-end
+end)

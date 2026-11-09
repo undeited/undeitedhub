@@ -68,6 +68,8 @@ undeitedhub.Toggles = undeitedhub.Toggles or {}
 undeitedhub.BASE_URL = BASE_URL
 undeitedhub.SettingsFile = "undeitedhub/" .. GAME_FOLDER .. "/settings.json"
 
+LoadScript("shared/cleanup.lua")
+
 local function ResolveThemeName(themeName)
     local available = config and config.themes or { "Default" }
     if type(themeName) ~= "string" or themeName == "" then
@@ -170,17 +172,12 @@ undeitedhub.LoadSettings = LoadSettings
 _G.UNDEITEDHUB_WINDOW_VISIBLE = true
 local frame = Window.Frame
 if frame then
-    frame:GetPropertyChangedSignal("Visible"):Connect(function()
+    undeitedhub.Track(frame:GetPropertyChangedSignal("Visible"):Connect(function()
         _G.UNDEITEDHUB_WINDOW_VISIBLE = frame.Visible
-    end)
-    frame.AncestryChanged:Connect(function()
-        if not frame.Parent then
-            if undeitedhub.DisableAll then
-                undeitedhub.DisableAll()
-            end
-        end
-    end)
+    end))
 end
+
+undeitedhub.HookWindow(Window)
 
 local function SafeLoad(name)
     local success, err = pcall(LoadScript, name)

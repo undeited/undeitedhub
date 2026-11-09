@@ -72,6 +72,7 @@ local function scheduleRefresh()
     local delay = math.max(0, MIN_REFRESH_INTERVAL - (now - lastRefreshAt))
     task.delay(delay, function()
         pendingRefresh = false
+        if undeitedhub.IsClosed() then return end
         lastRefreshAt = tick()
         if dirtyPlayers then
             dirtyPlayers = false
@@ -505,31 +506,33 @@ VisualTab:Toggle({
 
 local function ConnectPlayer(player)
     if not player then return end
-    player.CharacterAdded:Connect(function()
+    undeitedhub.Track(player.CharacterAdded:Connect(function()
         task.wait(0.2)
+        if undeitedhub.IsClosed() then return end
         markPlayersDirty()
         scheduleRefresh()
-    end)
-    player.CharacterRemoving:Connect(function()
+    end))
+    undeitedhub.Track(player.CharacterRemoving:Connect(function()
+        if undeitedhub.IsClosed() then return end
         markPlayersDirty()
         scheduleRefresh()
-    end)
+    end))
 end
 
 for _, player in ipairs(game.Players:GetPlayers()) do
     ConnectPlayer(player)
 end
 
-game.Players.PlayerAdded:Connect(ConnectPlayer)
+undeitedhub.Track(game.Players.PlayerAdded:Connect(ConnectPlayer))
 
-game.Players.PlayerRemoving:Connect(function(player)
+undeitedhub.Track(game.Players.PlayerRemoving:Connect(function(player)
     if highlightMap[player] then
         pcall(highlightMap[player].Destroy, highlightMap[player])
         highlightMap[player] = nil
     end
-end)
+end))
 
-workspace.DescendantAdded:Connect(function(obj)
+undeitedhub.Track(workspace.DescendantAdded:Connect(function(obj)
     if obj.Name == "GunDrop" then
         trackedGunDrops[obj] = true
         if gunHighlightEnabled then
@@ -537,9 +540,9 @@ workspace.DescendantAdded:Connect(function(obj)
             scheduleRefresh()
         end
     end
-end)
+end))
 
-workspace.DescendantRemoving:Connect(function(obj)
+undeitedhub.Track(workspace.DescendantRemoving:Connect(function(obj)
     if obj.Name == "GunDrop" then
         trackedGunDrops[obj] = nil
         if gunHighlightEnabled then
@@ -547,15 +550,15 @@ workspace.DescendantRemoving:Connect(function(obj)
             scheduleRefresh()
         end
     end
-end)
+end))
 
 if roundTimer then
-    roundTimer:GetAttributeChangedSignal("Time"):Connect(function()
+    undeitedhub.Track(roundTimer:GetAttributeChangedSignal("Time"):Connect(function()
         markPlayersDirty()
         markGunsDirty()
         markCoinsDirty()
         scheduleRefresh()
-    end)
+    end))
 end
 
 local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -564,7 +567,7 @@ local gameplay = remotes and remotes:FindFirstChild("Gameplay")
 if gameplay then
     local roleSelect = gameplay:FindFirstChild("RoleSelect")
     if roleSelect and roleSelect:IsA("RemoteEvent") then
-        roleSelect.OnClientEvent:Connect(function(role)
+        undeitedhub.Track(roleSelect.OnClientEvent:Connect(function(role)
             pcall(function()
                 local localPlayer = game.Players.LocalPlayer
                 if localPlayer then
@@ -576,11 +579,11 @@ if gameplay then
                     scheduleRefresh()
                 end
             end)
-        end)
+        end))
     end
     local roundStart = gameplay:FindFirstChild("RoundStart")
     if roundStart and roundStart:IsA("RemoteEvent") then
-        roundStart.OnClientEvent:Connect(function(time, playerData)
+        undeitedhub.Track(roundStart.OnClientEvent:Connect(function(time, playerData)
             pcall(function()
                 if type(playerData) ~= "table" then return end
                 undeitedhub.playerRoles = undeitedhub.playerRoles or {}
@@ -597,7 +600,7 @@ if gameplay then
                 markCoinsDirty()
                 scheduleRefresh()
             end)
-        end)
+        end))
     end
 end
 
@@ -628,8 +631,9 @@ local function forceRoleScan()
 end
 
 task.spawn(function()
-    while true do
+    while not undeitedhub.IsClosed() do
         task.wait(0.5)
+        if undeitedhub.IsClosed() then break end
         pcall(forceRoleScan)
     end
 end)
@@ -665,27 +669,23 @@ undeitedhub.GetCurrentSheriff = function()
 end
 
 task.spawn(function()
-    while true do
+    while not undeitedhub.IsClosed() do
         task.wait(0.5)
+        if undeitedhub.IsClosed() then break end
         if dirtyPlayers or dirtyGuns or dirtyCoins then
             scheduleRefresh()
         end
     end
 end)
 
-undeitedhub.DisableAll = undeitedhub.DisableAll or function() end
-local oldDisable = undeitedhub.DisableAll
-undeitedhub.DisableAll = function()
+undeitedhub.OnClose(function()
     espEnabled = false
     gunHighlightEnabled = false
     coinHighlightEnabled = false
-    undeitedhub.Toggles.espEnabled = false
-    undeitedhub.Toggles.gunHighlightEnabled = false
-    undeitedhub.Toggles.coinHighlightEnabled = false
     ClearESP()
-    if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
-    oldDisable()
-end
+    undeitedhub.playerRoles = {}
+    trackedGunDrops = setmetatable({}, { __mode = "k" })
+end)
 
 if espEnabled or gunHighlightEnabled or coinHighlightEnabled then
     markPlayersDirty()

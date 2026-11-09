@@ -374,9 +374,14 @@ local killBrickConnections = {}
 local killBrickAddedConnection = nil
 local killBrickDisableActive = false
 
+local killBrickOriginals = setmetatable({}, { __mode = "k" })
+
 local function DisableKillBrick(part)
     if part:IsA("BasePart") and (part.Name == "KillBrick" or string.find(part.Name, "KillBrick")) then
         pcall(function()
+            if killBrickOriginals[part] == nil then
+                killBrickOriginals[part] = { part.CanTouch, part.CanCollide }
+            end
             part.CanTouch = false
             part.CanCollide = false
         end)
@@ -407,11 +412,11 @@ local function SetupKillBrickDisable()
 
     ScanAndDisableKillBricks()
 
-    killBrickAddedConnection = workspace.DescendantAdded:Connect(function(obj)
+    killBrickAddedConnection = undeitedhub.Track(workspace.DescendantAdded:Connect(function(obj)
         if killBrickDisableActive and obj:IsA("BasePart") and (obj.Name == "KillBrick" or string.find(obj.Name, "KillBrick")) then
             DisableKillBrick(obj)
         end
-    end)
+    end))
     table.insert(killBrickConnections, killBrickAddedConnection)
 
     local function onCharacterAdded(char)
@@ -423,11 +428,11 @@ local function SetupKillBrickDisable()
             end
         end
         checkParts()
-        local partConn = char.DescendantAdded:Connect(function(obj)
+        local partConn = undeitedhub.Track(char.DescendantAdded:Connect(function(obj)
             if killBrickDisableActive and obj:IsA("BasePart") and (obj.Name == "KillBrick" or string.find(obj.Name, "KillBrick")) then
                 DisableKillBrick(obj)
             end
-        end)
+        end))
         table.insert(killBrickConnections, partConn)
     end
 
@@ -435,10 +440,10 @@ local function SetupKillBrickDisable()
         if player.Character then
             onCharacterAdded(player.Character)
         end
-        local addedConn = player.CharacterAdded:Connect(function(char)
+        local addedConn = undeitedhub.Track(player.CharacterAdded:Connect(function(char)
             task.wait(0.1)
             onCharacterAdded(char)
-        end)
+        end))
         table.insert(killBrickConnections, addedConn)
     end
 end
@@ -483,11 +488,11 @@ end
 
 local function StartMonitoring()
     if monitorConnection then return end
-    monitorConnection = RunService.Heartbeat:Connect(function()
+    monitorConnection = undeitedhub.Track(RunService.Heartbeat:Connect(function()
         if collectRunning and _G.UNDEITEDHUB_WINDOW_VISIBLE then
             pcall(MonitorCoin)
         end
-    end)
+    end))
 end
 
 local function StopMonitoring()
@@ -653,7 +658,7 @@ local function StartAutoCollect()
     end
     if CoinCollected and CoinCollected:IsA("RemoteEvent") then
         if coinCollectedConnection then coinCollectedConnection:Disconnect() end
-        coinCollectedConnection = CoinCollected.OnClientEvent:Connect(onCoinCollected)
+        coinCollectedConnection = undeitedhub.Track(CoinCollected.OnClientEvent:Connect(onCoinCollected))
     else
         pcall(function()
             local rs = game:GetService("ReplicatedStorage")
@@ -663,14 +668,14 @@ local function StartAutoCollect()
                 if cc and cc:IsA("RemoteEvent") then
                     CoinCollected = cc
                     if coinCollectedConnection then coinCollectedConnection:Disconnect() end
-                    coinCollectedConnection = CoinCollected.OnClientEvent:Connect(onCoinCollected)
+                    coinCollectedConnection = undeitedhub.Track(CoinCollected.OnClientEvent:Connect(onCoinCollected))
                 end
             end
         end)
     end
     if CoinsStarted and CoinsStarted:IsA("RemoteEvent") then
         if coinsStartedConnection then coinsStartedConnection:Disconnect() end
-        coinsStartedConnection = CoinsStarted.OnClientEvent:Connect(onCoinsStarted)
+        coinsStartedConnection = undeitedhub.Track(CoinsStarted.OnClientEvent:Connect(onCoinsStarted))
     else
         pcall(function()
             local rs = game:GetService("ReplicatedStorage")
@@ -680,7 +685,7 @@ local function StartAutoCollect()
                 if cs and cs:IsA("RemoteEvent") then
                     CoinsStarted = cs
                     if coinsStartedConnection then coinsStartedConnection:Disconnect() end
-                    coinsStartedConnection = CoinsStarted.OnClientEvent:Connect(onCoinsStarted)
+                    coinsStartedConnection = undeitedhub.Track(CoinsStarted.OnClientEvent:Connect(onCoinsStarted))
                 end
             end
         end)
@@ -722,23 +727,23 @@ local function StartAutoCollect()
         if healthChangedConnection then healthChangedConnection:Disconnect() end
         if characterRemovingConnection then characterRemovingConnection:Disconnect() end
         if humanoid then
-            healthChangedConnection = humanoid.HealthChanged:Connect(function(health)
+            healthChangedConnection = undeitedhub.Track(humanoid.HealthChanged:Connect(function(health)
                 if health <= 0 then
                     cancelTweenAndTarget()
                 end
-            end)
+            end))
         end
-        characterRemovingConnection = newChar.AncestryChanged:Connect(function()
+        characterRemovingConnection = undeitedhub.Track(newChar.AncestryChanged:Connect(function()
             if not newChar.Parent then
                 cancelTweenAndTarget()
             end
-        end)
+        end))
     end
     if localPlayer and localPlayer.Character then
         onCharacterAdded(localPlayer.Character)
     end
     if characterAddedConnection then characterAddedConnection:Disconnect() end
-    characterAddedConnection = localPlayer.CharacterAdded:Connect(onCharacterAdded)
+    characterAddedConnection = undeitedhub.Track(localPlayer.CharacterAdded:Connect(onCharacterAdded))
     StartMonitoring()
     SafeNotify({ Title = "Auto Collect Coins", Content = "Enabled", Duration = 2 })
     collectTask = task.spawn(function()
@@ -872,8 +877,7 @@ AutofarmTab:Toggle({
     end
 })
 
-local oldDisable = undeitedhub.DisableAll
-undeitedhub.DisableAll = function()
+undeitedhub.OnClose(function()
     StopAutoCollect()
     killAfterFullEnabled = false
     autoTeleportToLobbyEnabled = false
@@ -887,5 +891,13 @@ undeitedhub.DisableAll = function()
             camera.CameraSubject = hum
         end
     end
-    if oldDisable then oldDisable() end
-end
+    for part, original in pairs(killBrickOriginals) do
+        pcall(function()
+            if part and part.Parent then
+                part.CanTouch = original[1]
+                part.CanCollide = original[2]
+            end
+        end)
+    end
+    killBrickOriginals = {}
+end)
