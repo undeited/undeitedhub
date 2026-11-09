@@ -571,6 +571,266 @@ MiscTab:Toggle({
     end
 })
 
+local function SafeNotify(data)
+    if type(data) ~= "table" then return end
+    if WindUI and type(WindUI.Notify) == "function" then
+        pcall(WindUI.Notify, WindUI, data)
+    else
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = data.Title or "",
+                Text = data.Content or "",
+                Duration = data.Duration or 3,
+            })
+        end)
+    end
+end
+
+-- Walk Fling (ported from Source.lua "walkfling")
+local walkFlingEnabled = false
+local walkFlingConnection = nil
+local walkFlingSpeed = 10000
+
+local function WalkFlingBurst(root, speed)
+    if not (root and root.Parent) then return end
+    local RunService = game:GetService("RunService")
+    local movel = 0.1
+    local ok, v = pcall(function()
+        return root.Velocity
+    end)
+    if not ok or typeof(v) ~= "Vector3" then
+        v = Vector3.zero
+    end
+    pcall(function()
+        root.Velocity = v * speed + Vector3.new(0, speed, 0)
+    end)
+
+    RunService.RenderStepped:Wait()
+    if root and root.Parent then
+        pcall(function()
+            root.Velocity = v
+        end)
+    end
+
+    RunService.Stepped:Wait()
+    if root and root.Parent then
+        pcall(function()
+            root.Velocity = v + Vector3.new(0, movel, 0)
+        end)
+    end
+end
+
+local function StopWalkFling()
+    walkFlingEnabled = false
+    if walkFlingConnection then
+        walkFlingConnection:Disconnect()
+        walkFlingConnection = nil
+    end
+end
+
+local function StartWalkFling()
+    if walkFlingConnection then return end
+    walkFlingEnabled = true
+    walkFlingConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not walkFlingEnabled then return end
+        local lp = game.Players.LocalPlayer
+        local char = lp and lp.Character
+        local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso"))
+        if root then
+            WalkFlingBurst(root, walkFlingSpeed)
+        end
+    end)
+end
+
+MiscTab:Toggle({
+    Title = "Walk Fling",
+    Value = false,
+    Callback = function(state)
+        if state then
+            StartWalkFling()
+        else
+            StopWalkFling()
+        end
+        SafeNotify({
+            Title = "Walk Fling",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
+-- Float (ported from Source.lua "airwalk"/"float")
+local floatEnabled = false
+local floatPart = nil
+local floatLoop = nil
+local floatConnections = {}
+local floatGuis = {}
+local floatVars = {
+    increase = false,
+    decrease = false,
+    isTyping = false,
+    offset = 0,
+}
+
+local function StopFloat()
+    floatEnabled = false
+    if floatLoop then
+        floatLoop:Disconnect()
+        floatLoop = nil
+    end
+    if floatPart then
+        pcall(function() floatPart:Destroy() end)
+        floatPart = nil
+    end
+    for _, conn in ipairs(floatConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    floatConnections = {}
+    for _, gui in ipairs(floatGuis) do
+        pcall(function() gui:Destroy() end)
+    end
+    floatGuis = {}
+    floatVars.increase = false
+    floatVars.decrease = false
+    floatVars.isTyping = false
+end
+
+local function CreateFloatGui()
+    local parent
+    pcall(function()
+        if gethui then parent = gethui() end
+    end)
+    if not parent then
+        local lp = game.Players.LocalPlayer
+        parent = lp and lp:FindFirstChildOfClass("PlayerGui")
+    end
+    if not parent then return end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "UndeitedFloatGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = parent
+    table.insert(floatGuis, screenGui)
+
+    local function makeButton(text, position, down, up)
+        local button = Instance.new("TextButton")
+        button.Name = "Float" .. text .. "Button"
+        button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        button.Position = position
+        button.Size = UDim2.new(0.05, 0, 0.1, 0)
+        button.Font = Enum.Font.Gotham
+        button.Text = text
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextScaled = true
+        button.AutoButtonColor = false
+        button.Parent = screenGui
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = button
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 255, 255)
+        stroke.Thickness = 2
+        stroke.Parent = button
+
+        button.MouseButton1Down:Connect(down)
+        button.MouseButton1Up:Connect(up)
+        button.MouseLeave:Connect(up)
+        return button
+    end
+
+    makeButton("UP", UDim2.new(0.9, 0, 0.5, 0),
+        function() floatVars.increase = true end,
+        function() floatVars.increase = false end)
+    makeButton("DOWN", UDim2.new(0.9, 0, 0.7, 0),
+        function() floatVars.decrease = true end,
+        function() floatVars.decrease = false end)
+end
+
+local function StartFloat()
+    StopFloat()
+    floatEnabled = true
+
+    local UserInputService = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+    if isMobile then
+        CreateFloatGui()
+    else
+        table.insert(floatConnections, UserInputService.TextBoxFocused:Connect(function()
+            floatVars.isTyping = true
+        end))
+        table.insert(floatConnections, UserInputService.TextBoxFocusReleased:Connect(function()
+            floatVars.isTyping = false
+        end))
+        table.insert(floatConnections, UserInputService.InputBegan:Connect(function(input, gpe)
+            if gpe or floatVars.isTyping then return end
+            if input.KeyCode == Enum.KeyCode.E then floatVars.increase = true end
+            if input.KeyCode == Enum.KeyCode.Q then floatVars.decrease = true end
+        end))
+        table.insert(floatConnections, UserInputService.InputEnded:Connect(function(input)
+            if input.KeyCode == Enum.KeyCode.E then floatVars.increase = false end
+            if input.KeyCode == Enum.KeyCode.Q then floatVars.decrease = false end
+        end))
+    end
+
+    floatPart = Instance.new("Part")
+    floatPart.Name = "UndeitedFloatPart"
+    floatPart.Size = Vector3.new(10, 2, 10)
+    floatPart.Transparency = 1
+    floatPart.Anchored = true
+    floatPart.CanCollide = true
+    floatPart.Parent = workspace
+
+    floatLoop = RunService.RenderStepped:Connect(function()
+        if not floatEnabled or not floatPart then return end
+
+        local lp = game.Players.LocalPlayer
+        local char = lp and lp.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not (char and root and hum) then return end
+
+        local hrpHalf = root.Size.Y * 0.5
+        local partHalf = floatPart.Size.Y * 0.5
+
+        local feetFromRoot
+        if hum.RigType == Enum.HumanoidRigType.R6 then
+            feetFromRoot = hrpHalf + 2
+            if hum.HipHeight and hum.HipHeight > 0 then
+                feetFromRoot = hrpHalf + hum.HipHeight
+            end
+        else
+            feetFromRoot = hrpHalf + (hum.HipHeight or 2)
+        end
+
+        local baseOffset = feetFromRoot + partHalf
+        local delta = (floatVars.decrease and 1.5) or (floatVars.increase and -1.5) or 0
+        floatVars.offset = math.max(0, baseOffset + delta)
+
+        floatPart.CFrame = CFrame.new(root.Position.X, root.Position.Y - floatVars.offset, root.Position.Z)
+    end)
+end
+
+MiscTab:Toggle({
+    Title = "Float",
+    Value = false,
+    Callback = function(state)
+        if state then
+            StartFloat()
+        else
+            StopFloat()
+        end
+        SafeNotify({
+            Title = "Float",
+            Content = state and "Enabled (Q / E to go down / up)" or "Disabled",
+            Duration = 2,
+        })
+    end
+})
+
 undeitedhub.DisableAll = function()
     antiFlingEnabled = false
     undeitedhub.Toggles.antiFlingEnabled = false
@@ -598,5 +858,7 @@ undeitedhub.DisableAll = function()
         noclipEnabled = false
         undeitedhub.Toggles.noclipEnabled = false
     end
+    StopWalkFling()
+    StopFloat()
     if undeitedhub.SaveSettings then undeitedhub.SaveSettings() end
 end

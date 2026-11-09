@@ -643,13 +643,6 @@ local function BuildShotContext()
     if not IsPlayerAlive() then return nil, "you are dead" end
     if IsInLobby() then return nil, "you are in lobby" end
 
-    local equipped, equipErr = EquipGun()
-    if not equipped then return nil, "cannot equip gun (" .. tostring(equipErr) .. ")" end
-    local gun = GetPlayerGun()
-    if not gun then return nil, "no gun" end
-    local shootRemote, remoteErr = GetShootRemote()
-    if not shootRemote then return nil, "no shoot remote (" .. tostring(remoteErr) .. ")" end
-
     if not undeitedhub.GetCurrentMurderer then return nil, "no murderer detector" end
     local murderer = undeitedhub.GetCurrentMurderer()
     if not murderer then return nil, "no murderer detected" end
@@ -658,12 +651,43 @@ local function BuildShotContext()
     local rootPart = murdererChar:FindFirstChild("HumanoidRootPart")
     if not rootPart then return nil, "murderer no HRP" end
 
+    local currentPos = rootPart.Position
+    UpdateMurdererHistory(murderer, currentPos)
+
+    -- Only pull out the gun when the murderer is actually visible.
+    -- Gun origin isn't reliable while the tool is in the backpack, so check from the head.
+    local myChar = localPlayer.Character
+    local eye = myChar and (myChar:FindFirstChild("Head") or myChar:FindFirstChild("HumanoidRootPart"))
+    if not eye then return nil, "no character" end
+    local murdererHead = murdererChar:FindFirstChild("Head")
+    local visibilityPoints = {
+        currentPos,
+        currentPos + Vector3.new(0, 1, 0),
+    }
+    if murdererHead and murdererHead:IsA("BasePart") then
+        table.insert(visibilityPoints, murdererHead.Position)
+    end
+    local murdererVisible = false
+    for _, point in ipairs(visibilityPoints) do
+        local visible = CheckLineOfSight(eye.Position, point, murdererChar, localPlayer)
+        if visible then
+            murdererVisible = true
+            break
+        end
+    end
+    if not murdererVisible then return nil, "murderer not visible" end
+
+    local equipped, equipErr = EquipGun()
+    if not equipped then return nil, "cannot equip gun (" .. tostring(equipErr) .. ")" end
+    local gun = GetPlayerGun()
+    if not gun then return nil, "no gun" end
+    local shootRemote, remoteErr = GetShootRemote()
+    if not shootRemote then return nil, "no shoot remote (" .. tostring(remoteErr) .. ")" end
+
     local originCFrame = GetGunOriginCFrame()
     if not originCFrame then return nil, "no origin" end
     local originPos = originCFrame.Position
 
-    local currentPos = rootPart.Position
-    UpdateMurdererHistory(murderer, currentPos)
     local velocity, speed = GetMurdererVelocity(murderer)
 
     local predictedPos = ComputePredictedPosition(originPos, currentPos, velocity, speed)
